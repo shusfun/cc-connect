@@ -432,6 +432,12 @@ type AgentSessionCreationTarget interface {
 	SetCreationTarget(projectID, title string)
 }
 
+// AgentSessionHostTarget receives the host identifier published by the
+// current Agent's session catalog before a session sends or observes a task.
+type AgentSessionHostTarget interface {
+	SetHostID(hostID string)
+}
+
 // PermissionResult represents the user's decision on a permission request.
 type PermissionResult struct {
 	Behavior     string         `json:"behavior"`               // "allow" or "deny"

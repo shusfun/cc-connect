@@ -21,6 +21,7 @@ type Session struct {
 	ID                  string   `json:"id"`
 	Name                string   `json:"name"`
 	AgentSessionID      string   `json:"agent_session_id"`
+	AgentSessionHostID  string   `json:"agent_session_host_id,omitempty"`
 	AgentType           string   `json:"agent_type,omitempty"`
 	PastAgentSessionIDs []string `json:"past_agent_session_ids,omitempty"`
 	// ActiveProvider is the agent provider name that was active when this
@@ -108,6 +109,12 @@ func (s *Session) recordPastAgentSessionID() {
 
 // SetAgentInfo atomically sets the agent session ID, agent type, and name.
 func (s *Session) SetAgentInfo(agentSessionID, agentType, name string) {
+	s.SetAgentInfoAtHost(agentSessionID, "", agentType, name)
+}
+
+// SetAgentInfoAtHost binds this platform session to one authoritative agent
+// task. hostID disambiguates identical task IDs exposed by different hosts.
+func (s *Session) SetAgentInfoAtHost(agentSessionID, hostID, agentType, name string) {
 	if agentSessionID == ContinueSession {
 		agentSessionID = ""
 	}
@@ -117,6 +124,7 @@ func (s *Session) SetAgentInfo(agentSessionID, agentType, name string) {
 		s.recordPastAgentSessionID()
 	}
 	s.AgentSessionID = agentSessionID
+	s.AgentSessionHostID = hostID
 	s.AgentType = agentType
 	s.Name = name
 }
@@ -126,6 +134,12 @@ func (s *Session) GetAgentSessionID() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.AgentSessionID
+}
+
+func (s *Session) GetAgentSessionHostID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.AgentSessionHostID
 }
 
 func (s *Session) SetPendingAgentSessionCreation(projectID string) {
@@ -420,6 +434,12 @@ func (sm *SessionManager) SwitchSession(userKey, target string) (*Session, error
 // it becomes the active session. Otherwise a new session is created so the
 // previous session's AgentSessionID is preserved in KnownAgentSessionIDs.
 func (sm *SessionManager) SwitchToAgentSession(userKey, agentSID, agentName, summary string) *Session {
+	return sm.SwitchToAgentSessionAtHost(userKey, agentSID, "", agentName, summary)
+}
+
+// SwitchToAgentSessionAtHost selects an authoritative agent task using the
+// host and task ID pair reported by the agent catalog.
+func (sm *SessionManager) SwitchToAgentSessionAtHost(userKey, agentSID, hostID, agentName, summary string) *Session {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -430,8 +450,9 @@ func (sm *SessionManager) SwitchToAgentSession(userKey, agentSID, agentName, sum
 		}
 		s.mu.Lock()
 		aid := s.AgentSessionID
+		host := s.AgentSessionHostID
 		s.mu.Unlock()
-		if aid == agentSID {
+		if aid == agentSID && host == hostID {
 			sm.activeSession[userKey] = s.ID
 			sm.saveLocked()
 			return s
@@ -439,7 +460,7 @@ func (sm *SessionManager) SwitchToAgentSession(userKey, agentSID, agentName, sum
 	}
 
 	s := sm.createLocked(userKey, summary)
-	s.SetAgentInfo(agentSID, agentName, summary)
+	s.SetAgentInfoAtHost(agentSID, hostID, agentName, summary)
 	sm.saveLocked()
 	return s
 }

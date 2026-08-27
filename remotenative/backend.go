@@ -24,7 +24,17 @@ type Backend struct {
 	client        *http.Client
 	base          string
 	mu            sync.RWMutex
-	threadDevices map[string]string
+	threadDevices map[taskKey]taskLocation
+}
+
+type taskKey struct {
+	deviceID string
+	taskID   string
+}
+
+type taskLocation struct {
+	deviceID     string
+	nativeHostID string
 }
 
 func New(socketPath string) (*Backend, error) {
@@ -34,7 +44,7 @@ func New(socketPath string) (*Backend, error) {
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
 	}}
-	return &Backend{client: &http.Client{Transport: transport}, base: "http://cc-connect-control", threadDevices: make(map[string]string)}, nil
+	return &Backend{client: &http.Client{Transport: transport}, base: "http://cc-connect-control", threadDevices: make(map[taskKey]taskLocation)}, nil
 }
 
 func (b *Backend) Name() string                 { return "codexapp" }
@@ -70,33 +80,37 @@ func (b *Backend) ListSessions(ctx context.Context) ([]core.AgentSessionInfo, er
 		if err := b.rpc(ctx, deviceID, runtimeprotocol.MethodTaskList, nil, &sessions); err != nil {
 			return nil, err
 		}
-		b.mu.Lock()
-		for _, session := range sessions {
-			b.threadDevices[session.ID] = deviceID
+		for index := range sessions {
+			b.rememberTask(&sessions[index], deviceID)
 		}
-		b.mu.Unlock()
 		result = append(result, sessions...)
 	}
 	return result, nil
 }
 
 func (b *Backend) ReadSession(ctx context.Context, sessionID, hostID, cursor string, limit int) (core.AgentSessionSnapshot, error) {
-	deviceID, err := b.deviceForTask(ctx, sessionID)
+	location, err := b.locationForTask(ctx, sessionID, hostID)
 	if err != nil {
 		return core.AgentSessionSnapshot{}, err
 	}
 	var result core.AgentSessionSnapshot
-	err = b.rpc(ctx, deviceID, runtimeprotocol.MethodTaskRead, runtimeprotocol.TaskReadRequest{TaskRef: runtimeprotocol.TaskRef{TaskID: sessionID, HostID: hostID}, Cursor: cursor, Limit: limit}, &result)
+	err = b.rpc(ctx, location.deviceID, runtimeprotocol.MethodTaskRead, runtimeprotocol.TaskReadRequest{TaskRef: runtimeprotocol.TaskRef{TaskID: sessionID, HostID: location.nativeHostID}, Cursor: cursor, Limit: limit}, &result)
+	if err == nil {
+		b.rememberTask(&result.Session, location.deviceID)
+	}
 	return result, err
 }
 
 func (b *Backend) WaitSession(ctx context.Context, sessionID, hostID, cursor string, timeout time.Duration) (core.AgentSessionSnapshot, error) {
-	deviceID, err := b.deviceForTask(ctx, sessionID)
+	location, err := b.locationForTask(ctx, sessionID, hostID)
 	if err != nil {
 		return core.AgentSessionSnapshot{}, err
 	}
 	var result core.AgentSessionSnapshot
-	err = b.rpc(ctx, deviceID, runtimeprotocol.MethodTaskWait, runtimeprotocol.TaskWaitRequest{TaskRef: runtimeprotocol.TaskRef{TaskID: sessionID, HostID: hostID}, Cursor: cursor, TimeoutMS: timeout.Milliseconds()}, &result)
+	err = b.rpc(ctx, location.deviceID, runtimeprotocol.MethodTaskWait, runtimeprotocol.TaskWaitRequest{TaskRef: runtimeprotocol.TaskRef{TaskID: sessionID, HostID: location.nativeHostID}, Cursor: cursor, TimeoutMS: timeout.Milliseconds()}, &result)
+	if err == nil {
+		b.rememberTask(&result.Session, location.deviceID)
+	}
 	return result, err
 }
 
@@ -113,16 +127,14 @@ func (b *Backend) CreateSession(ctx context.Context, request core.AgentSessionCr
 		if err := b.rpc(ctx, workspace.DeviceID, runtimeprotocol.MethodTaskCreate, request, &result); err != nil {
 			return result, err
 		}
-		b.mu.Lock()
-		b.threadDevices[result.ID] = workspace.DeviceID
-		b.mu.Unlock()
+		b.rememberTask(&result, workspace.DeviceID)
 		return result, nil
 	}
 	return core.AgentSessionInfo{}, fmt.Errorf("remote codex app: project not found: %s", request.ProjectID)
 }
 
 func (b *Backend) UpdateSessionMetadata(ctx context.Context, sessionID, hostID string, patch core.AgentSessionMetadataPatch) error {
-	deviceID, err := b.deviceForTask(ctx, sessionID)
+	location, err := b.locationForTask(ctx, sessionID, hostID)
 	if err != nil {
 		return err
 	}
@@ -130,8 +142,8 @@ func (b *Backend) UpdateSessionMetadata(ctx context.Context, sessionID, hostID s
 		TaskID string                         `json:"task_id"`
 		HostID string                         `json:"host_id,omitempty"`
 		Patch  core.AgentSessionMetadataPatch `json:"patch"`
-	}{sessionID, hostID, patch}
-	return b.rpc(ctx, deviceID, runtimeprotocol.MethodTaskMetadata, request, nil)
+	}{sessionID, location.nativeHostID, patch}
+	return b.rpc(ctx, location.deviceID, runtimeprotocol.MethodTaskMetadata, request, nil)
 }
 
 func (b *Backend) SessionCapabilities(ctx context.Context, hostID string) (core.AgentSessionCapabilities, error) {
@@ -168,23 +180,57 @@ func (b *Backend) StartSession(ctx context.Context, sessionID string) (core.Agen
 	return session, nil
 }
 
-func (b *Backend) deviceForTask(ctx context.Context, sessionID string) (string, error) {
-	b.mu.RLock()
-	deviceID := b.threadDevices[sessionID]
-	b.mu.RUnlock()
-	if deviceID != "" {
-		return deviceID, nil
+func (b *Backend) locationForTask(ctx context.Context, sessionID, deviceID string) (taskLocation, error) {
+	key := taskKey{deviceID: strings.TrimSpace(deviceID), taskID: sessionID}
+	if location, found, err := b.cachedTaskLocation(key); found || err != nil {
+		return location, err
 	}
 	if _, err := b.ListSessions(ctx); err != nil {
-		return "", err
+		return taskLocation{}, err
 	}
+	location, found, err := b.cachedTaskLocation(key)
+	if err != nil {
+		return taskLocation{}, err
+	}
+	if !found {
+		return taskLocation{}, fmt.Errorf("remote codex app: task not found: host=%s task=%s", deviceID, sessionID)
+	}
+	return location, nil
+}
+
+func (b *Backend) cachedTaskLocation(key taskKey) (taskLocation, bool, error) {
 	b.mu.RLock()
-	deviceID = b.threadDevices[sessionID]
-	b.mu.RUnlock()
-	if deviceID == "" {
-		return "", fmt.Errorf("remote codex app: task not found: %s", sessionID)
+	defer b.mu.RUnlock()
+	if key.deviceID != "" {
+		location, found := b.threadDevices[key]
+		return location, found, nil
 	}
-	return deviceID, nil
+	var match taskLocation
+	for candidate, location := range b.threadDevices {
+		if candidate.taskID != key.taskID {
+			continue
+		}
+		if match.deviceID != "" && match.deviceID != location.deviceID {
+			return taskLocation{}, false, fmt.Errorf("remote codex app: host_id is required because task %s exists on multiple Runtime hosts", key.taskID)
+		}
+		match = location
+	}
+	return match, match.deviceID != "", nil
+}
+
+func (b *Backend) rememberTask(session *core.AgentSessionInfo, deviceID string) {
+	if session == nil || session.ID == "" {
+		return
+	}
+	location := taskLocation{deviceID: deviceID, nativeHostID: session.HostID}
+	key := taskKey{deviceID: deviceID, taskID: session.ID}
+	b.mu.Lock()
+	if location.nativeHostID == "" {
+		location.nativeHostID = b.threadDevices[key].nativeHostID
+	}
+	b.threadDevices[key] = location
+	b.mu.Unlock()
+	session.HostID = deviceID
 }
 
 func (b *Backend) catalog(ctx context.Context) ([]controlplane.CatalogWorkspace, error) {

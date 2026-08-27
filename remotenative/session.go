@@ -20,6 +20,7 @@ type remoteSession struct {
 	id        string
 	projectID string
 	title     string
+	hostID    string
 	mu        sync.RWMutex
 	alive     atomic.Bool
 	closeOnce sync.Once
@@ -55,13 +56,16 @@ func (s *remoteSession) Send(prompt, messageID string, images []core.ImageAttach
 			s.observeCreated(created)
 			return
 		}
-		deviceID, err := s.backend.deviceForTask(s.ctx, taskID)
+		s.mu.RLock()
+		hostID := s.hostID
+		s.mu.RUnlock()
+		location, err := s.backend.locationForTask(s.ctx, taskID, hostID)
 		if err != nil {
 			s.emit(core.Event{Type: core.EventError, Error: err, Done: true})
 			return
 		}
 		var result runtimeprotocol.TaskSendResult
-		err = s.backend.rpc(s.ctx, deviceID, runtimeprotocol.MethodTaskSend, runtimeprotocol.TaskSendRequest{TaskRef: runtimeprotocol.TaskRef{TaskID: taskID}, Prompt: prompt, MessageID: messageID}, &result)
+		err = s.backend.rpc(s.ctx, location.deviceID, runtimeprotocol.MethodTaskSend, runtimeprotocol.TaskSendRequest{TaskRef: runtimeprotocol.TaskRef{TaskID: taskID, HostID: location.nativeHostID}, Prompt: prompt, MessageID: messageID}, &result)
 		if err != nil {
 			s.emit(core.Event{Type: core.EventError, Error: err, Done: true})
 			return
@@ -119,6 +123,11 @@ func (s *remoteSession) SetCreationTarget(projectID, title string) {
 	s.projectID = projectID
 	s.title = title
 }
+func (s *remoteSession) SetHostID(hostID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hostID = hostID
+}
 func (s *remoteSession) Alive() bool { return s.alive.Load() }
 func (s *remoteSession) Close() error {
 	s.closeOnce.Do(func() { s.alive.Store(false); s.cancel(); s.wg.Wait(); close(s.events) })
@@ -133,3 +142,4 @@ func (s *remoteSession) emit(event core.Event) {
 
 var _ core.AgentSession = (*remoteSession)(nil)
 var _ core.AgentSessionCreationTarget = (*remoteSession)(nil)
+var _ core.AgentSessionHostTarget = (*remoteSession)(nil)
