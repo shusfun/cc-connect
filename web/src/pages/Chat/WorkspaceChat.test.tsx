@@ -130,6 +130,24 @@ describe('Codex App 工作区聊天', () => {
     }));
   });
 
+  it('浏览器 scrollIntoView 返回非函数值时卸载任务页不会调用它作为 effect cleanup', async () => {
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(() => Promise.resolve()),
+    });
+    try {
+      const view = renderChat('/chat/project-1/task-1');
+      expect(await view.findByText('现有消息')).toBeTruthy();
+      expect(() => view.unmount()).not.toThrow();
+    } finally {
+      Object.defineProperty(Element.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: originalScrollIntoView,
+      });
+    }
+  });
+
   it('App schema 缺少元数据能力时菜单明确禁用操作', async () => {
     mocks.getAgentCapabilities.mockResolvedValue({
       capabilities: {
