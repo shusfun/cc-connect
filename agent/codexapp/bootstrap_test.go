@@ -39,6 +39,20 @@ func TestBootstrapRuntimeRequiresInteractiveCodexAppTerminal(t *testing.T) {
 	}
 }
 
+func TestBootstrapRelayUsesNumericProbeIDsAcceptedByDesktopApp(t *testing.T) {
+	for _, declaration := range []string{
+		"const toolsProbeId = 1;",
+		"const projectsProbeId = 2;",
+	} {
+		if !strings.Contains(bootstrapRelayScript, declaration) {
+			t.Fatalf("bootstrap relay is missing numeric probe declaration %q", declaration)
+		}
+	}
+	if strings.Contains(bootstrapRelayScript, `id:"cc-connect-`) {
+		t.Fatal("bootstrap relay still sends string JSON-RPC probe IDs")
+	}
+}
+
 func TestInheritedRelayDoesNotScanDesktopSockets(t *testing.T) {
 	candidatesCalled := false
 	bridge, err := NewBridge(BridgeOptions{

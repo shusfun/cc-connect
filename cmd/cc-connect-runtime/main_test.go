@@ -62,4 +62,15 @@ func TestRunRequiresInteractiveCodexAppTerminal(t *testing.T) {
 	}
 }
 
+func TestRunAcceptsExplicitCosignPathBeforeInteractiveBootstrap(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CODEX_APP_TOOLS_PIPE_PATH", "")
+	t.Setenv("CODEX_THREAD_ID", "")
+	t.Setenv("CC_CONNECT_CODEXAPP_BRIDGE_FD", "")
+	err := run([]string{"--cosign", "/opt/cc-connect/bin/cosign"})
+	if err == nil || !strings.Contains(err.Error(), "interactive Codex App terminal") {
+		t.Fatalf("run() error = %v", err)
+	}
+}
+
 var _ core.AgentProjectCatalog = runtimeValidationAgent{}

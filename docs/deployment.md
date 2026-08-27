@@ -42,7 +42,7 @@ sh cc-connect-runtime-install.sh --server https://cc.example.com --code <code> -
 After verification, installation, and pairing, the installer starts Runtime as a foreground process in that App terminal. Closing the terminal takes the device offline. The installer stops and precisely removes the obsolete `dev.cc-connect.runtime` LaunchAgent. Restart an installed Runtime from an App terminal with:
 
 ```bash
-"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime"
+"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime" --cosign "$(command -v cosign)"
 ```
 
 The Ed25519 private key stays in macOS Keychain. The launcher re-execs into the App-bundled Node supervisor and passes the verified App Socket to the Go worker through an inherited fd. Runtime connects outbound over TLS/WebSocket; catalog sync sends opaque project metadata and never conversation bodies. Runtime never starts a second Codex App Server.

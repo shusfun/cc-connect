@@ -259,6 +259,9 @@ sha256sum "$@"
 	if strings.TrimSpace(readFile(t, filepath.Join(state, "start-count"))) != "2" {
 		t.Fatal("runtime installer did not hand off to the foreground Runtime")
 	}
+	if args := strings.TrimSpace(readFile(t, filepath.Join(state, "start-args"))); args != "--cosign cosign" {
+		t.Fatalf("runtime installer arguments = %q", args)
+	}
 	slot := filepath.Join(state, "releases", fixture.manifest.Tag)
 	assertMode(t, filepath.Join(slot, "manifest.json"), 0o600)
 	assertMode(t, filepath.Join(slot, "manifest.bundle"), 0o600)
@@ -289,7 +292,7 @@ func newReleaseFixture(t *testing.T, executableRuntime bool) releaseFixture {
 		binary := "cc-connect-" + target[0]
 		contents := []byte(target[0])
 		if target[0] == "runtime" && executableRuntime {
-			contents = []byte("#!/bin/sh\nstate=\"$HOME/Library/Application Support/cc-connect-runtime\"\nmkdir -p \"$state\"\nif [ \"${1:-}\" = pair ]; then\n  count=0\n  [ ! -f \"$state/pair-count\" ] || count=$(cat \"$state/pair-count\")\n  printf '%s\\n' $((count + 1)) > \"$state/pair-count\"\n  printf '{\"server_url\":\"https://cc.example.com\",\"device_id\":\"device-test\"}\\n' > \"$state/identity.json\"\nelse\n  count=0\n  [ ! -f \"$state/start-count\" ] || count=$(cat \"$state/start-count\")\n  printf '%s\\n' $((count + 1)) > \"$state/start-count\"\nfi\n")
+			contents = []byte("#!/bin/sh\nstate=\"$HOME/Library/Application Support/cc-connect-runtime\"\nmkdir -p \"$state\"\nif [ \"${1:-}\" = pair ]; then\n  count=0\n  [ ! -f \"$state/pair-count\" ] || count=$(cat \"$state/pair-count\")\n  printf '%s\\n' $((count + 1)) > \"$state/pair-count\"\n  printf '{\"server_url\":\"https://cc.example.com\",\"device_id\":\"device-test\"}\\n' > \"$state/identity.json\"\nelse\n  count=0\n  [ ! -f \"$state/start-count\" ] || count=$(cat \"$state/start-count\")\n  printf '%s\\n' $((count + 1)) > \"$state/start-count\"\n  printf '%s\\n' \"$*\" > \"$state/start-args\"\nfi\n")
 		}
 		var archive []byte
 		if target[0] == "deployhost" {
