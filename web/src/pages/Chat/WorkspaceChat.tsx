@@ -216,7 +216,9 @@ export default function WorkspaceChat() {
     };
   }, [bridgeProject, isDraft, refreshSelected, selectedTaskID]);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), [snapshot?.history.length]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [snapshot?.history.length]);
 
   const submit = async () => {
     const prompt = input.trim();
