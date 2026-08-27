@@ -20,6 +20,12 @@ type stubMainAgent struct {
 	workDir string
 }
 
+type stubAuthoritativeMainAgent struct {
+	stubMainAgent
+}
+
+func (*stubAuthoritativeMainAgent) AuthoritativeSessionHistory() {}
+
 func (a *stubMainAgent) Name() string { return "stub-main" }
 
 func (a *stubMainAgent) StartSession(_ context.Context, _ string) (core.AgentSession, error) {
@@ -50,6 +56,25 @@ func (s *stubMainAgentSession) Events() <-chan core.Event                       
 func (s *stubMainAgentSession) Close() error                                          { return nil }
 func (s *stubMainAgentSession) CurrentSessionID() string                              { return "" }
 func (s *stubMainAgentSession) Alive() bool                                           { return true }
+
+func TestFinalizeProjectPlatforms(t *testing.T) {
+	t.Run("authoritative agent receives management platform", func(t *testing.T) {
+		platforms, err := finalizeProjectPlatforms("codex-app", &stubAuthoritativeMainAgent{}, nil)
+		if err != nil {
+			t.Fatalf("finalizeProjectPlatforms() error = %v", err)
+		}
+		if len(platforms) != 1 || platforms[0].Name() != "web" {
+			t.Fatalf("platforms = %#v, want management platform", platforms)
+		}
+	})
+
+	t.Run("ordinary agent without platform is rejected", func(t *testing.T) {
+		_, err := finalizeProjectPlatforms("demo", &stubMainAgent{}, nil)
+		if err == nil || !strings.Contains(err.Error(), "does not support management sessions") {
+			t.Fatalf("finalizeProjectPlatforms() error = %v", err)
+		}
+	})
+}
 
 func TestProjectStatePath(t *testing.T) {
 	dataDir := t.TempDir()

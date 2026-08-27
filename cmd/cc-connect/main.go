@@ -384,9 +384,6 @@ func main() {
 		providerWiring := wireAgentProviders(agent, proj.Agent)
 
 		var platforms []core.Platform
-		if _, authoritative := agent.(core.AuthoritativeSessionHistory); authoritative {
-			platforms = append(platforms, core.NewManagementPlatform())
-		}
 		for _, pc := range proj.Platforms {
 			opts := make(map[string]any, len(pc.Options)+2)
 			for k, v := range pc.Options {
@@ -400,6 +397,12 @@ func main() {
 				os.Exit(1)
 			}
 			platforms = append(platforms, p)
+		}
+		platforms, err = finalizeProjectPlatforms(proj.Name, agent, platforms)
+		if err != nil {
+			slog.Error("project has no available platform", "project", proj.Name, "error", err)
+			_ = agent.Stop()
+			os.Exit(1)
 		}
 
 		workDir, _ := proj.Agent.Options["work_dir"].(string)
@@ -1364,6 +1367,17 @@ func main() {
 	}
 
 	slog.Info("bye")
+}
+
+func finalizeProjectPlatforms(project string, agent core.Agent, configured []core.Platform) ([]core.Platform, error) {
+	platforms := configured
+	if _, authoritative := agent.(core.AuthoritativeSessionHistory); authoritative {
+		platforms = append([]core.Platform{core.NewManagementPlatform()}, platforms...)
+	}
+	if len(platforms) == 0 {
+		return nil, fmt.Errorf("project %q agent %q has no configured platform and does not support management sessions", project, agent.Name())
+	}
+	return platforms, nil
 }
 
 func runTopLevelCommand(args []string) bool {
