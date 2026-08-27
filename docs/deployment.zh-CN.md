@@ -42,7 +42,7 @@ sh cc-connect-runtime-install.sh --server https://cc.example.com --code <pairing
 安装器验签、安装并配对后，会在同一 App 终端以前台进程启动 Runtime；关闭该终端会使设备离线。旧 `dev.cc-connect.runtime` LaunchAgent 会被停止并精确删除。已安装 Runtime 可从 App 终端重新启动：
 
 ```bash
-"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime"
+"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime" --cosign "$(command -v cosign)"
 ```
 
 Runtime 私钥只保存在 macOS Keychain。launcher re-exec 为 App 内置 Node supervisor，再将已校验的 App Socket 通过继承 FD 交给 Go worker。Runtime 通过出站 TLS/WebSocket 连接 control；catalog 同步只传不透明项目元数据，不上传对话正文。Runtime 不启动第二个 Codex App Server。
