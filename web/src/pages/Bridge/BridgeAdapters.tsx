@@ -4,9 +4,11 @@ import { Cable, Wifi } from 'lucide-react';
 import { Card, Badge, EmptyState } from '@/components/ui';
 import { listBridgeAdapters, type BridgeAdapter } from '@/api/bridge';
 import { formatTime } from '@/lib/utils';
+import { useRefresh } from '@/store/refresh';
 
 export default function BridgeAdapters() {
   const { t } = useTranslation();
+  const { generation } = useRefresh();
   const [adapters, setAdapters] = useState<BridgeAdapter[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,11 +23,8 @@ export default function BridgeAdapters() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-    const handler = () => fetchData();
-    window.addEventListener('cc:refresh', handler);
-    return () => window.removeEventListener('cc:refresh', handler);
-  }, [fetchData]);
+    void fetchData();
+  }, [fetchData, generation]);
 
   if (loading && adapters.length === 0) {
     return <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse">Loading...</div>;

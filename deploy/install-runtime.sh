@@ -59,7 +59,7 @@ actual="$(shasum -a 256 "$tmp/$artifact" | awk '{print $1}')"
 test "$actual" = "$expected" || { echo "Runtime 制品摘要不匹配" >&2; exit 1; }
 
 slot="$state/releases/$tag"
-mkdir -p "$slot" "$state/logs" "$HOME/Library/LaunchAgents"
+mkdir -p "$slot" "$state/logs"
 chmod 700 "$state" "$state/releases" "$slot" "$state/logs"
 tar -xzf "$tmp/$artifact" -C "$slot"
 chmod 755 "$slot/cc-connect-runtime"
@@ -71,21 +71,9 @@ if [ ! -f "$identity" ]; then
 fi
 
 plist="$HOME/Library/LaunchAgents/dev.cc-connect.runtime.plist"
-cat > "$plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>dev.cc-connect.runtime</string>
-  <key>ProgramArguments</key><array><string>$state/current/cc-connect-runtime</string></array>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>$state/logs/runtime.log</string>
-  <key>StandardErrorPath</key><string>$state/logs/runtime-error.log</string>
-</dict></plist>
-PLIST
-chmod 600 "$plist"
 if launchctl print "gui/$(id -u)/dev.cc-connect.runtime" >/dev/null 2>&1; then
   launchctl bootout "gui/$(id -u)/dev.cc-connect.runtime"
 fi
-launchctl bootstrap "gui/$(id -u)" "$plist"
-echo "Runtime 已安装并配对，launchd 标签: dev.cc-connect.runtime"
+rm -f "$plist"
+echo "Runtime 已安装并配对，正在当前 Codex App 终端中启动。关闭此终端会断开 Runtime。"
+exec "$state/current/cc-connect-runtime"

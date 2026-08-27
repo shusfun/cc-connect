@@ -7,6 +7,8 @@ import './i18n';
 import { useAuthStore } from './store/auth';
 import { useThemeStore } from './store/theme';
 import { api } from './api/client';
+import { FeedbackProvider } from './components/ui';
+import { RefreshProvider } from './store/refresh';
 
 useAuthStore.getState().init();
 useThemeStore.getState().init();
@@ -19,7 +21,11 @@ api.setOnUnauthorized(() => {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <FeedbackProvider>
+        <RefreshProvider>
+          <App />
+        </RefreshProvider>
+      </FeedbackProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );

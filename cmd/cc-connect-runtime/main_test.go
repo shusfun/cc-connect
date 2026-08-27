@@ -3,55 +3,63 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/chenhg5/cc-connect/core"
 )
 
-type runtimeValidationCatalog struct {
-	core.WorkspaceCatalogProvider
-	workspaces []core.Workspace
-	err        error
+type runtimeValidationAgent struct {
+	core.Agent
+	projects   []core.AgentProjectInfo
+	projectErr error
+	sessionErr error
 }
 
-func (c runtimeValidationCatalog) ListWorkspaces(context.Context) ([]core.Workspace, error) {
-	return c.workspaces, c.err
+func (a runtimeValidationAgent) ListProjects(context.Context) ([]core.AgentProjectInfo, error) {
+	return a.projects, a.projectErr
 }
 
-type runtimeValidationBackend struct {
-	core.NativeConversationBackend
-	workspaceRef string
-	err          error
+func (a runtimeValidationAgent) ListSessions(context.Context) ([]core.AgentSessionInfo, error) {
+	return nil, a.sessionErr
 }
 
-func (b *runtimeValidationBackend) NativeRuntimeCatalog(_ context.Context, workspace core.Workspace) (core.NativeRuntimeCatalog, error) {
-	b.workspaceRef = workspace.Ref
-	return core.NativeRuntimeCatalog{}, b.err
-}
-
-func TestValidateCodexRuntimeRequiresAvailableProjectAndNativeCatalog(t *testing.T) {
+func TestValidateCodexRuntimeRequiresDesktopAppProjectsAndTasks(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		backend := &runtimeValidationBackend{}
-		err := validateCodexRuntime(context.Background(), runtimeValidationCatalog{workspaces: []core.Workspace{
-			{Ref: "invalid", Available: false}, {Ref: "valid", Available: true},
-		}}, backend)
-		if err != nil || backend.workspaceRef != "valid" {
-			t.Fatalf("validateCodexRuntime() = %v, workspace=%q", err, backend.workspaceRef)
+		err := validateCodexRuntime(context.Background(), runtimeValidationAgent{projects: []core.AgentProjectInfo{{ID: "project-1", Name: "项目"}}})
+		if err != nil {
+			t.Fatalf("validateCodexRuntime() = %v", err)
 		}
 	})
 
-	t.Run("no available project", func(t *testing.T) {
-		err := validateCodexRuntime(context.Background(), runtimeValidationCatalog{workspaces: []core.Workspace{{Ref: "invalid"}}}, &runtimeValidationBackend{})
-		if err == nil || !strings.Contains(err.Error(), "没有有效项目") {
+	t.Run("no projects", func(t *testing.T) {
+		err := validateCodexRuntime(context.Background(), runtimeValidationAgent{})
+		if err == nil || !strings.Contains(err.Error(), "没有可用项目") {
 			t.Fatalf("validateCodexRuntime() error = %v", err)
 		}
 	})
 
-	t.Run("native authentication", func(t *testing.T) {
-		err := validateCodexRuntime(context.Background(), runtimeValidationCatalog{workspaces: []core.Workspace{{Ref: "valid", Available: true}}}, &runtimeValidationBackend{err: errors.New("not authenticated")})
-		if err == nil || !strings.Contains(err.Error(), "认证") {
+	t.Run("task catalog unavailable", func(t *testing.T) {
+		err := validateCodexRuntime(context.Background(), runtimeValidationAgent{projects: []core.AgentProjectInfo{{ID: "project-1", Name: "项目"}}, sessionErr: errors.New("offline")})
+		if err == nil || !strings.Contains(err.Error(), "无法读取 Codex App 任务状态") {
 			t.Fatalf("validateCodexRuntime() error = %v", err)
 		}
 	})
 }
+
+func TestRunRequiresInteractiveCodexAppTerminal(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CODEX_APP_TOOLS_PIPE_PATH", "")
+	t.Setenv("CODEX_THREAD_ID", "")
+	t.Setenv("CC_CONNECT_CODEXAPP_BRIDGE_FD", "")
+	err := run(nil)
+	if err == nil || !strings.Contains(err.Error(), "interactive Codex App terminal") {
+		t.Fatalf("run() error = %v", err)
+	}
+	if _, statErr := os.Stat(defaultStateDirectory()); statErr != nil && !os.IsNotExist(statErr) {
+		t.Fatalf("inspect Runtime state: %v", statErr)
+	}
+}
+
+var _ core.AgentProjectCatalog = runtimeValidationAgent{}

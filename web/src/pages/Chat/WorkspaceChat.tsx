@@ -1,653 +1,387 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMatch, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Bot, Loader2, Menu, Send, User } from 'lucide-react';
+import { Modal, Button, useFeedback } from '@/components/ui';
+import { listProjects, type ProjectSummary } from '@/api/projects';
 import {
-  AlertTriangle,
-  CircleStop,
-  Copy,
-  Loader2,
-  Menu,
-  Mic,
-  MicOff,
-  Send,
-} from 'lucide-react';
-import { Badge } from '@/components/ui';
+  createSession,
+  deleteSession,
+  getAgentCapabilities,
+  getAgentTask,
+  listAgentProjects,
+  listAgentTasks,
+  sendMessage,
+  switchSession,
+  updateSessionMetadata,
+  type AgentProject,
+  type AgentSessionCapabilities,
+  type AgentTask,
+  type AgentTaskHistoryEntry,
+  type AgentTaskSnapshot,
+} from '@/api/sessions';
+import { useClipboard, useLinkBuilder } from '@/hooks/useClipboard';
+import { useRefresh } from '@/store/refresh';
 import { cn } from '@/lib/utils';
-import {
-  collectAllPages,
-  conversationPath,
-  createWorkspaceDraft,
-  getWorkspaceChatSelection,
-  getWorkspaceRuntimeCatalog,
-  listWorkspaceItems,
-  listWorkspaceThreads,
-  listWorkspaceTurns,
-  putWorkspaceChatSelection,
-  readWorkspaceDraft,
-  readWorkspaceThread,
-  updateWorkspaceDraftSettings,
-  updateWorkspaceThreadSettings,
-  listWorkspaces,
-  type ConversationRef,
-  type NativeEventEnvelope,
-  type NativeItemRecord,
-  type NativeRuntimeCatalog,
-  type NativeThread,
-  type NativeThreadSettingsPatch,
-  type NativeTurn,
-  type Workspace,
-  type WorkspaceChatClientRequest,
-  type WorkspaceChatDraft,
-  type WorkspaceChatServerEvent,
-} from '@/api/workspaceChat';
-import { useWorkspaceChatSocket } from '@/hooks/useWorkspaceChatSocket';
-import { useWorkspaceRealtime } from '@/hooks/useWorkspaceRealtime';
-import { WorkspaceHistory } from './WorkspaceChatItems';
-import { WorkspaceInteraction } from './WorkspaceChatInteractions';
 import { WorkspaceChatRail } from './WorkspaceChatRail';
-import { WorkspaceChatSettings } from './WorkspaceChatSettings';
-import {
-  initialWorkspaceChatStreamState,
-  nativeEnvelopeFromEvent,
-  statusType,
-  totalTokenCount,
-  workspaceChatStreamReducer,
-} from './workspaceChatState';
+
+const WEB_SESSION_KEY = 'web:management';
 
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-function supportsCapability(catalog: NativeRuntimeCatalog | null, name: string): { supported: boolean; reason?: string } {
-  if (!catalog) return { supported: false };
-  return catalog.capabilities?.[name] || { supported: false };
+function taskPath(projectID: string, taskID: string): string {
+  return `/chat/${encodeURIComponent(projectID)}/${encodeURIComponent(taskID)}`;
 }
 
-function statusVariant(status: string): 'default' | 'success' | 'warning' | 'danger' {
-  if (status === 'idle') return 'success';
-  if (status === 'active') return 'warning';
-  if (status === 'systemError') return 'danger';
-  return 'default';
+function draftPath(projectID: string): string {
+  return `/chat/${encodeURIComponent(projectID)}/new`;
 }
 
-async function loadThreadHistory(workspaceRef: string, threadId: string, validatedSnapshot?: Awaited<ReturnType<typeof readWorkspaceThread>>) {
-  const [snapshot, turns] = await Promise.all([
-    validatedSnapshot ? Promise.resolve(validatedSnapshot) : readWorkspaceThread(workspaceRef, threadId),
-    collectAllPages((cursor) => listWorkspaceTurns(workspaceRef, threadId, { cursor, sortDirection: 'asc' })),
-  ]);
-  const itemsByTurn: Record<string, NativeItemRecord[]> = {};
-  for (const turn of turns) {
-    itemsByTurn[turn.id] = await collectAllPages((cursor) =>
-      listWorkspaceItems(workspaceRef, threadId, turn.id, { cursor, sortDirection: 'asc' }));
+function taskLabel(task?: AgentTask): string {
+  return task?.summary?.trim() || task?.id.slice(0, 12) || '新任务';
+}
+
+function statusLabel(status?: string): string {
+  switch (status) {
+    case 'active': return '进行中';
+    case 'idle':
+    case 'completed': return '已完成';
+    case 'systemError': return '发生错误';
+    default: return status || '状态未知';
   }
-  return { snapshot, turns, itemsByTurn };
+}
+
+function mergeHistory(current: AgentTaskHistoryEntry[], incoming: AgentTaskHistoryEntry[]): AgentTaskHistoryEntry[] {
+  const values = new Map<string, AgentTaskHistoryEntry>();
+  for (const entry of [...current, ...incoming]) {
+    values.set(`${entry.timestamp}\u0000${entry.role}\u0000${entry.content}`, entry);
+  }
+  return [...values.values()].sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+}
+
+function normalizeTaskProjects(projects: AgentProject[], tasks: AgentTask[]): { projects: AgentProject[]; tasks: AgentTask[] } {
+  const known = new Set(projects.map((project) => project.id));
+  const normalized = tasks.map((task) => {
+    if (task.project_id && known.has(task.project_id)) return task;
+    const byPath = projects.find((project) => project.path && task.cwd === project.path);
+    if (byPath) return { ...task, project_id: byPath.id, project_name: byPath.name };
+    return { ...task, project_id: '__unassigned__', project_name: '未归类任务' };
+  });
+  if (normalized.some((task) => task.project_id === '__unassigned__')) {
+    return {
+      projects: [...projects, { id: '__unassigned__', name: '未归类任务', kind: 'unassigned', is_git_repository: false }],
+      tasks: normalized,
+    };
+  }
+  return { projects, tasks: normalized };
+}
+
+async function loadAllHistory(bridgeProject: string, task: AgentTask): Promise<AgentTaskSnapshot> {
+  let cursor = '';
+  let snapshot: AgentTaskSnapshot | null = null;
+  let history: AgentTaskHistoryEntry[] = [];
+  const seen = new Set<string>();
+  for (;;) {
+    const value = await getAgentTask(bridgeProject, task.id, 10, task.host_id, cursor || undefined);
+    snapshot ||= value;
+    history = cursor ? mergeHistory(value.history, history) : mergeHistory(history, value.history);
+    if (!value.has_more || !value.cursor) break;
+    if (seen.has(value.cursor)) throw new Error('Codex App 历史游标出现循环');
+    seen.add(value.cursor);
+    cursor = value.cursor;
+  }
+  if (!snapshot) throw new Error('Codex App 未返回任务快照');
+  return { ...snapshot, history, has_more: false, cursor: undefined };
+}
+
+function Message({ entry }: { entry: AgentTaskHistoryEntry }) {
+  const user = entry.role === 'user';
+  return (
+    <article className={cn('flex min-w-0 gap-2.5', user && 'justify-end')}>
+      {!user && <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><Bot size={15} /></div>}
+      <div className={cn('min-w-0 break-words text-sm leading-6', user ? 'max-w-[82%] rounded-lg bg-gray-900 px-3.5 py-2.5 text-white dark:bg-white dark:text-black' : 'max-w-[calc(100%-2.5rem)] flex-1 py-0.5 text-gray-800 dark:text-gray-100')}>
+        {user ? <div className="whitespace-pre-wrap">{entry.content}</div> : <div className="prose prose-sm max-w-none break-words dark:prose-invert prose-pre:max-w-full prose-pre:overflow-auto prose-pre:rounded-md prose-a:text-accent"><Markdown remarkPlugins={[remarkGfm]}>{entry.content}</Markdown></div>}
+      </div>
+      {user && <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-200"><User size={14} /></div>}
+    </article>
+  );
 }
 
 export default function WorkspaceChat() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const params = useParams<{ workspaceRef?: string; threadId?: string; draftRef?: string }>();
-  const workspaceRef = params.workspaceRef;
-  const conversation = useMemo<ConversationRef | undefined>(() => {
-    if (params.draftRef) return { kind: 'draft', id: params.draftRef };
-    if (params.threadId) return { kind: 'thread', id: params.threadId };
-    return undefined;
-  }, [params.draftRef, params.threadId]);
-  const targetKey = workspaceRef && conversation ? `${workspaceRef}\u0000${conversation.kind}\u0000${conversation.id}` : '';
-
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [threads, setThreads] = useState<NativeThread[]>([]);
-  const [draft, setDraft] = useState<WorkspaceChatDraft | null>(null);
-  const [catalog, setCatalog] = useState<NativeRuntimeCatalog | null>(null);
-  const [draftSettings, setDraftSettings] = useState<NativeThreadSettingsPatch>({});
-  const [stream, dispatch] = useReducer(workspaceChatStreamReducer, initialWorkspaceChatStreamState);
+  const params = useParams<{ projectId?: string; taskId?: string }>();
+  const draftMatch = useMatch('/chat/:projectId/new');
+  const { generation } = useRefresh();
+  const { notify, confirm: askConfirmation } = useFeedback();
+  const copy = useClipboard();
+  const buildLink = useLinkBuilder();
+  const [bridgeProject, setBridgeProject] = useState('');
+  const [projects, setProjects] = useState<AgentProject[]>([]);
+  const [tasks, setTasks] = useState<AgentTask[]>([]);
+  const [capabilitiesByHost, setCapabilitiesByHost] = useState<Record<string, AgentSessionCapabilities>>({});
+  const [snapshot, setSnapshot] = useState<AgentTaskSnapshot | null>(null);
   const [input, setInput] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [updatingSettings, setUpdatingSettings] = useState(false);
-  const [respondingInteraction, setRespondingInteraction] = useState('');
+  const [error, setError] = useState('');
   const [projectPanelOpen, setProjectPanelOpen] = useState(false);
-  const [voice, setVoice] = useState('');
+  const [renameTask, setRenameTask] = useState<AgentTask | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
-  const loadGeneration = useRef(0);
-  const targetKeyRef = useRef(targetKey);
-  const realtimeEventRef = useRef<(event: NativeEventEnvelope) => void>(() => undefined);
-  const realtimeRequestErrorRef = useRef<(requestID: string | undefined, message: string) => void>(() => undefined);
-	const streamCursorRef = useRef<{ epoch?: string; sequence?: number }>({});
-  const reconnectPendingRef = useRef(false);
-	const selectionWriteRef = useRef<Promise<void>>(Promise.resolve());
-	const selectionIntentGenerationRef = useRef(0);
-	const draftCreationGenerationRef = useRef(0);
-	targetKeyRef.current = targetKey;
-	streamCursorRef.current = { epoch: stream.epoch, sequence: stream.sequence };
-	const persistSelection = useCallback((ref: string, nextConversation: ConversationRef, intentGeneration: number) => {
-		const write = selectionWriteRef.current
-			.catch(() => undefined)
-			.then(() => {
-				if (intentGeneration !== selectionIntentGenerationRef.current) return;
-				return putWorkspaceChatSelection(ref, nextConversation);
-			});
-		selectionWriteRef.current = write.then(() => undefined, () => undefined);
-		return write;
-	}, []);
-  const selectConversation = useCallback(async (ref: string, nextConversation: ConversationRef, intentGeneration: number) => {
-    if (intentGeneration !== selectionIntentGenerationRef.current) return false;
-    await persistSelection(ref, nextConversation, intentGeneration);
-    if (intentGeneration !== selectionIntentGenerationRef.current) return false;
-    navigate(conversationPath(ref, nextConversation));
-    return true;
-  }, [navigate, persistSelection]);
+  const selectedTask = useMemo(() => tasks.find((task) => task.id === params.taskId), [params.taskId, tasks]);
+  const selectedProject = useMemo(() => projects.find((project) => project.id === params.projectId), [params.projectId, projects]);
+  const isDraft = draftMatch !== null;
 
-  const loadWorkspaceCatalog = useCallback(async () => {
-    const response = await listWorkspaces();
-    setWorkspaces(response.workspaces || []);
-    return response.workspaces || [];
+  const loadCatalog = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const configured = await listProjects();
+      const codexProject = (configured.projects || []).find((project: ProjectSummary) => project.agent_type === 'codexapp');
+      if (!codexProject) throw new Error('未找到使用 codexapp 的 CC-Connect 项目');
+      const [projectResult, taskResult] = await Promise.all([
+        listAgentProjects(codexProject.name),
+        listAgentTasks(codexProject.name),
+      ]);
+      const normalized = normalizeTaskProjects(projectResult.projects || [], (taskResult.sessions || []) as AgentTask[]);
+      const hostIDs = [...new Set([
+        ...normalized.projects.map((project) => project.host_id || ''),
+        ...normalized.tasks.map((task) => task.host_id || ''),
+      ])];
+      const capabilityEntries = await Promise.all(hostIDs.map(async (hostID) => {
+        const result = await getAgentCapabilities(codexProject.name, hostID || undefined);
+        return [hostID, result.capabilities] as const;
+      }));
+      setBridgeProject(codexProject.name);
+      setProjects(normalized.projects);
+      setTasks(normalized.tasks);
+      setCapabilitiesByHost(Object.fromEntries(capabilityEntries));
+      return { bridgeProject: codexProject.name, ...normalized };
+    } catch (cause) {
+      setError(errorMessage(cause));
+      throw cause;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const fetchThreads = useCallback((ref: string) =>
-    collectAllPages((cursor) => listWorkspaceThreads(ref, { cursor, sortDirection: 'desc' })), []);
-
-  const refreshThread = useCallback(async () => {
-    if (!workspaceRef || conversation?.kind !== 'thread') return;
-    const expectedTarget = targetKey;
-	let result;
-	const started = streamCursorRef.current;
-    try {
-      result = await loadThreadHistory(workspaceRef, conversation.id);
-    } catch (cause) {
-      if (targetKeyRef.current === expectedTarget) throw cause;
-      return;
-    }
-    if (targetKeyRef.current !== expectedTarget) return;
-	dispatch({ type: 'history_loaded', ...result, startedEpoch: started.epoch, startedSequence: started.sequence });
-  }, [conversation?.id, conversation?.kind, targetKey, workspaceRef]);
-
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    loadWorkspaceCatalog()
-      .catch((cause) => { if (!cancelled) setError(errorMessage(cause)); })
-      .finally(() => { if (!cancelled && !conversation) setLoading(false); });
+    loadCatalog().then(({ projects: nextProjects, tasks: nextTasks }) => {
+      if (cancelled || params.projectId) return;
+      const firstTask = nextTasks.find((task) => !task.archived && task.project_id);
+      if (firstTask?.project_id) navigate(taskPath(firstTask.project_id, firstTask.id), { replace: true });
+      else if (nextProjects[0]) navigate(draftPath(nextProjects[0].id), { replace: true });
+    }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [conversation, loadWorkspaceCatalog]);
+  }, [generation, loadCatalog, navigate, params.projectId]);
+
+  const refreshSelected = useCallback(async (fullHistory: boolean) => {
+    if (!bridgeProject || !selectedTask) return;
+    const next = fullHistory
+      ? await loadAllHistory(bridgeProject, selectedTask)
+      : await getAgentTask(bridgeProject, selectedTask.id, 10, selectedTask.host_id);
+    setSnapshot((current) => ({ ...next, history: current && !fullHistory ? mergeHistory(current.history, next.history) : next.history }));
+    setTasks((current) => current.map((task) => task.id === next.session.id ? { ...task, ...next.session, project_id: task.project_id || next.session.project_id } : task));
+  }, [bridgeProject, selectedTask]);
 
   useEffect(() => {
-    if (workspaceRef || conversation) return;
-    let cancelled = false;
-    const intentGeneration = selectionIntentGenerationRef.current;
-    getWorkspaceChatSelection().then((selection) => {
-      if (!cancelled && intentGeneration === selectionIntentGenerationRef.current && selection) {
-		selectionIntentGenerationRef.current++;
-		navigate(conversationPath(selection.workspace_ref, selection.conversation), { replace: true });
-	  }
-    }).catch((cause) => { if (!cancelled) setError(errorMessage(cause)); });
-    return () => { cancelled = true; };
-  }, [conversation, navigate, workspaceRef]);
-
-  useEffect(() => {
-    if (!workspaceRef || !conversation) return;
-    const generation = ++loadGeneration.current;
-    const intentGeneration = selectionIntentGenerationRef.current;
-    let cancelled = false;
-    dispatch({ type: 'reset' });
-    setDraft(null);
-    setDraftSettings({});
-    setCatalog(null);
-    setLoading(true);
-    setError('');
-    setSubmitting(false);
-    setUpdatingSettings(false);
-    setRespondingInteraction('');
-	const load = async () => {
-	  let nextDraft: WorkspaceChatDraft | null = null;
-	  let validatedSnapshot: Awaited<ReturnType<typeof readWorkspaceThread>> | undefined;
-      if (conversation.kind === 'draft') {
-        nextDraft = await readWorkspaceDraft(workspaceRef, conversation.id);
-        if (cancelled || generation !== loadGeneration.current || intentGeneration !== selectionIntentGenerationRef.current || targetKeyRef.current !== targetKey) return;
-        if (nextDraft.state === 'materialized') {
-          if (!nextDraft.thread_id) throw new Error(t('workspaceChat.materializationMissingThread'));
-          await readWorkspaceThread(workspaceRef, nextDraft.thread_id);
-          if (cancelled || generation !== loadGeneration.current || intentGeneration !== selectionIntentGenerationRef.current || targetKeyRef.current !== targetKey) return;
-          const materializedConversation: ConversationRef = { kind: 'thread', id: nextDraft.thread_id };
-		  const materializationIntent = ++selectionIntentGenerationRef.current;
-		  await persistSelection(workspaceRef, materializedConversation, materializationIntent);
-          if (cancelled || generation !== loadGeneration.current || materializationIntent !== selectionIntentGenerationRef.current || targetKeyRef.current !== targetKey) return;
-          navigate(conversationPath(workspaceRef, materializedConversation), { replace: true });
-          return;
-        }
-		if (nextDraft.state !== 'draft') {
-          throw new Error(`workspace_chat_invalid_draft_state: ${nextDraft.state}`);
-		}
-	  } else {
-		validatedSnapshot = await readWorkspaceThread(workspaceRef, conversation.id);
-		if (cancelled || generation !== loadGeneration.current || intentGeneration !== selectionIntentGenerationRef.current || targetKeyRef.current !== targetKey) return;
-	  }
-		  await persistSelection(workspaceRef, conversation, intentGeneration);
-	  if (cancelled || generation !== loadGeneration.current || intentGeneration !== selectionIntentGenerationRef.current || targetKeyRef.current !== targetKey) return;
-	  const [runtimeCatalog, availableThreads, loadedThread] = await Promise.all([
-        getWorkspaceRuntimeCatalog(workspaceRef),
-        fetchThreads(workspaceRef),
-		conversation.kind === 'thread' ? loadThreadHistory(workspaceRef, conversation.id, validatedSnapshot) : Promise.resolve(null),
-	  ]);
-	  if (cancelled || generation !== loadGeneration.current || intentGeneration !== selectionIntentGenerationRef.current || targetKeyRef.current !== targetKey) return;
-      setThreads(availableThreads);
-      setCatalog(runtimeCatalog);
-      const preferredVoice = runtimeCatalog.voices.default_v2
-        || runtimeCatalog.voices.v2[0]
-        || runtimeCatalog.voices.default_v1
-        || runtimeCatalog.voices.v1[0]
-        || '';
-      setVoice(preferredVoice);
-      if (conversation.kind === 'draft') {
-        if (!nextDraft) throw new Error('workspace_chat_draft_not_loaded');
-        setDraft(nextDraft);
-        setDraftSettings(nextDraft.settings_patch);
-        return;
-      }
-      if (!loadedThread) throw new Error('workspace_chat_thread_not_loaded');
-      dispatch({ type: 'history_loaded', ...loadedThread });
-    };
-    load().catch((cause) => {
-      if (!cancelled && generation === loadGeneration.current && intentGeneration === selectionIntentGenerationRef.current && targetKeyRef.current === targetKey) setError(errorMessage(cause));
-    })
-      .finally(() => {
-		if (!cancelled && generation === loadGeneration.current && intentGeneration === selectionIntentGenerationRef.current) setLoading(false);
-	  });
-    return () => { cancelled = true; };
-	  }, [conversation?.id, conversation?.kind, fetchThreads, navigate, persistSelection, t, targetKey, workspaceRef]);
-
-  const onSocketEvent = useCallback((event: WorkspaceChatServerEvent) => {
-    if (!workspaceRef || !conversation || event.workspace_ref !== workspaceRef) return;
-    const isCurrentConversation = event.conversation.kind === conversation.kind
-      && event.conversation.id === conversation.id;
-    const isDraftMaterialization = event.type === 'thread_materialized'
-      && conversation.kind === 'draft'
-      && event.conversation.kind === 'thread'
-      && !!event.thread_id
-      && event.conversation.id === event.thread_id;
-    if (!isCurrentConversation && !isDraftMaterialization) return;
-    dispatch({ type: 'server_event', event });
-    const envelope = nativeEnvelopeFromEvent(event);
-    if (envelope) {
-      realtimeEventRef.current(envelope);
-      if (envelope.method === 'turn/started' || envelope.method === 'turn/completed') setSubmitting(false);
-    }
-    if (event.type === 'error' || event.type === 'protocol_error') {
-      realtimeRequestErrorRef.current(event.request_id, event.error || t('workspaceChat.unknownError'));
-      setSubmitting(false);
-      setRespondingInteraction('');
-      setError(event.error || t('workspaceChat.unknownError'));
-    }
-    if (event.type === 'thread_materialized') {
-      const threadID = event.thread_id || '';
-      if (!threadID) {
-        setError(t('workspaceChat.materializationMissingThread'));
-        return;
-      }
-      setSubmitting(false);
-      reconnectPendingRef.current = true;
-      selectionIntentGenerationRef.current++;
-      navigate(conversationPath(workspaceRef, { kind: 'thread', id: threadID }), { replace: true });
-    }
-  }, [conversation, navigate, t, workspaceRef]);
-
-	const { status: socketStatus, send } = useWorkspaceChatSocket({
-    workspaceRef,
-    conversation,
-    onEvent: onSocketEvent,
-    onProtocolError: (cause) => setError(cause.message),
-	});
-
-	useEffect(() => {
-	  if (socketStatus === 'disconnected') {
-		reconnectPendingRef.current = true;
-		setSubmitting(false);
-		setRespondingInteraction('');
-		return;
-	  }
-	  if (socketStatus !== 'connected' || !reconnectPendingRef.current || !workspaceRef || !conversation) return;
-	  reconnectPendingRef.current = false;
-	  let cancelled = false;
-	  const intentGeneration = selectionIntentGenerationRef.current;
-	  const reconcile = async () => {
-		const selection = await getWorkspaceChatSelection();
-		if (cancelled || intentGeneration !== selectionIntentGenerationRef.current) return;
-		if (selection && (selection.workspace_ref !== workspaceRef || selection.conversation.kind !== conversation.kind || selection.conversation.id !== conversation.id)) {
-		  selectionIntentGenerationRef.current++;
-		  navigate(conversationPath(selection.workspace_ref, selection.conversation), { replace: true });
-		  return;
-		}
-		if (conversation.kind === 'thread') await refreshThread();
-		else {
-		  const currentDraft = await readWorkspaceDraft(workspaceRef, conversation.id);
-		  if (!cancelled && intentGeneration === selectionIntentGenerationRef.current && currentDraft.state === 'materialized' && currentDraft.thread_id) {
-			selectionIntentGenerationRef.current++;
-			navigate(conversationPath(workspaceRef, { kind: 'thread', id: currentDraft.thread_id }), { replace: true });
-		  }
-		}
-	  };
-	  reconcile().catch((cause) => {
-		if (!cancelled && intentGeneration === selectionIntentGenerationRef.current) setError(errorMessage(cause));
-	  });
-	  return () => { cancelled = true; };
-	}, [conversation, navigate, refreshThread, socketStatus, workspaceRef]);
-
-  const realtimeCapability = supportsCapability(catalog, 'realtime');
-  const realtime = useWorkspaceRealtime({
-    workspaceRef,
-    conversation,
-    supported: conversation?.kind === 'thread' && realtimeCapability.supported,
-    send,
-  });
-  realtimeEventRef.current = realtime.handleNativeEvent;
-  realtimeRequestErrorRef.current = realtime.handleRequestError;
-
-  useEffect(() => {
-    if (socketStatus !== 'connected' && realtime.status !== 'idle') realtime.stop();
-  }, [realtime.status, realtime.stop, socketStatus]);
-
-  useEffect(() => {
-    if ((!stream.needsHistoryRefresh && !stream.needsResync) || conversation?.kind !== 'thread') return;
-    dispatch({ type: 'history_refreshed' });
-    refreshThread().catch((cause) => setError(errorMessage(cause)));
-  }, [conversation?.kind, refreshThread, stream.needsHistoryRefresh, stream.needsResync]);
-
-  useEffect(() => {
-    if (!respondingInteraction) return;
-    const pending = stream.snapshot?.pending_interactions.some((interaction) => interaction.id === respondingInteraction);
-    if (pending === false) setRespondingInteraction('');
-  }, [respondingInteraction, stream.snapshot?.pending_interactions]);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [stream.liveItems, stream.optimisticInputs, stream.turns]);
-
-  useEffect(() => {
-    const refresh = () => {
-      loadWorkspaceCatalog().catch((cause) => setError(errorMessage(cause)));
-      if (workspaceRef) {
-        const expectedTarget = targetKey;
-        fetchThreads(workspaceRef).then((values) => {
-          if (targetKeyRef.current === expectedTarget) setThreads(values);
-        }).catch((cause) => {
-          if (targetKeyRef.current === expectedTarget) setError(errorMessage(cause));
-        });
-      }
-      if (conversation?.kind === 'thread') refreshThread().catch((cause) => setError(errorMessage(cause)));
-    };
-    window.addEventListener('cc:refresh', refresh);
-    return () => window.removeEventListener('cc:refresh', refresh);
-  }, [conversation?.kind, fetchThreads, loadWorkspaceCatalog, refreshThread, targetKey, workspaceRef]);
-
-  const activeWorkspace = workspaces.find((workspace) => workspace.ref === workspaceRef);
-  const activeTurn = stream.snapshot?.active_turn || null;
-  const currentStatus = statusType(stream.snapshot?.status);
-  const tokenCount = totalTokenCount(stream.snapshot?.usage);
-  const unsupportedCapabilities = Object.entries(catalog?.capabilities || {}).filter(([, status]) => !status.supported);
-
-  const createDraft = useCallback(async (ref: string, existingIntentGeneration?: number) => {
-    const intentGeneration = existingIntentGeneration ?? ++selectionIntentGenerationRef.current;
-    if (intentGeneration !== selectionIntentGenerationRef.current) return;
-    const creationGeneration = ++draftCreationGenerationRef.current;
-    setCreating(true);
-    setError('');
-    try {
-      const nextDraft = await createWorkspaceDraft(ref);
-      if (intentGeneration !== selectionIntentGenerationRef.current) return;
-      const nextConversation: ConversationRef = { kind: 'draft', id: nextDraft.id };
-      if (await selectConversation(ref, nextConversation, intentGeneration)) setProjectPanelOpen(false);
-    } catch (cause) {
-      if (intentGeneration === selectionIntentGenerationRef.current) setError(errorMessage(cause));
-    } finally {
-      if (creationGeneration === draftCreationGenerationRef.current) setCreating(false);
-    }
-  }, [selectConversation]);
-
-  const chooseWorkspace = async (workspace: Workspace) => {
-    if (!workspace.available) return;
-    const intentGeneration = ++selectionIntentGenerationRef.current;
-    setError('');
-    try {
-      const availableThreads = await fetchThreads(workspace.ref);
-      if (intentGeneration !== selectionIntentGenerationRef.current) return;
-      if (availableThreads.length === 0) {
-        await createDraft(workspace.ref, intentGeneration);
-        return;
-      }
-      const nextConversation: ConversationRef = { kind: 'thread', id: availableThreads[0].id };
-      if (await selectConversation(workspace.ref, nextConversation, intentGeneration)) setProjectPanelOpen(false);
-    } catch (cause) {
-      if (intentGeneration === selectionIntentGenerationRef.current) setError(errorMessage(cause));
-    }
-  };
-
-  const chooseThread = async (thread: NativeThread) => {
-    if (!workspaceRef) return;
-    const intentGeneration = ++selectionIntentGenerationRef.current;
-    const nextConversation: ConversationRef = { kind: 'thread', id: thread.id };
-    try {
-      if (await selectConversation(workspaceRef, nextConversation, intentGeneration)) setProjectPanelOpen(false);
-    } catch (cause) {
-      if (intentGeneration === selectionIntentGenerationRef.current) setError(errorMessage(cause));
-    }
-  };
-
-  const copyLink = async (thread: NativeThread) => {
-    try {
-      if (!workspaceRef) return;
-      if (!navigator.clipboard?.writeText) throw new Error('workspace_chat_clipboard_unavailable');
-      const link = stream.snapshot?.thread.id === thread.id && stream.snapshot.deep_link
-        ? stream.snapshot.deep_link
-        : (await readWorkspaceThread(workspaceRef, thread.id)).deep_link;
-      await navigator.clipboard.writeText(link);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    }
-  };
-
-  const patchSettings = async (patch: NativeThreadSettingsPatch) => {
-    if (!workspaceRef || !conversation) return;
-    const expectedTarget = targetKey;
-    setUpdatingSettings(true);
-    setError('');
-    try {
-      if (conversation.kind === 'draft') {
-        const nextDraft = await updateWorkspaceDraftSettings(workspaceRef, conversation.id, patch);
-        if (targetKeyRef.current !== expectedTarget) return;
-        setDraft(nextDraft);
-        setDraftSettings(nextDraft.settings_patch);
-        return;
-      }
-      const settings = await updateWorkspaceThreadSettings(workspaceRef, conversation.id, patch);
-      if (targetKeyRef.current !== expectedTarget) return;
-      dispatch({ type: 'settings_updated', settings });
-    } catch (cause) {
-      if (targetKeyRef.current === expectedTarget) setError(errorMessage(cause));
-    } finally {
-      if (targetKeyRef.current === expectedTarget) setUpdatingSettings(false);
-    }
-  };
-
-  const sendRequest = (request: WorkspaceChatClientRequest, optimistic?: { requestId: string; text: string; kind: 'turn_start' | 'turn_steer' | 'realtime' }) => {
-    setError('');
-    dispatch({ type: 'clear_error' });
-    if (!send(request)) {
-      setError(t('workspaceChat.disconnected'));
-      return false;
-    }
-    if (optimistic) dispatch({ type: 'optimistic_input', input: optimistic });
-    return true;
-  };
-
-  const submit = () => {
-    const text = input.trim();
-    if (!text || !workspaceRef || !conversation) return;
-    const requestId = crypto.randomUUID();
-    const base = { request_id: requestId, workspace_ref: workspaceRef, conversation };
-    let request: WorkspaceChatClientRequest;
-    let kind: 'turn_start' | 'turn_steer' | 'realtime';
-    if (realtime.status === 'connected') {
-      request = { ...base, type: 'realtime_append_text', text };
-      kind = 'realtime';
-    } else if (activeTurn) {
-      request = { ...base, type: 'turn_steer', expected_turn_id: activeTurn.id, input: [{ type: 'text', text }] };
-      kind = 'turn_steer';
-    } else {
-      const hasDraftSettings = conversation.kind === 'draft' && Object.keys(draftSettings).length > 0;
-      request = {
-        ...base,
-        type: 'turn_start',
-        input: [{ type: 'text', text }],
-        ...(hasDraftSettings ? { payload: { settings: draftSettings } } : {}),
-      };
-      kind = 'turn_start';
-    }
-    if (!sendRequest(request, { requestId, text, kind })) return;
+    setSnapshot(null);
     setInput('');
-    if (kind === 'turn_start') setSubmitting(true);
-  };
-
-  const interrupt = () => {
-    if (!workspaceRef || !conversation || !activeTurn) return;
-    sendRequest({
-      type: 'turn_interrupt',
-      request_id: crypto.randomUUID(),
-      workspace_ref: workspaceRef,
-      conversation,
-      expected_turn_id: activeTurn.id,
-    });
-  };
-
-  const respondInteraction = (interactionId: string, response: unknown) => {
-    if (!workspaceRef || !conversation) return;
-    const sent = sendRequest({
-      type: 'interaction_response',
-      request_id: crypto.randomUUID(),
-      workspace_ref: workspaceRef,
-      conversation,
-      interaction_id: interactionId,
-      response,
-    });
-    if (sent) setRespondingInteraction(interactionId);
-  };
-
-  const toggleRealtime = async () => {
-    try {
-      if (realtime.status !== 'idle') {
-        realtime.stop();
-        return;
+    if (isDraft || !selectedTask || !bridgeProject) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async (fullHistory: boolean) => {
+      try {
+        await refreshSelected(fullHistory);
+        if (!cancelled) setError('');
+      } catch (cause) {
+        if (!cancelled) setError(errorMessage(cause));
       }
-      const version = catalog?.voices?.v2?.length ? 'v2' : catalog?.voices?.v1?.length ? 'v1' : undefined;
-      await realtime.start({ voice: voice || undefined, version });
+      if (!cancelled) timer = setTimeout(() => void poll(false), snapshot?.session.status === 'active' ? 1200 : 3500);
+    };
+    void poll(true);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [bridgeProject, isDraft, refreshSelected, selectedTask?.id]);
+
+  useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), [snapshot?.history.length]);
+
+  const submit = async () => {
+    const prompt = input.trim();
+    if (!prompt || submitting || !bridgeProject) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      if (isDraft) {
+        if (!selectedProject || selectedProject.kind === 'unassigned') throw new Error('该分组不能创建任务');
+        const result = await createSession(bridgeProject, {
+          session_key: WEB_SESSION_KEY,
+          project_id: selectedProject.id,
+          prompt,
+          use_local: true,
+        });
+        if (!result.session?.id) throw new Error('Codex App 创建任务后未返回 task ID');
+        setInput('');
+        await loadCatalog();
+        navigate(taskPath(selectedProject.id, result.session.id), { replace: true });
+      } else if (selectedTask) {
+        setSnapshot((current) => current ? { ...current, session: { ...current.session, status: 'active' }, history: [...current.history, { role: 'user', content: prompt, timestamp: new Date().toISOString() }] } : current);
+        setInput('');
+        await switchSession(bridgeProject, { session_key: WEB_SESSION_KEY, session_id: selectedTask.id });
+        await sendMessage(bridgeProject, { session_key: WEB_SESSION_KEY, message: prompt });
+        await refreshSelected(false);
+      }
     } catch (cause) {
-      setError(errorMessage(cause));
+      const message = errorMessage(cause);
+      setError(message);
+      notify(message, 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const currentSettings = conversation?.kind === 'draft' ? draftSettings : stream.snapshot?.settings || null;
-  const selectedThread = conversation?.kind === 'thread' ? threads.find((thread) => thread.id === conversation.id) : undefined;
-  const realtimeVoices = catalog?.voices?.v2?.length ? catalog.voices.v2 : catalog?.voices?.v1 || [];
-  const composerDisabled = !conversation || socketStatus !== 'connected' || loading || submitting;
+  const mutateTask = async (task: AgentTask, patch: { title?: string; pinned?: boolean; archived?: boolean }) => {
+    if (!bridgeProject) return;
+    try {
+      await updateSessionMetadata(bridgeProject, task.id, patch, task.host_id);
+      await loadCatalog();
+      notify('任务已更新', 'success');
+    } catch (cause) {
+      notify(errorMessage(cause), 'error');
+    }
+  };
+
+  const archiveTask = async (task: AgentTask) => {
+    if (!bridgeProject) return;
+    if (!await askConfirmation({ title: '归档任务', message: `确定归档“${taskLabel(task)}”吗？`, confirmLabel: '归档', danger: true })) return;
+    try {
+      await deleteSession(bridgeProject, task.id, task.host_id);
+      const nextProjectID = task.project_id || params.projectId;
+      await loadCatalog();
+      if (params.taskId === task.id && nextProjectID) navigate(draftPath(nextProjectID), { replace: true });
+      notify('任务已归档', 'success');
+    } catch (cause) {
+      notify(errorMessage(cause), 'error');
+    }
+  };
+
+  const copyTaskLink = async (project: AgentProject, task: AgentTask) => {
+    try {
+      await copy(buildLink(taskPath(project.id, task.id)));
+      notify('链接已复制', 'success');
+    } catch (cause) {
+      notify(errorMessage(cause), 'error');
+    }
+  };
+
+  const history = snapshot?.history || [];
+  const currentTask = snapshot?.session || selectedTask;
+  const composerDisabled = submitting || !bridgeProject || !selectedProject || (!isDraft && !selectedTask);
 
   return (
-    <div className="relative flex h-[calc(100dvh-9.5rem)] min-h-0 overflow-hidden rounded-md border border-gray-200 bg-white dark:border-white/[0.08] dark:bg-[#0b0b0d]">
+    <div className="relative flex h-[calc(100dvh-9.5rem)] min-h-[32rem] overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-white/[0.08] dark:bg-[#0b0b0d]">
       <WorkspaceChatRail
         open={projectPanelOpen}
         loading={loading}
-        creating={creating}
-        workspaces={workspaces}
-        threads={threads}
-        workspaceRef={workspaceRef}
-        conversation={conversation}
+        projects={projects}
+        tasks={tasks}
+        capabilitiesByHost={capabilitiesByHost}
+        selectedProjectID={params.projectId}
+        selectedTaskID={isDraft ? undefined : params.taskId}
         onClose={() => setProjectPanelOpen(false)}
-        onWorkspace={chooseWorkspace}
-        onThread={chooseThread}
-        onNew={() => workspaceRef && void createDraft(workspaceRef)}
-        onCopyLink={(thread) => void copyLink(thread)}
+        onNewTask={(project) => { navigate(draftPath(project.id)); setProjectPanelOpen(false); }}
+        onTask={(project, task) => { navigate(taskPath(project.id, task.id)); setProjectPanelOpen(false); }}
+        onRenameTask={(task) => { setRenameTask(task); setRenameValue(taskLabel(task)); }}
+        onTogglePin={(task) => void mutateTask(task, { pinned: !task.pinned })}
+        onArchiveTask={(task) => void archiveTask(task)}
+        onCopyLink={(project, task) => void copyTaskLink(project, task)}
       />
 
       <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-gray-200 px-3 dark:border-white/[0.08]">
-          <button type="button" className="rounded-md p-1.5 hover:bg-gray-100 md:hidden dark:hover:bg-white/[0.08]" onClick={() => setProjectPanelOpen(true)} aria-label={t('workspaceChat.openWorkspaces')}><Menu size={18} /></button>
+        <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-gray-200 px-3 sm:px-4 dark:border-white/[0.08]">
+          <button type="button" className="rounded-md p-1.5 hover:bg-gray-100 md:hidden dark:hover:bg-white/[0.08]" onClick={() => setProjectPanelOpen(true)} aria-label={t('workspaceChat.openProjects', '打开项目列表')}><Menu size={18} /></button>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">{activeWorkspace ? `${activeWorkspace.project_name}${activeWorkspace.root_name !== activeWorkspace.project_name ? ` / ${activeWorkspace.root_name}` : ''}` : t('workspaceChat.chooseWorkspace')}</div>
-            {activeWorkspace && <div className="truncate text-[11px] text-gray-400">{conversation?.kind === 'draft' ? t('workspaceChat.newDraft') : selectedThread?.name || selectedThread?.preview || `${activeWorkspace.device_name} / ${activeWorkspace.root_name}`}</div>}
+            <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">{isDraft ? '新建任务' : taskLabel(currentTask)}</div>
+            <div className="flex min-w-0 items-center gap-2 text-[11px] text-gray-400">
+              <span className="truncate">{selectedProject?.name || currentTask?.project_name || 'Codex App'}</span>
+              {currentTask?.id && <span className="hidden truncate font-mono sm:inline">{currentTask.id}</span>}
+            </div>
           </div>
-          {currentStatus && <Badge variant={statusVariant(currentStatus)} className="hidden sm:inline-flex">{currentStatus}</Badge>}
-          {tokenCount !== null && <Badge variant="outline" className="hidden sm:inline-flex">{t('workspaceChat.tokens', { count: tokenCount.toLocaleString() })}</Badge>}
-          {unsupportedCapabilities.length > 0 && <span className="hidden text-amber-600 sm:inline-flex" title={unsupportedCapabilities.map(([name, value]) => `${name}: ${value.reason || t('workspaceChat.notSupported')}`).join('\n')}><AlertTriangle size={15} /></span>}
-          {selectedThread && <button type="button" onClick={() => void copyLink(selectedThread)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/[0.08] dark:hover:text-white" title={t('workspaceChat.copyLink')} aria-label={t('workspaceChat.copyLink')}><Copy size={15} /></button>}
-          {conversation?.kind === 'draft' && <button type="button" disabled className="flex h-8 w-8 shrink-0 cursor-not-allowed items-center justify-center rounded-md text-gray-300 dark:text-gray-700" title={t('workspaceChat.afterFirstTurn')} aria-label={t('workspaceChat.copyLink')}><Copy size={15} /></button>}
-          {activeTurn && <button type="button" onClick={interrupt} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-red-500 hover:bg-red-500/10" title={t('workspaceChat.cancelTurn')} aria-label={t('workspaceChat.cancelTurn')}><CircleStop size={16} /></button>}
+          {!isDraft && currentTask && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+              <span className={cn('h-2 w-2 rounded-full', currentTask.status === 'active' ? 'bg-emerald-500' : currentTask.status === 'systemError' ? 'bg-red-500' : 'bg-gray-400')} />
+              <span>{statusLabel(currentTask.status)}</span>
+            </div>
+          )}
         </header>
 
-        {conversation && <WorkspaceChatSettings catalog={catalog} settings={currentSettings} disabled={loading || submitting} updating={updatingSettings} onPatch={(patch) => void patchSettings(patch)} />}
-
         <main className="min-h-0 flex-1 overflow-y-auto px-3 sm:px-5">
-          {!conversation ? (
-            <div className="flex h-full items-center justify-center text-center text-gray-400"><p className="max-w-xs text-sm">{t('workspaceChat.chooseWorkspace')}</p></div>
-          ) : loading ? (
+          {loading && projects.length === 0 ? (
             <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-accent" size={24} /></div>
+          ) : !params.projectId ? (
+            <div className="flex h-full items-center justify-center text-center text-sm text-gray-400">从左侧选择 Codex App 项目或任务</div>
+          ) : isDraft ? (
+            <div className="mx-auto flex h-full max-w-2xl flex-col justify-center py-10">
+              <Bot size={28} className="mb-4 text-emerald-600 dark:text-emerald-400" />
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{selectedProject?.name || '新建任务'}</h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">首条消息发送后，任务会由当前 Codex App 创建并接管。</p>
+            </div>
+          ) : history.length === 0 && !error ? (
+            <div className="flex h-full items-center justify-center text-sm text-gray-400">{snapshot ? '当前任务还没有消息' : <Loader2 className="animate-spin text-accent" size={22} />}</div>
           ) : (
-            <div className="mx-auto w-full max-w-4xl">
-              <WorkspaceHistory
-                turns={stream.turns as NativeTurn[]}
-                itemsByTurn={stream.itemsByTurn}
-                liveItems={stream.liveItems}
-                optimisticInputs={stream.optimisticInputs}
-                nativeEvents={stream.nativeEvents}
-                interactions={stream.snapshot?.pending_interactions || []}
-                renderInteraction={(interaction) => (
-                  <WorkspaceInteraction
-                    interaction={interaction}
-                    disabled={socketStatus !== 'connected' || !!respondingInteraction}
-                    onRespond={respondInteraction}
-                  />
-                )}
-              />
+            <div className="mx-auto w-full max-w-4xl space-y-6 py-6">
+              {history.map((entry, index) => <Message key={`${entry.timestamp}-${entry.role}-${index}`} entry={entry} />)}
+              {currentTask?.status === 'active' && <div className="flex items-center gap-2 pl-9 text-xs text-gray-400"><Loader2 size={13} className="animate-spin" />Codex 正在处理</div>}
               <div ref={endRef} />
             </div>
           )}
         </main>
 
-        {(error || stream.error) && <div role="alert" className="shrink-0 border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error || stream.error}</div>}
-        {realtime.error && <div role="alert" className="shrink-0 border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">{realtime.error}</div>}
+        {error && <div role="alert" className="shrink-0 border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
 
-        <footer className="shrink-0 border-t border-gray-200 px-3 py-2 dark:border-white/[0.08]">
-          <div className="mx-auto flex max-w-4xl items-end gap-2">
-            {conversation?.kind === 'thread' && realtimeCapability.supported && realtimeVoices.length > 0 && (
-              <select value={voice} disabled={realtime.status !== 'idle'} onChange={(event) => setVoice(event.target.value)} className="hidden h-[46px] max-w-[7.5rem] rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-accent sm:block dark:border-white/[0.12] dark:bg-black/30" title={t('workspaceChat.voice')}>
-                {realtimeVoices.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-            )}
-            <button type="button" onClick={() => void toggleRealtime()} disabled={conversation?.kind !== 'thread' || !realtimeCapability.supported || socketStatus !== 'connected'} className={cn('flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-35', realtime.status === 'idle' ? 'border-gray-300 text-gray-500 hover:bg-gray-100 dark:border-white/[0.12] dark:hover:bg-white/[0.08]' : 'border-red-400 bg-red-500/10 text-red-600')} title={conversation?.kind === 'draft' ? t('workspaceChat.afterFirstTurn') : realtimeCapability.supported ? t(realtime.status === 'idle' ? 'workspaceChat.startVoice' : 'workspaceChat.stopVoice') : realtimeCapability.reason || t('workspaceChat.notSupported')} aria-label={t(realtime.status === 'idle' ? 'workspaceChat.startVoice' : 'workspaceChat.stopVoice')}>
-              {realtime.status === 'requesting_microphone' || realtime.status === 'connecting' ? <Loader2 size={17} className="animate-spin" /> : realtime.status === 'idle' ? <Mic size={17} /> : <MicOff size={17} />}
-            </button>
+        <footer className="shrink-0 border-t border-gray-200 px-3 py-3 dark:border-white/[0.08]">
+          <div className="mx-auto flex max-w-4xl items-end gap-2 rounded-lg border border-gray-300 bg-white p-2 focus-within:border-gray-500 dark:border-white/[0.14] dark:bg-black/20">
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
-                  submit();
+                  void submit();
                 }
               }}
-              disabled={!conversation || loading}
+              disabled={composerDisabled}
               rows={2}
-              placeholder={realtime.status === 'connected' ? t('workspaceChat.realtimePlaceholder') : activeTurn ? t('workspaceChat.steerPlaceholder') : t('workspaceChat.inputPlaceholder')}
-              className="max-h-36 min-h-[46px] min-w-0 flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-50 dark:border-white/[0.12] dark:bg-black/30"
+              placeholder={isDraft ? '描述你要 Codex 完成的任务' : currentTask?.status === 'active' ? '向当前任务补充消息' : '给 Codex 发送消息'}
+              className="max-h-36 min-h-[44px] min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none disabled:opacity-50"
             />
-            <button type="button" onClick={submit} disabled={!input.trim() || composerDisabled} className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md bg-accent text-white disabled:opacity-40 dark:text-black" title={activeTurn ? t('workspaceChat.steer') : t('workspaceChat.send')} aria-label={activeTurn ? t('workspaceChat.steer') : t('workspaceChat.send')}><Send size={18} /></button>
+            <button type="button" onClick={() => void submit()} disabled={!input.trim() || composerDisabled} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-900 text-white hover:bg-black disabled:opacity-35 dark:bg-white dark:text-black dark:hover:bg-gray-200" title="发送" aria-label="发送">
+              {submitting ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
+            </button>
           </div>
-          <div className="mx-auto mt-1 flex max-w-4xl items-center justify-end gap-2 text-[10px] text-gray-400">
-            {draft && <span>{t('workspaceChat.draft')}</span>}
-            <span>{socketStatus === 'connected' ? t('workspaceChat.connected') : t('workspaceChat.disconnected')}</span>
-          </div>
-          <audio ref={realtime.audioRef} autoPlay className="hidden" />
         </footer>
       </section>
+
+      <Modal open={renameTask !== null} onClose={() => setRenameTask(null)} title="重命名任务">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="task-title">任务标题</label>
+        <input id="task-title" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-accent dark:border-white/[0.14] dark:bg-black/30" />
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setRenameTask(null)}>取消</Button>
+          <Button disabled={!renameValue.trim()} onClick={() => {
+            if (!renameTask) return;
+            void mutateTask(renameTask, { title: renameValue.trim() });
+            setRenameTask(null);
+          }}>保存</Button>
+        </div>
+      </Modal>
     </div>
   );
 }

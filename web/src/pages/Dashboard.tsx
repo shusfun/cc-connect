@@ -9,11 +9,13 @@ import { getStatus, type SystemStatus } from '@/api/status';
 import { listProjects, type ProjectSummary } from '@/api/projects';
 import { listSessions, type Session } from '@/api/sessions';
 import { formatUptime, formatTime } from '@/lib/utils';
+import { useRefresh } from '@/store/refresh';
 
 const MAX_ITEMS = 4;
 
 export default function Dashboard() {
   const { t } = useTranslation();
+  const { generation } = useRefresh();
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [recentSessions, setRecentSessions] = useState<(Session & { project: string })[]>([]);
@@ -50,11 +52,8 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-    const handler = () => fetchData();
-    window.addEventListener('cc:refresh', handler);
-    return () => window.removeEventListener('cc:refresh', handler);
-  }, [fetchData]);
+    void fetchData();
+  }, [fetchData, generation]);
 
   if (loading && !status) {
     return <div className="flex items-center justify-center h-64 text-gray-400"><Activity className="animate-pulse" size={24} /></div>;

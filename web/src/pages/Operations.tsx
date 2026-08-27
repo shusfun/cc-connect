@@ -5,9 +5,11 @@ import {
   createPairingCode, getControlDashboard, getServiceLogs, renameDevice, restartService, revokeDevice, startDeployRun,
   cancelDeployRun, streamDeployRun, streamDeviceLogs, type Dashboard, type DeployLogLine, type DeviceLogLine, type PairingCode,
 } from '@/api/control';
+import { useClipboard } from '@/hooks/useClipboard';
 
 export default function Operations() {
   const { t } = useTranslation();
+  const copy = useClipboard();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [pairing, setPairing] = useState<PairingCode | null>(null);
   const [logs, setLogs] = useState<Array<{ cursor: number; occurred_at: string; stream: string; line: string }>>([]);
@@ -35,8 +37,8 @@ export default function Operations() {
 
   useEffect(() => {
     refresh();
-    const timer = window.setInterval(refresh, 5000);
-    return () => window.clearInterval(timer);
+    const timer = setInterval(refresh, 5000);
+    return () => clearInterval(timer);
   }, [refresh]);
 
 	useEffect(() => {
@@ -110,9 +112,10 @@ export default function Operations() {
               <code className="text-sm font-semibold text-gray-900 dark:text-white">{pairing.code}</code>
               <span className="text-xs text-gray-500">{t('control.pairExpires', { time: new Date(pairing.expires_at).toLocaleTimeString() })}</span>
             </div>
+            <p className="text-xs text-gray-500">{t('control.runtimeTerminalRequired')}</p>
             <div className="flex items-start gap-2">
               <pre className="min-w-0 flex-1 overflow-auto rounded-md bg-[#111114] p-3 text-xs leading-5 text-gray-300">{pairCommand}</pre>
-              <button type="button" title={t('common.copy')} onClick={() => navigator.clipboard.writeText(pairCommand)} className="p-2 text-gray-500"><Clipboard size={15} /></button>
+              <button type="button" title={t('common.copy')} onClick={() => void copy(pairCommand)} className="p-2 text-gray-500"><Clipboard size={15} /></button>
             </div>
           </div>
         )}

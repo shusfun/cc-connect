@@ -121,7 +121,7 @@ token = "ilink_bot_bearer_token"       # 必填；扫码或 bind 写入
 go build -tags no_weixin ./cmd/cc-connect
 ```
 
-详见仓库 `Makefile` / `AGENTS.md` 中的构建标签说明。
+详见仓库 `Makefile` 中的构建标签说明。
 
 ---
 

@@ -14,7 +14,6 @@ import (
 	"github.com/chenhg5/cc-connect/controlstore"
 	"github.com/chenhg5/cc-connect/releasecontract"
 	"github.com/chenhg5/cc-connect/runtimeprotocol"
-	"github.com/chenhg5/cc-connect/storage/workspacechat"
 )
 
 func main() {
@@ -59,8 +58,8 @@ func run() error {
 	manifest := releasecontract.Manifest{
 		Version: 1, Repository: releasecontract.Repository, Workflow: releasecontract.Workflow,
 		Tag: tag, CommitSHA: commit, RuntimeContractHash: runtimeprotocol.ContractHash,
-		ControlSchema: controlstore.SchemaVersion, WorkspaceChatSchema: workspacechat.SchemaVersion,
-		GeneratedAt: time.Now().UTC(), Artifacts: artifacts,
+		ControlSchema: controlstore.SchemaVersion,
+		GeneratedAt:   time.Now().UTC(), Artifacts: artifacts,
 	}
 	if err := manifest.Validate(); err != nil {
 		return err

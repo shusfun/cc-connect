@@ -196,7 +196,7 @@
 - **长任务保护** — 新增 `max_turn_time_mins` 绝对墙钟上限，软停 + 强杀 + 下一条消息自动 `--resume`，避免长跑的 bash / test 命令把 session 永久锁住 (#1091)。
 - **新核心命令** — `/timer`（一次性延时任务）、`/cancel`（中断当前 turn）、`/ps`（替代 `/btw`，`/btw` 保留为别名）、`cron add --silent`、agent 主动 TTS 输出。
 - **多用户 / 权限** — 可选「回复未授权 IM 发件人」、`@Bot/permit` ≡ `/permit` 关键字匹配、Bridge 启用时必须配置 token。
-- **Provider 生态** — 新增 NekoCode、VisionCoder、AIHubMix、MiniMax M3 预设；Claude Code 1M-context Opus + `append_system_prompt` + PermissionRequest hooks；Codex `request_user_input` app-server 事件；可配置 `shell` 与 shell profile。
+- **Provider 生态** — 新增 NekoCode、VisionCoder、AIHubMix、MiniMax M3 预设；Claude Code 1M-context Opus + `append_system_prompt` + PermissionRequest hooks；Codex 结构化交互事件；可配置 `shell` 与 shell profile。
 - **可观测性** — Blackbox 测试框架（P0/P1/P2 + config-switch 矩阵）、CUJ 测试框架、codex/opencode/kimi 的 provider-resume 回归套件、Pi 在 reply footer 输出 context 用量。
 
 ⚠️ **行为变更（可能需要改配置）**：Telegram / Discord `progress_style` 默认值改为 `compact`（设回 `legacy` 可还原）；QQ Bot 默认 `intents` 现在包含 `INTERACTION_CREATE`，若自定义 `intents` 需手动包含 `1<<26`；钉钉 `msgtype=file` 入站现在送达 agent；引擎权限关键字容忍 @mention；`reset_on_idle_mins` 默认值改为 30 分钟；Bridge 未配置 token 时拒绝启动。完整主题汇总见 `changelogs/v1.3.3.md`。
@@ -346,7 +346,7 @@ bootstrap 只监听 `127.0.0.1:9820`，输出一次性设置 Token 和 SSH 端�
 
 ### 5️⃣ 配对 macOS Runtime
 
-在初始化向导生成十分钟有效的配对码，按页面命令安装 `cc-connect-runtime`。Runtime 通过出站 TLS 长连接读取本机 Codex App 项目，无需 VPN 或内网穿透。随后可选填企业微信 WebSocket 凭据并启动业务进程。
+在初始化向导生成十分钟有效的配对码，并在当前 Codex Desktop App 的交互终端执行页面命令。安装器会以前台进程启动 `cc-connect-runtime`；Runtime 通过出站 TLS 长连接读取当前 App 项目，无需 VPN 或内网穿透，也不会启动第二个 App Server。随后可选填企业微信 WebSocket 凭据并启动业务进程。
 
 至此完成 — 给你的 Bot 发条消息，cc-connect 就会把它转给本地的 Agent。
 
@@ -400,7 +400,7 @@ make build
 
 > **推荐使用控制面初始化向导** — Linux 上的 `cc-connect-control` 统一提供管理员认证、Runtime 配对、业务配置、日志、更新和回滚。业务进程不公开 TCP，也不再使用 management token。
 
-Web 主聊天按设备展示只读 Codex App 项目和原生会话。`/chat` 从 SQLite 精确恢复选择；“新建”先创建无名称草稿，首个 Turn 才物化，并在物化后提供原生设置、结构化交互、完整分页历史、深链和 WebRTC 语音。详见[部署指南](docs/deployment.zh-CN.md)和[统一工作区对话](docs/workspace-chat.zh-CN.md)。
+Web 主聊天展示当前 Codex App 的全部项目和任务。`/chat` 通过 App 权威接口读取任务与历史；“新建”的首条消息直接由 App 创建真实任务，后续发送和状态观察复用同一个 `AgentSession`。项目和任务使用显式 `…` 操作卡，动态显示当前 App schema 支持的重命名、置顶和归档能力。Runtime 必须从当前 App 交互终端启动，关闭该终端会使设备离线。详见[部署指南](docs/deployment.zh-CN.md)和[Codex App 工作区聊天](docs/workspace-chat.zh-CN.md)。
 
 如果你更喜欢手动配置：
 
@@ -490,7 +490,7 @@ cc-connect update --pre     # 含预发布版本
 
 ### 💬 平台会话管理
 
-以下命令管理独立的平台会话域，不操控 Codex 原生工作区 thread。工作区聊天使用上文所述的项目、草稿和 thread 控件。
+以下命令管理平台用户当前选择的 Agent 会话。使用 `codexapp` 时，任务与历史仍由 Desktop App 权威持有，cc-connect 只保存选择关系。
 
 ```
 /new [名称]            创建新会话

@@ -486,8 +486,6 @@ type Engine struct {
 
 	// Data directory for socket path injection
 	dataDir string
-
-	messageInterceptor func(Platform, *Message) bool
 }
 
 // workspaceInitFlow tracks a channel that is being onboarded to a workspace.
@@ -758,6 +756,9 @@ func NewEngine(name string, ag Agent, platforms []Platform, sessionStorePath str
 
 	if ag != nil {
 		e.sessions.InvalidateForAgent(ag.Name())
+		if _, authoritative := ag.(AuthoritativeSessionHistory); authoritative {
+			e.sessions.ClearAllHistory()
+		}
 	}
 
 	if cp, ok := ag.(CommandProvider); ok {
@@ -768,6 +769,16 @@ func NewEngine(name string, ag Agent, platforms []Platform, sessionStorePath str
 	}
 
 	return e
+}
+
+func addSessionHistory(agent Agent, session *Session, role, content string) {
+	if session == nil {
+		return
+	}
+	if _, authoritative := agent.(AuthoritativeSessionHistory); authoritative {
+		return
+	}
+	session.AddHistory(role, content)
 }
 
 // DefaultWorkspaceIdleTimeout is the default time a workspace can be idle
@@ -2456,15 +2467,6 @@ func (e *Engine) ReceiveMessage(p Platform, msg *Message) {
 	e.handleMessage(p, msg)
 }
 
-func (e *Engine) SetMessageInterceptor(interceptor func(Platform, *Message) bool) {
-	e.messageInterceptor = interceptor
-	for _, platform := range e.platforms {
-		if configurable, ok := platform.(MessagePreflightConfigurer); ok {
-			configurable.SetMessagePreflight(interceptor)
-		}
-	}
-}
-
 func (e *Engine) onPlatformReady(p Platform) {
 	if !e.markPlatformReady(p) {
 		return
@@ -2850,9 +2852,6 @@ func (e *Engine) startMessageRecallMonitor(sessionKey string) context.CancelFunc
 }
 
 func (e *Engine) handleMessage(p Platform, msg *Message) {
-	if e.messageInterceptor != nil && e.messageInterceptor(p, msg) {
-		return
-	}
 	if msg.Recalled {
 		e.handleMessageRecall(p, msg)
 		return
@@ -3779,7 +3778,7 @@ func (e *Engine) processInteractiveMessageWith(p Platform, msg *Message, session
 	turnStart := time.Now()
 
 	e.i18n.DetectAndSet(msg.Content)
-	session.AddHistory("user", msg.Content)
+	addSessionHistory(agent, session, "user", msg.Content)
 	// Persist user message immediately so crashes between user input and
 	// assistant reply don't lose it (the assistant-side Save below depends
 	// on the turn completing without a process crash).
@@ -4190,19 +4189,23 @@ func (e *Engine) getOrCreateInteractiveStateWith(sessionKey string, p Platform, 
 	if err != nil {
 		// If resume/continue failed, try a fresh session as fallback.
 		if startSessionID != "" {
-			slog.Error("session resume failed, falling back to fresh session",
-				"session_key", sessionKey, "failed_session_id", startSessionID,
-				"error", err, "elapsed", startElapsed)
-			// Clear the stale session ID so CompareAndSetAgentSessionID can
-			// write the new ID, matching the relay fallback at line 12640.
-			session.SetAgentSessionID("", agent.Name())
-			sessions.Save()
-			startAt = time.Now()
-			agentSession, err = agent.StartSession(e.ctx, "")
-			startElapsed = time.Since(startAt)
-			if err == nil {
-				slog.Info("fresh session started after resume failure",
-					"session_key", sessionKey, "elapsed", startElapsed)
+			if _, authoritative := agent.(AuthoritativeSessionHistory); authoritative {
+				slog.Error("authoritative session start failed", "session_key", sessionKey, "agent_session_id", startSessionID, "error", err, "elapsed", startElapsed)
+			} else {
+				slog.Error("session resume failed, falling back to fresh session",
+					"session_key", sessionKey, "failed_session_id", startSessionID,
+					"error", err, "elapsed", startElapsed)
+				// Clear the stale session ID so CompareAndSetAgentSessionID can
+				// write the new ID, matching the relay fallback at line 12640.
+				session.SetAgentSessionID("", agent.Name())
+				sessions.Save()
+				startAt = time.Now()
+				agentSession, err = agent.StartSession(e.ctx, "")
+				startElapsed = time.Since(startAt)
+				if err == nil {
+					slog.Info("fresh session started after resume failure",
+						"session_key", sessionKey, "elapsed", startElapsed)
+				}
 			}
 		}
 		if err != nil {
@@ -4222,6 +4225,15 @@ func (e *Engine) getOrCreateInteractiveStateWith(sessionKey string, p Platform, 
 	}
 	if startElapsed >= slowAgentStart {
 		slog.Warn("slow agent session start", "elapsed", startElapsed, "agent", agent.Name(), "session_id", startSessionID)
+	}
+	if projectID, pending := session.PendingAgentCreation(); pending {
+		if target, ok := agentSession.(AgentSessionCreationTarget); ok {
+			title := session.GetName()
+			if title == "default" || title == "session" {
+				title = ""
+			}
+			target.SetCreationTarget(projectID, title)
+		}
 	}
 
 	// Surface any startup warning (e.g. permission mode downgrade under root) to the IM user.
@@ -4708,7 +4720,7 @@ func (e *Engine) runUnsolicitedReader(ctx context.Context, state *interactiveSta
 				// takes event-channel ownership) blocks until this goroutine
 				// exits — so a foreground AddHistory is always ordered after
 				// any unsolicited AddHistory.
-				session.AddHistory("assistant", fullResponse)
+				addSessionHistory(state.agent, session, "assistant", fullResponse)
 				sessions.Save()
 
 				// Reset for potential subsequent unsolicited turn.
@@ -5464,6 +5476,8 @@ func (e *Engine) processInteractiveEvents(state *interactiveState, session *Sess
 					}
 					sessions.Save()
 				}
+				session.ClearPendingAgentSessionCreation()
+				sessions.Save()
 			}
 
 		case EventPermissionRequest:
@@ -5597,6 +5611,7 @@ func (e *Engine) processInteractiveEvents(state *interactiveState, session *Sess
 							}
 						}
 					}
+					session.ClearPendingAgentSessionCreation()
 					sessions.Save()
 				}
 			}
@@ -5656,7 +5671,7 @@ func (e *Engine) processInteractiveEvents(state *interactiveState, session *Sess
 			//   3. trailing marker with empty strip result   → fully silent
 			// History records the ORIGINAL baseResponse so the agent retains context of its own
 			// decision; only the outbound platform text gets rewritten/suppressed.
-			session.AddHistory("assistant", baseResponse)
+			addSessionHistory(state.agent, session, "assistant", baseResponse)
 			sessions.Save()
 
 			isSilent := isSilentReply(baseResponse)
@@ -6059,7 +6074,7 @@ func (e *Engine) processInteractiveEvents(state *interactiveState, session *Sess
 					e.send(queued.platform, queued.replyCtx, replyContent)
 				}
 
-				session.AddHistory("user", queued.content)
+				addSessionHistory(state.agent, session, "user", queued.content)
 				// Persist queued user message immediately (mirror of the
 				// initial AddHistory("user",...) save above).
 				sessions.Save()
@@ -6155,7 +6170,7 @@ channelClosed:
 		state.mu.Unlock()
 
 		fullResponse := strings.Join(textParts, "")
-		session.AddHistory("assistant", fullResponse)
+		addSessionHistory(state.agent, session, "assistant", fullResponse)
 		// Persist immediately — this path runs on abnormal channel close,
 		// so deferring the save until the next foreground turn risks losing
 		// the partial assistant response if the process exits next.
@@ -6317,7 +6332,7 @@ func (e *Engine) drainPendingMessages(state *interactiveState, session *Session,
 
 		drainEvents(as.Events())
 
-		session.AddHistory("user", queued.content)
+		addSessionHistory(state.agent, session, "user", queued.content)
 
 		sendDone := make(chan error, 1)
 		go func() {
@@ -6913,7 +6928,7 @@ func (e *Engine) handleWorkspaceCommand(p Platform, msg *Message, args []string)
 }
 
 func (e *Engine) cmdNew(p Platform, msg *Message, args []string) {
-	_, sessions, interactiveKey, err := e.commandContext(p, msg)
+	agent, sessions, interactiveKey, err := e.commandContext(p, msg)
 	if err != nil {
 		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgWsResolutionError, err))
 		return
@@ -6923,8 +6938,41 @@ func (e *Engine) cmdNew(p Platform, msg *Message, args []string) {
 	e.cleanupInteractiveState(interactiveKey)
 	slog.Info("cmdNew: cleanup done, creating new session", "session_key", msg.SessionKey)
 
-	// Clear old session's agent session ID so it cannot be resumed
 	old := sessions.GetOrCreateActive(msg.SessionKey)
+	if _, authoritative := agent.(AuthoritativeSessionHistory); authoritative {
+		if _, canCreate := agent.(AgentSessionCreator); !canCreate {
+			e.reply(p, msg.ReplyCtx, fmt.Sprintf(e.i18n.T(MsgError), "agent task creation is unavailable"))
+			return
+		}
+		projectID := ""
+		if oldID := old.GetAgentSessionID(); oldID != "" {
+			if available, listErr := agent.ListSessions(e.ctx); listErr != nil {
+				slog.Warn("cmdNew: failed to resolve current authoritative project", "session_key", msg.SessionKey, "error", listErr)
+			} else {
+				for _, candidate := range available {
+					if candidate.ID == oldID {
+						projectID = candidate.ProjectID
+						break
+					}
+				}
+			}
+		}
+		name := ""
+		if len(args) > 0 {
+			name = strings.Join(args, " ")
+		}
+		created := sessions.NewSession(msg.SessionKey, name)
+		created.SetPendingAgentSessionCreation(projectID)
+		sessions.Save()
+		if name != "" {
+			e.reply(p, msg.ReplyCtx, fmt.Sprintf(e.i18n.T(MsgNewSessionCreatedName), name))
+		} else {
+			e.reply(p, msg.ReplyCtx, e.i18n.T(MsgNewSessionCreated))
+		}
+		return
+	}
+
+	// CLI agents preserve the established fresh-process behavior.
 	old.SetAgentSessionID("", "")
 	old.ClearHistory()
 	sessions.Save()
@@ -11102,13 +11150,13 @@ func (e *Engine) SendToSessionInWorkDir(sessionKey, message string, images []Ima
 		return fmt.Errorf("no active session found (key=%q)", sessionKey)
 	}
 
-	_, sessions, err := e.getOrCreateWorkspaceAgent(workDir)
+	agent, sessions, err := e.getOrCreateWorkspaceAgent(workDir)
 	if err != nil {
 		return err
 	}
 	session := sessions.NewSession(target.sessionKey, "send")
 	if message != "" {
-		session.AddHistory("assistant", message)
+		addSessionHistory(agent, session, "assistant", message)
 	}
 	sessions.Save()
 	e.bindSendWorkDir(target.sessionKey, workDir)

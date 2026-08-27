@@ -18,11 +18,11 @@ const ContinueSession = "__continue__"
 
 // Session tracks one conversation between a user and the agent.
 type Session struct {
-	ID                  string         `json:"id"`
-	Name                string         `json:"name"`
-	AgentSessionID      string         `json:"agent_session_id"`
-	AgentType           string         `json:"agent_type,omitempty"`
-	PastAgentSessionIDs []string       `json:"past_agent_session_ids,omitempty"`
+	ID                  string   `json:"id"`
+	Name                string   `json:"name"`
+	AgentSessionID      string   `json:"agent_session_id"`
+	AgentType           string   `json:"agent_type,omitempty"`
+	PastAgentSessionIDs []string `json:"past_agent_session_ids,omitempty"`
 	// ActiveProvider is the agent provider name that was active when this
 	// session last took a turn. It is restored before --resume so that a
 	// cc-connect process restart does not silently drop a user's
@@ -38,7 +38,9 @@ type Session struct {
 	// unsolicited agent output), this field is only updated when the engine
 	// processes an actual incoming user message. It is used by reset_on_idle_mins
 	// so that automated activity cannot prevent idle session rotation.
-	LastUserActivity time.Time `json:"last_user_activity,omitempty"`
+	LastUserActivity            time.Time `json:"last_user_activity,omitempty"`
+	PendingAgentProjectID       string    `json:"pending_agent_project_id,omitempty"`
+	PendingAgentSessionCreation bool      `json:"pending_agent_session_creation,omitempty"`
 
 	mu   sync.Mutex `json:"-"`
 	busy bool       `json:"-"`
@@ -124,6 +126,26 @@ func (s *Session) GetAgentSessionID() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.AgentSessionID
+}
+
+func (s *Session) SetPendingAgentSessionCreation(projectID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PendingAgentProjectID = projectID
+	s.PendingAgentSessionCreation = true
+}
+
+func (s *Session) PendingAgentCreation() (projectID string, pending bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.PendingAgentProjectID, s.PendingAgentSessionCreation
+}
+
+func (s *Session) ClearPendingAgentSessionCreation() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PendingAgentProjectID = ""
+	s.PendingAgentSessionCreation = false
 }
 
 // SetName atomically updates the session's display name. The management
@@ -505,6 +527,25 @@ func (sm *SessionManager) AllSessions() []*Session {
 	return out
 }
 
+// ClearAllHistory removes cached conversation bodies while preserving session
+// selection and agent task IDs. Authoritative agent applications own history.
+func (sm *SessionManager) ClearAllHistory() {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	changed := false
+	for _, session := range sm.sessions {
+		session.mu.Lock()
+		if len(session.History) > 0 {
+			session.History = nil
+			changed = true
+		}
+		session.mu.Unlock()
+	}
+	if changed {
+		sm.saveLocked()
+	}
+}
+
 // KnownAgentSessionIDs returns the set of agent session IDs tracked by cc-connect.
 // This is used to filter agent.ListSessions() output to only sessions owned by
 // cc-connect, excluding sessions created by external CLI usage in the same work_dir.
@@ -637,14 +678,16 @@ func (sm *SessionManager) saveLocked() {
 			s.AgentSessionID = ""
 		}
 		snapSessions[id] = &Session{
-			ID:                  s.ID,
-			Name:                s.Name,
-			AgentSessionID:      agentSID,
-			AgentType:           s.AgentType,
-			PastAgentSessionIDs: append([]string(nil), s.PastAgentSessionIDs...),
-			History:             append([]HistoryEntry(nil), s.History...),
-			CreatedAt:           s.CreatedAt,
-			UpdatedAt:           s.UpdatedAt,
+			ID:                          s.ID,
+			Name:                        s.Name,
+			AgentSessionID:              agentSID,
+			AgentType:                   s.AgentType,
+			PastAgentSessionIDs:         append([]string(nil), s.PastAgentSessionIDs...),
+			History:                     append([]HistoryEntry(nil), s.History...),
+			CreatedAt:                   s.CreatedAt,
+			UpdatedAt:                   s.UpdatedAt,
+			PendingAgentProjectID:       s.PendingAgentProjectID,
+			PendingAgentSessionCreation: s.PendingAgentSessionCreation,
 		}
 		s.mu.Unlock()
 	}
@@ -828,7 +871,7 @@ func (sm *SessionManager) PruneDuplicateSessions(mergeHistory bool) PruneResult 
 	defer sm.mu.Unlock()
 
 	// Group sessions by baseChat
-	chatSessions := make(map[string][]*Session) // baseChat -> sessions
+	chatSessions := make(map[string][]*Session)  // baseChat -> sessions
 	sessionToBaseChat := make(map[string]string) // session.ID -> baseChat
 
 	for userKey, sessionIDs := range sm.userSessions {

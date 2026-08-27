@@ -211,6 +211,89 @@ func (s *cujAgentSession) getSentPrompts() []string {
 	return out
 }
 
+type cujAppAgent struct {
+	mu        sync.Mutex
+	sessions  []AgentSessionInfo
+	creations []AgentSessionCreateRequest
+	nextID    int
+}
+
+func (a *cujAppAgent) Name() string                 { return "cuj-app" }
+func (a *cujAppAgent) Stop() error                  { return nil }
+func (a *cujAppAgent) AuthoritativeSessionHistory() {}
+func (a *cujAppAgent) ListSessions(context.Context) ([]AgentSessionInfo, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]AgentSessionInfo(nil), a.sessions...), nil
+}
+func (a *cujAppAgent) CreateSession(_ context.Context, request AgentSessionCreateRequest) (AgentSessionInfo, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.nextID++
+	created := AgentSessionInfo{ID: fmt.Sprintf("app-task-%d", a.nextID), Summary: request.Title, ProjectID: request.ProjectID, Status: "active"}
+	a.creations = append(a.creations, request)
+	a.sessions = append(a.sessions, created)
+	return created, nil
+}
+func (a *cujAppAgent) StartSession(_ context.Context, sessionID string) (AgentSession, error) {
+	return &cujAppSession{agent: a, id: sessionID, events: make(chan Event, 8), alive: true}, nil
+}
+
+type cujAppSession struct {
+	agent     *cujAppAgent
+	mu        sync.Mutex
+	id        string
+	projectID string
+	title     string
+	events    chan Event
+	alive     bool
+}
+
+func (s *cujAppSession) SetCreationTarget(projectID, title string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.projectID = projectID
+	s.title = title
+}
+func (s *cujAppSession) Send(prompt, _ string, _ []ImageAttachment, _ []FileAttachment) error {
+	s.mu.Lock()
+	id, projectID, title := s.id, s.projectID, s.title
+	s.mu.Unlock()
+	if id == "" {
+		created, err := s.agent.CreateSession(context.Background(), AgentSessionCreateRequest{ProjectID: projectID, Prompt: prompt, Title: title})
+		if err != nil {
+			return err
+		}
+		s.mu.Lock()
+		s.id = created.ID
+		id = created.ID
+		s.mu.Unlock()
+	}
+	go func() {
+		s.events <- Event{Type: EventText, Content: "App reply: " + prompt, SessionID: id}
+		s.events <- Event{Type: EventResult, SessionID: id, Done: true}
+	}()
+	return nil
+}
+func (s *cujAppSession) RespondPermission(string, PermissionResult) error { return ErrNotSupported }
+func (s *cujAppSession) Events() <-chan Event                             { return s.events }
+func (s *cujAppSession) CurrentSessionID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.id
+}
+func (s *cujAppSession) Alive() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.alive
+}
+func (s *cujAppSession) Close() error {
+	s.mu.Lock()
+	s.alive = false
+	s.mu.Unlock()
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // cujEnv bundles the engine + platform stub + agent for a single CUJ run.
 // ---------------------------------------------------------------------------
@@ -1263,6 +1346,62 @@ func TestCUJ_B1_NewCreatesIndependentSession(t *testing.T) {
 	if len(s2.GetHistory(0)) != 0 {
 		t.Fatalf("/new session should start with empty history, got %d entries", len(s2.GetHistory(0)))
 	}
+}
+
+func TestCUJ_B1_AppNewWaitsForFirstMessageAndCreatesOnce(t *testing.T) {
+	dir := t.TempDir()
+	plat := &stubPlatformEngine{n: "test"}
+	agent := &cujAppAgent{sessions: []AgentSessionInfo{{ID: "app-old", Summary: "旧任务", ProjectID: "project-1", Status: "idle"}}}
+	engine := newCUJEngine(t, "test", agent, []Platform{plat}, filepath.Join(dir, "sessions.json"), LangChinese)
+	key := "test:app-user"
+	engine.sessions.SwitchToAgentSession(key, "app-old", agent.Name(), "旧任务")
+	send := func(content string) {
+		engine.ReceiveMessage(plat, &Message{SessionKey: key, Platform: "test", MessageID: "m-" + content, UserID: "app-user", Content: content, ReplyCtx: "ctx"})
+	}
+
+	send("/new 新任务")
+	waitCUJCondition(t, 2*time.Second, func() bool { return len(plat.getSent()) >= 1 }, "用户看到新任务等待状态")
+	newLocal := engine.sessions.GetOrCreateActive(key)
+	if projectID, pending := newLocal.PendingAgentCreation(); !pending || projectID != "project-1" {
+		t.Fatalf("pending creation = (%q, %v), want project-1, true", projectID, pending)
+	}
+
+	plat.clearSent()
+	send("第一条消息")
+	waitCUJCondition(t, 2*time.Second, func() bool { return len(plat.getSent()) >= 1 }, "App 首次任务回复")
+	agent.mu.Lock()
+	if len(agent.creations) != 1 {
+		t.Fatalf("create calls = %d, want 1", len(agent.creations))
+	}
+	created := agent.creations[0]
+	agent.mu.Unlock()
+	if created.ProjectID != "project-1" || created.Prompt != "第一条消息" || created.Title != "新任务" {
+		t.Fatalf("create request = %+v", created)
+	}
+	if _, pending := newLocal.PendingAgentCreation(); pending {
+		t.Fatal("pending creation should clear after the App returns the real task ID")
+	}
+
+	plat.clearSent()
+	send("继续处理")
+	waitCUJCondition(t, 2*time.Second, func() bool { return len(plat.getSent()) >= 1 }, "App follow-up 回复")
+	agent.mu.Lock()
+	defer agent.mu.Unlock()
+	if len(agent.creations) != 1 {
+		t.Fatalf("follow-up created another task: %d create calls", len(agent.creations))
+	}
+}
+
+func waitCUJCondition(t *testing.T, timeout time.Duration, condition func() bool, reason string) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", reason)
 }
 
 // CUJ-B2 · /list shows all sessions for the user.
