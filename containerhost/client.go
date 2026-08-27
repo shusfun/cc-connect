@@ -16,17 +16,28 @@ import (
 )
 
 type Client struct {
-	http *http.Client
+	http        *http.Client
+	prepareHTTP *http.Client
 }
 
 func NewClient(socketPath string) (*Client, error) {
+	return newClient(socketPath, 2*time.Minute, 10*time.Minute)
+}
+
+func newClient(socketPath string, requestTimeout, prepareTimeout time.Duration) (*Client, error) {
 	if !strings.HasPrefix(strings.TrimSpace(socketPath), "/") {
 		return nil, errors.New("container host client: absolute Unix socket path is required")
+	}
+	if requestTimeout <= 0 || prepareTimeout <= 0 {
+		return nil, errors.New("container host client: positive request timeouts are required")
 	}
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
 	}}
-	return &Client{http: &http.Client{Transport: transport, Timeout: 2 * time.Minute}}, nil
+	return &Client{
+		http:        &http.Client{Transport: transport, Timeout: requestTimeout},
+		prepareHTTP: &http.Client{Transport: transport, Timeout: prepareTimeout},
+	}, nil
 }
 
 func (c *Client) LatestTag(ctx context.Context) (string, error) {
@@ -41,7 +52,7 @@ func (c *Client) LatestTag(ctx context.Context) (string, error) {
 
 func (c *Client) Prepare(ctx context.Context, tag string) (releaseinstall.Release, Preparation, error) {
 	var preparation Preparation
-	if err := c.call(ctx, http.MethodPost, "/v1/prepare", PrepareRequest{Tag: tag}, &preparation); err != nil {
+	if err := c.callWith(c.prepareHTTP, ctx, http.MethodPost, "/v1/prepare", PrepareRequest{Tag: tag}, &preparation); err != nil {
 		return releaseinstall.Release{}, Preparation{}, err
 	}
 	manifest, err := releaseinstall.DecodeLockedManifest(preparation.Manifest, tag)
@@ -74,6 +85,10 @@ func (c *Client) Confirm(ctx context.Context, runID string) error {
 }
 
 func (c *Client) call(ctx context.Context, method, path string, payload, result any) error {
+	return c.callWith(c.http, ctx, method, path, payload, result)
+}
+
+func (c *Client) callWith(client *http.Client, ctx context.Context, method, path string, payload, result any) error {
 	var body io.Reader
 	if payload != nil {
 		raw, err := json.Marshal(payload)
@@ -90,7 +105,7 @@ func (c *Client) call(ctx context.Context, method, path string, payload, result 
 		request.Header.Set("Content-Type", "application/json")
 	}
 	request.Header.Set(contractHeader, ContractHash)
-	response, err := c.http.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("container host client: %s: %w", path, err)
 	}
