@@ -2219,6 +2219,27 @@ func TestMgmt_SessionSwitch_Success(t *testing.T) {
 	}
 }
 
+func TestMgmt_AuthoritativeSessionSwitchUsesRuntimeHost(t *testing.T) {
+	_, ts, e := testManagementServer(t)
+	e.agent = &cujAppAgent{sessions: []AgentSessionInfo{
+		{ID: "same-task", HostID: "device-1", Summary: "第一台"},
+		{ID: "same-task", HostID: "device-2", Summary: "第二台"},
+	}}
+
+	r := mgmtPost(t, ts.URL+"/api/v1/projects/test-project/sessions/switch", map[string]string{
+		"session_key": "web:management",
+		"session_id":  "same-task",
+		"host_id":     "device-2",
+	})
+	if !r.OK {
+		t.Fatalf("switch failed: %s", r.Error)
+	}
+	selected := e.sessions.GetOrCreateActive("web:management")
+	if got := selected.GetAgentSessionHostID(); got != "device-2" {
+		t.Fatalf("selected host = %q, want device-2", got)
+	}
+}
+
 func TestMgmt_SessionSwitch_MissingFields(t *testing.T) {
 	_, ts, _ := testManagementServer(t)
 

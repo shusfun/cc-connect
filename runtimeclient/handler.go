@@ -121,6 +121,9 @@ func (h *Handler) send(ctx context.Context, request runtimeprotocol.TaskSendRequ
 		return nil, err
 	}
 	defer func() { _ = session.Close() }()
+	if target, ok := session.(core.AgentSessionHostTarget); ok {
+		target.SetHostID(request.HostID)
+	}
 	if err := session.Send(request.Prompt, request.MessageID, nil, nil); err != nil {
 		return nil, err
 	}
