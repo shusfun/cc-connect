@@ -111,6 +111,25 @@ describe('Codex App 工作区聊天', () => {
     expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('继续任务时按 Runtime host 切换后再发送', async () => {
+    const view = renderChat('/chat/project-1/task-1');
+    const input = await view.findByPlaceholderText('给 Codex 发送消息') as HTMLTextAreaElement;
+    await waitFor(() => expect(input.disabled).toBe(false));
+    fireEvent.change(input, { target: { value: '继续检查' } });
+    const send = view.getByRole('button', { name: '发送' }) as HTMLButtonElement;
+    await waitFor(() => expect(send.disabled).toBe(false));
+    fireEvent.click(send);
+    await waitFor(() => expect(mocks.switchSession).toHaveBeenCalledWith('codex-app', {
+      session_key: 'web:management',
+      session_id: 'task-1',
+      host_id: 'local',
+    }));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith('codex-app', {
+      session_key: 'web:management',
+      message: '继续检查',
+    }));
+  });
+
   it('App schema 缺少元数据能力时菜单明确禁用操作', async () => {
     mocks.getAgentCapabilities.mockResolvedValue({
       capabilities: {

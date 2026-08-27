@@ -996,7 +996,7 @@ func (m *ManagementServer) handleProjectSessions(w http.ResponseWriter, r *http.
 			if summary == "" {
 				summary = "新任务"
 			}
-			e.sessions.SwitchToAgentSession(body.SessionKey, created.ID, e.agent.Name(), summary)
+			e.sessions.SwitchToAgentSessionAtHost(body.SessionKey, created.ID, created.HostID, e.agent.Name(), summary)
 			mgmtJSON(w, http.StatusCreated, map[string]any{"session": created, "session_key": body.SessionKey})
 			return
 		}
@@ -1135,6 +1135,7 @@ func (m *ManagementServer) handleProjectSessionSwitch(w http.ResponseWriter, r *
 	var body struct {
 		SessionKey string `json:"session_key"`
 		SessionID  string `json:"session_id"`
+		HostID     string `json:"host_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		mgmtError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -1152,7 +1153,7 @@ func (m *ManagementServer) handleProjectSessionSwitch(w http.ResponseWriter, r *
 			return
 		}
 		for index := range sessions {
-			if sessions[index].ID == body.SessionID {
+			if sessions[index].ID == body.SessionID && (body.HostID == "" || sessions[index].HostID == body.HostID) {
 				selected = &sessions[index]
 				break
 			}
@@ -1161,7 +1162,7 @@ func (m *ManagementServer) handleProjectSessionSwitch(w http.ResponseWriter, r *
 			mgmtError(w, http.StatusNotFound, "task not found")
 			return
 		}
-		s := e.sessions.SwitchToAgentSession(body.SessionKey, selected.ID, e.agent.Name(), selected.Summary)
+		s := e.sessions.SwitchToAgentSessionAtHost(body.SessionKey, selected.ID, selected.HostID, e.agent.Name(), selected.Summary)
 		mgmtJSON(w, http.StatusOK, map[string]any{"message": "active task switched", "active_session_id": s.ID, "agent_session_id": selected.ID})
 		return
 	}

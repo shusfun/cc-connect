@@ -80,13 +80,13 @@ function normalizeTaskProjects(projects: AgentProject[], tasks: AgentTask[]): { 
   return { projects, tasks: normalized };
 }
 
-async function loadAllHistory(bridgeProject: string, task: AgentTask): Promise<AgentTaskSnapshot> {
+async function loadAllHistory(bridgeProject: string, taskID: string, hostID?: string): Promise<AgentTaskSnapshot> {
   let cursor = '';
   let snapshot: AgentTaskSnapshot | null = null;
   let history: AgentTaskHistoryEntry[] = [];
   const seen = new Set<string>();
   for (;;) {
-    const value = await getAgentTask(bridgeProject, task.id, 10, task.host_id, cursor || undefined);
+    const value = await getAgentTask(bridgeProject, taskID, 10, hostID, cursor || undefined);
     snapshot ||= value;
     history = cursor ? mergeHistory(value.history, history) : mergeHistory(history, value.history);
     if (!value.has_more || !value.cursor) break;
@@ -134,6 +134,8 @@ export default function WorkspaceChat() {
   const [renameValue, setRenameValue] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const selectedTask = useMemo(() => tasks.find((task) => task.id === params.taskId), [params.taskId, tasks]);
+  const selectedTaskID = selectedTask?.id;
+  const selectedTaskHostID = selectedTask?.host_id;
   const selectedProject = useMemo(() => projects.find((project) => project.id === params.projectId), [params.projectId, projects]);
   const isDraft = draftMatch !== null;
 
@@ -182,13 +184,14 @@ export default function WorkspaceChat() {
   }, [generation, loadCatalog, navigate, params.projectId]);
 
   const refreshSelected = useCallback(async (fullHistory: boolean) => {
-    if (!bridgeProject || !selectedTask) return;
+    if (!bridgeProject || !selectedTaskID) return;
     const next = fullHistory
-      ? await loadAllHistory(bridgeProject, selectedTask)
-      : await getAgentTask(bridgeProject, selectedTask.id, 10, selectedTask.host_id);
+      ? await loadAllHistory(bridgeProject, selectedTaskID, selectedTaskHostID)
+      : await getAgentTask(bridgeProject, selectedTaskID, 10, selectedTaskHostID);
     setSnapshot((current) => ({ ...next, history: current && !fullHistory ? mergeHistory(current.history, next.history) : next.history }));
     setTasks((current) => current.map((task) => task.id === next.session.id ? { ...task, ...next.session, project_id: task.project_id || next.session.project_id } : task));
-  }, [bridgeProject, selectedTask]);
+    return next;
+  }, [bridgeProject, selectedTaskHostID, selectedTaskID]);
 
   useEffect(() => {
     setSnapshot(null);
@@ -197,20 +200,21 @@ export default function WorkspaceChat() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async (fullHistory: boolean) => {
+      let next: AgentTaskSnapshot | undefined;
       try {
-        await refreshSelected(fullHistory);
+        next = await refreshSelected(fullHistory);
         if (!cancelled) setError('');
       } catch (cause) {
         if (!cancelled) setError(errorMessage(cause));
       }
-      if (!cancelled) timer = setTimeout(() => void poll(false), snapshot?.session.status === 'active' ? 1200 : 3500);
+      if (!cancelled) timer = setTimeout(() => void poll(false), next?.session.status === 'active' ? 1200 : 3500);
     };
     void poll(true);
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [bridgeProject, isDraft, refreshSelected, selectedTask?.id]);
+  }, [bridgeProject, isDraft, refreshSelected, selectedTaskID]);
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), [snapshot?.history.length]);
 
@@ -235,7 +239,7 @@ export default function WorkspaceChat() {
       } else if (selectedTask) {
         setSnapshot((current) => current ? { ...current, session: { ...current.session, status: 'active' }, history: [...current.history, { role: 'user', content: prompt, timestamp: new Date().toISOString() }] } : current);
         setInput('');
-        await switchSession(bridgeProject, { session_key: WEB_SESSION_KEY, session_id: selectedTask.id });
+        await switchSession(bridgeProject, { session_key: WEB_SESSION_KEY, session_id: selectedTask.id, host_id: selectedTask.host_id });
         await sendMessage(bridgeProject, { session_key: WEB_SESSION_KEY, message: prompt });
         await refreshSelected(false);
       }

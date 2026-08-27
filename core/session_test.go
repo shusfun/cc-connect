@@ -945,6 +945,21 @@ func TestSwitchToAgentSession_ReusesExisting(t *testing.T) {
 	}
 }
 
+func TestSwitchToAgentSessionAtHostDisambiguatesDuplicateTaskIDs(t *testing.T) {
+	sm := NewSessionManager("")
+	first := sm.SwitchToAgentSessionAtHost("user", "same-task", "device-1", "codexapp", "第一台")
+	second := sm.SwitchToAgentSessionAtHost("user", "same-task", "device-2", "codexapp", "第二台")
+	if first.ID == second.ID {
+		t.Fatal("different Runtime hosts must not reuse the same platform session")
+	}
+	if got := second.GetAgentSessionHostID(); got != "device-2" {
+		t.Fatalf("active host = %q, want device-2", got)
+	}
+	if got := sm.SwitchToAgentSessionAtHost("user", "same-task", "device-1", "codexapp", "第一台"); got.ID != first.ID {
+		t.Fatalf("switching back returned %q, want %q", got.ID, first.ID)
+	}
+}
+
 // TestSwitchToAgentSession_PreservesHistory locks down the fix for the
 // `/switch` regression: when switching back to a previously-used
 // agent_session_id, the returned Session must retain its conversation history.

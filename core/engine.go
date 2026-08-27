@@ -4226,6 +4226,9 @@ func (e *Engine) getOrCreateInteractiveStateWith(sessionKey string, p Platform, 
 	if startElapsed >= slowAgentStart {
 		slog.Warn("slow agent session start", "elapsed", startElapsed, "agent", agent.Name(), "session_id", startSessionID)
 	}
+	if target, ok := agentSession.(AgentSessionHostTarget); ok {
+		target.SetHostID(session.GetAgentSessionHostID())
+	}
 	if projectID, pending := session.PendingAgentCreation(); pending {
 		if target, ok := agentSession.(AgentSessionCreationTarget); ok {
 			title := session.GetName()
@@ -7149,7 +7152,7 @@ func (e *Engine) cmdSwitch(p Platform, msg *Message, args []string) {
 	// original conversation; wiping it makes /history return empty after a
 	// /switch round-trip. When SwitchToAgentSession creates a fresh Session
 	// (no prior match), History is already nil, so preserving is a no-op.
-	_ = sessions.SwitchToAgentSession(msg.SessionKey, matched.ID, agent.Name(), matched.Summary)
+	_ = sessions.SwitchToAgentSessionAtHost(msg.SessionKey, matched.ID, matched.HostID, agent.Name(), matched.Summary)
 
 	shortID := matched.ID
 	if len(shortID) > 12 {
@@ -12368,7 +12371,7 @@ func (e *Engine) executeCardAction(cmd, args, sessionKey string) {
 			return
 		}
 		e.cleanupInteractiveState(interactiveKey)
-		session := sessions.SwitchToAgentSession(sessionKey, matched.ID, agent.Name(), matched.Summary)
+		session := sessions.SwitchToAgentSessionAtHost(sessionKey, matched.ID, matched.HostID, agent.Name(), matched.Summary)
 		session.ClearHistory()
 
 	case "/dir":
