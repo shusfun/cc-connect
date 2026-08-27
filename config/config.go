@@ -607,7 +607,7 @@ type LogConfig struct {
 }
 
 // load parses, env-resolves, and wires providers in the config file but does
-// NOT validate — callers must call validate() or validatePermissive() themselves.
+// not validate; callers must call validate themselves.
 func load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -630,20 +630,6 @@ func load(path string) (*Config, error) {
 		cfg.AttachmentSend = "on"
 	}
 	cfg.ResolveProviderRefs()
-	return cfg, nil
-}
-
-// LoadPermissive loads the config file and performs all validation except the
-// "at least one platform per project" check. Control uses this while generating
-// the initial business configuration before any platform is enabled.
-func LoadPermissive(path string) (*Config, error) {
-	cfg, err := load(path)
-	if err != nil {
-		return nil, err
-	}
-	if err := cfg.validatePermissive(); err != nil {
-		return nil, err
-	}
 	return cfg, nil
 }
 
@@ -983,17 +969,7 @@ func EffectiveCardMode(cfg *Config, proj *ProjectConfig) string {
 	return "legacy"
 }
 
-// validatePermissive is like validate but skips the "at least one platform"
-// requirement so control can validate an incomplete first-run configuration.
-func (c *Config) validatePermissive() error {
-	return c.validateInternal(true)
-}
-
 func (c *Config) validate() error {
-	return c.validateInternal(false)
-}
-
-func (c *Config) validateInternal(permissive bool) error {
 	if err := validateDisplayConfig("display", &c.Display); err != nil {
 		return err
 	}
@@ -1027,9 +1003,6 @@ func (c *Config) validateInternal(permissive bool) error {
 		}
 		if proj.Agent.Type == "" {
 			return fmt.Errorf("config: %s.agent.type is required", prefix)
-		}
-		if len(proj.Platforms) == 0 && !permissive {
-			return fmt.Errorf("config: %s needs at least one [[projects.platforms]]", prefix)
 		}
 		for j, p := range proj.Platforms {
 			if p.Type == "" {
