@@ -36,9 +36,6 @@ func New(options map[string]any) (core.Agent, error) {
 	if value, ok := options["socket_path"].(string); ok {
 		bridgeOptions.SocketPath = value
 	}
-	if value, ok := options["node_path"].(string); ok {
-		bridgeOptions.NodePath = value
-	}
 	if value, ok := options["context_thread_id"].(string); ok {
 		bridgeOptions.ContextThreadID = value
 	}
