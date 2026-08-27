@@ -119,7 +119,7 @@ export const deleteSession = (project: string, id: string, hostID?: string) =>
 export const updateSessionMetadata = (project: string, id: string, patch: AgentTaskMetadataPatch, hostID?: string) =>
   api.request('PATCH', taskPath(project, id), patch, hostID ? { host_id: hostID } : undefined);
 
-export const switchSession = (project: string, body: { session_key: string; session_id: string }) =>
+export const switchSession = (project: string, body: { session_key: string; session_id: string; host_id?: string }) =>
   api.post(`${projectPath(project)}/sessions/switch`, body);
 
 export const sendMessage = (project: string, body: { session_key: string; message: string }) =>

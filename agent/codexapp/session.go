@@ -144,6 +144,7 @@ func (s *Session) SetCreationTarget(projectID, title string) {
 	s.projectID.Store(projectID)
 	s.title.Store(title)
 }
+func (s *Session) SetHostID(hostID string) { s.hostID.Store(hostID) }
 func (s *Session) creationProjectID() string {
 	value := s.projectID.Load()
 	if value == nil {
@@ -174,5 +175,6 @@ func (s *Session) emit(event core.Event) {
 
 var _ core.AgentSession = (*Session)(nil)
 var _ core.AgentSessionCreationTarget = (*Session)(nil)
+var _ core.AgentSessionHostTarget = (*Session)(nil)
 
 func (s *Session) String() string { return fmt.Sprintf("codexapp:%s", s.CurrentSessionID()) }
