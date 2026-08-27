@@ -45,6 +45,7 @@ func run(args []string) error {
 	deviceName := flags.String("name", hostname(), "设备显示名称")
 	toolsSocket := flags.String("codex-app-tools-socket", "", "可选 Codex Desktop App tools Socket；默认自动发现")
 	appNode := flags.String("codex-app-node", "", "可选 Codex Desktop App 内置 Node 路径")
+	cosignBinary := flags.String("cosign", strings.TrimSpace(os.Getenv("COSIGN_BIN")), "用于 Release 验签的 cosign 路径")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -87,7 +88,7 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("请先在 Web 生成配对码并运行 cc-connect-runtime pair: %w", err)
 	}
-	releaseClient, err := releaseinstall.New(releaseinstall.Config{})
+	releaseClient, err := releaseinstall.New(releaseinstall.Config{Cosign: *cosignBinary})
 	if err != nil {
 		return err
 	}

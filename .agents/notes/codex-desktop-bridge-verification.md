@@ -5,6 +5,7 @@
 适用于以下任一信号：
 
 - App tools Socket 立即 EOF 或显示 `Codex app tools pipe closed`。
+- Runtime 断线后反复报告 `socket closed during probe`，但 App 自带的 `list_projects` 仍可用。
 - 读取当前 Desktop task 时出现 `already has an active writer`。
 - Runtime 能读取 `tools/list`，但 `tools/call` 返回 `Codex app tool request failed`。
 - 需要判断 Runtime 是否意外启动了第二个 `codex app-server`。
@@ -22,7 +23,7 @@
 
 1. 顶层 `cc-connect-runtime` 必须从当前 App 交互终端启动。
 2. launcher 使用 `syscall.Exec` 替换为 App 内置 Node supervisor，保留 App 顶层执行上下文。
-3. supervisor 对候选 Socket 使用独立只读探测连接，依次执行 `tools/list` 和 `list_projects`；关闭探测连接后再建立业务连接。
+3. supervisor 对候选 Socket 使用独立只读探测连接，使用数字 JSON-RPC ID 依次执行 `tools/list` 和 `list_projects`；关闭探测连接后再建立业务连接。当前 App 主机对字符串探针 ID 会直接关闭新连接。
 4. supervisor 启动 Go Runtime worker，并通过双向 FD 3 转交已验证连接；worker 不自行扫描或直连 Socket。
 5. 每次 `tools/call` 都生成新的 `callId` 和 `turnId`。固定 ID 即使上一进程已经退出，也可能被 App 拒绝。
 6. Socket 关闭时 supervisor 终止旧 worker、重新扫描并建立新代际；新 worker 从 `read_thread` 权威快照收敛。
@@ -38,6 +39,7 @@
 - launchd 常驻 Runtime 直接扫描 Socket：执行上下文不匹配，不能作为部署入口。
 - 自启 Codex App Server 再 `thread/resume`：会与 Desktop App 的活动 writer 冲突。
 - 重用固定 `callId` 或 `turnId`：首次可能成功，后续业务调用会被拒绝。
+- 用字符串作为 App tools Socket 的 JSON-RPC 请求 ID：App 自带客户端和真实 Socket 都使用数字 ID；字符串探针会在响应前被关闭。
 
 ## 成功、失败与停止信号
 
@@ -53,4 +55,4 @@ Codex App 发布公开稳定的等价 Remote/Socket API、tools Socket 身份校
 
 ## 最后核验
 
-2026-08-28，在真实 App Socket `/tmp/codex-browser-use/cb4221dd-2b11-4ff4-a1b7-70fd9cf15124.sock` 和活动 task `01a04359-cdbf-7121-a41b-bdd617d51855` 上验证：顶层 App Node supervisor、worker FD 3、唯一调用 ID 可完成项目、任务和历史只读集成；未新增 `codex app-server` 进程。
+2026-08-28，在真实 App Socket 和活动 task 上验证：字符串探针 ID 会在响应前断开，数字 ID 可返回 27 项工具并让 Runtime 断线后恢复在线；顶层 App Node supervisor、worker FD 3、唯一调用 ID 可完成项目、任务和历史只读集成，且未新增 `codex app-server` 进程。

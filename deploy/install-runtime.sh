@@ -76,4 +76,4 @@ if launchctl print "gui/$(id -u)/dev.cc-connect.runtime" >/dev/null 2>&1; then
 fi
 rm -f "$plist"
 echo "Runtime 已安装并配对，正在当前 Codex App 终端中启动。关闭此终端会断开 Runtime。"
-exec "$state/current/cc-connect-runtime"
+exec "$state/current/cc-connect-runtime" --cosign "$cosign_bin"
