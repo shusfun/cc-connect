@@ -49,8 +49,17 @@ Updates and rollbacks are manual Web actions. Native installs verify releases di
 
 Deployment streams are cursor-replayable NDJSON backed by `control.db`; reconnect with the last confirmed `sequence`.
 
-## Workspace chat
+## Codex App tasks
 
-Workspace resources remain under `/api/v1/chat/*`. control authenticates the browser, then proxies over the private server Unix socket. Browsers submit only a global `workspaceRef`, never a device path, cwd, or local attachment path. See [Unified workspace chat](workspace-chat.md).
+Web reuses the project management API; there is no separate `/api/v1/chat/*` resource or chat WebSocket:
+
+- `GET /api/v1/projects/{name}/agent-projects`
+- `GET /api/v1/projects/{name}/agent-capabilities?host_id={host}`
+- `GET|POST /api/v1/projects/{name}/sessions`
+- `GET|PATCH|DELETE /api/v1/projects/{name}/sessions/{taskId}`
+- `POST /api/v1/projects/{name}/sessions/switch`
+- `POST /api/v1/projects/{name}/send`
+
+Tasks, history, and metadata come from authoritative Codex App capabilities. `send` enters `Engine.ReceiveMessage` through the Management Platform. See [Codex App workspace chat](workspace-chat.md).
 
 Normal endpoints return `{"ok":true,"data":...}`. Failures use a non-2xx status and `{"ok":false,"error":"..."}`. NDJSON streams are not wrapped.

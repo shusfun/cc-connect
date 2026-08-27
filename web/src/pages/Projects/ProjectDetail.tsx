@@ -5,15 +5,16 @@ import {
   ArrowLeft, Plug, Heart, Settings, Layers, Zap, Pause, Play,
   Trash2, Plus, Check, Clock, ExternalLink, Link2,
 } from 'lucide-react';
-import { Card, Badge, Button, Input, Modal, EmptyState } from '@/components/ui';
+import { Card, Badge, Button, Input, Modal, EmptyState, useFeedback } from '@/components/ui';
 import { getProject, updateProject, deleteProject, listAgentTypes, type ProjectDetail as ProjectDetailType } from '@/api/projects';
 import { listProviders, addProvider, removeProvider, activateProvider, type Provider, listGlobalProviders, type GlobalProvider, saveProviderRefs } from '@/api/providers';
 import { getHeartbeat, pauseHeartbeat, resumeHeartbeat, triggerHeartbeat, setHeartbeatInterval, type HeartbeatStatus } from '@/api/heartbeat';
-import { restartSystem } from '@/api/status';
+import { restartSystem, waitForSystem } from '@/api/status';
 import { formatTime, cn } from '@/lib/utils';
 import PlatformSetupQR from './PlatformSetupQR';
 import PlatformManualForm from './PlatformManualForm';
 import { platformMeta } from '@/lib/platformMeta';
+import { useRefresh } from '@/store/refresh';
 
 const PLATFORM_OPTIONS: { key: string; label: string; color: string; abbr: string; qr?: boolean }[] = [
   { key: 'feishu', label: 'Feishu / Lark', abbr: 'FS', color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400', qr: true },
@@ -61,6 +62,8 @@ type Tab = 'overview' | 'providers' | 'heartbeat' | 'settings';
 
 export default function ProjectDetail() {
   const { t } = useTranslation();
+  const { notify, confirm: askConfirmation } = useFeedback();
+  const { generation } = useRefresh();
   const { name } = useParams<{ name: string }>();
   const [tab, setTab] = useState<Tab>('overview');
   const [project, setProject] = useState<ProjectDetailType | null>(null);
@@ -123,32 +126,19 @@ export default function ProjectDetail() {
     try {
       const res = await deleteProject(name);
       setShowDeleteConfirm(false);
-      if (res.restart_required && window.confirm(t('setup.restartAfterDelete'))) {
+      if (res.restart_required && await askConfirmation({ title: t('system.restart'), message: t('setup.restartAfterDelete'), confirmLabel: t('system.restart') })) {
         await restartSystem();
-        // Wait for service to come back up before navigating
         await waitForService(8000);
       }
       navigate('/projects');
     } catch (e: any) {
-      alert(e?.message || String(e));
+      notify(e?.message || String(e), 'error');
     } finally {
       setDeleting(false);
     }
   };
 
-  const waitForService = (maxMs: number) =>
-    new Promise<void>((resolve) => {
-      const start = Date.now();
-      const poll = () => {
-        fetch('/api/v1/status')
-          .then((r) => { if (r.ok) resolve(); else throw new Error(); })
-          .catch(() => {
-            if (Date.now() - start > maxMs) { resolve(); return; }
-            setTimeout(poll, 500);
-          });
-      };
-      setTimeout(poll, 1500);
-    });
+  const waitForService = waitForSystem;
 
   const fetchAll = useCallback(async () => {
     if (!name) return;
@@ -200,11 +190,8 @@ export default function ProjectDetail() {
   }, [name]);
 
   useEffect(() => {
-    fetchAll();
-    const handler = () => fetchAll();
-    window.addEventListener('cc:refresh', handler);
-    return () => window.removeEventListener('cc:refresh', handler);
-  }, [fetchAll]);
+    void fetchAll();
+  }, [fetchAll, generation]);
 
   const handleSaveSettings = async () => {
     if (!name) return;

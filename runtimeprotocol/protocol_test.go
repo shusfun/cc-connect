@@ -7,12 +7,12 @@ import (
 )
 
 func TestDecodeRejectsContractMismatchAndUnknownFields(t *testing.T) {
-	_, err := Decode([]byte(`{"contract_hash":"old","device_id":"d1","connection_generation":1,"sequence":1,"method":"catalog/list"}`))
+	_, err := Decode([]byte(`{"contract_hash":"old","device_id":"d1","connection_generation":1,"sequence":1,"method":"project/list"}`))
 	if !errors.Is(err, ErrContractMismatch) {
 		t.Fatalf("Decode() error = %v, want contract mismatch", err)
 	}
 
-	raw := `{"contract_hash":"` + ContractHash + `","device_id":"d1","connection_generation":1,"sequence":1,"method":"catalog/list","cwd":"/tmp"}`
+	raw := `{"contract_hash":"` + ContractHash + `","device_id":"d1","connection_generation":1,"sequence":1,"method":"project/list","cwd":"/tmp"}`
 	_, err = Decode([]byte(raw))
 	if err == nil || !strings.Contains(err.Error(), `unknown field "cwd"`) {
 		t.Fatalf("Decode() error = %v, want strict unknown field rejection", err)
@@ -37,7 +37,7 @@ func TestSequenceGuardRejectsGapAndResetsOnGeneration(t *testing.T) {
 }
 
 func TestDecodePayloadRejectsPathsOutsideDeclaredType(t *testing.T) {
-	envelope := Envelope{Method: MethodTurnStart, Payload: []byte(`{"text":"hello","local_path":"/tmp/a"}`)}
+	envelope := Envelope{Method: MethodTaskSend, Payload: []byte(`{"text":"hello","local_path":"/tmp/a"}`)}
 	_, err := DecodePayload[struct {
 		Text string `json:"text"`
 	}](envelope)

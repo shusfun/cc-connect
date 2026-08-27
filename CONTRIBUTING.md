@@ -27,12 +27,8 @@ We usually acknowledge new issues within about 1 to 2 business days. More comple
 
 ## Pull Requests
 
-- Follow the repo guidance in [`CLAUDE.md`](./CLAUDE.md) and [`AGENTS.md`](./AGENTS.md).
-- Run local validation before submitting. At minimum:
-
-```bash
-go test ./...
-```
+- Follow the repo guidance in [`AGENTS.md`](./AGENTS.md).
+- Submit evidence relevant to the risks introduced by the change and explain why it covers them. The repository CI is the source of truth for the complete merge gate.
 
 - Call out breaking changes explicitly in the PR description.
 - Update docs or examples when behavior or configuration changes.
@@ -83,12 +79,8 @@ Commercial support, custom work, or enterprise inquiries can go through the same
 
 ## Pull Request
 
-- 请遵循仓库中的 [`CLAUDE.md`](./CLAUDE.md) 和 [`AGENTS.md`](./AGENTS.md)。
-- 提交前请先做本地验证，至少执行：
-
-```bash
-go test ./...
-```
+- 请遵循仓库中的 [`AGENTS.md`](./AGENTS.md)。
+- 提交与本次改动风险相关的验证证据，并说明覆盖理由；完整合并门禁以仓库 CI 为权威来源。
 
 - 如果包含 breaking change，请在 PR 描述中明确说明。
 - 如果改动影响行为或配置，请同步更新文档或示例。

@@ -197,7 +197,7 @@ First stable of the 1.3.3 series — stabilizes beta.1 → beta.5 (≈ 235 PRs s
 - **Long-running turn hardening** — new `max_turn_time_mins` wall-clock cap with soft-stop + force-kill + auto-resume so a long bash / test command can no longer lock a session indefinitely (#1091).
 - **New core commands** — `/timer` (one-shot delayed task), `/cancel` (interrupt current turn), `/ps` (replaces `/btw`, kept as alias), `cron add --silent`, agent-driven TTS.
 - **Multi-user / permissions** — reply-to-unauthorized-IM-senders option, `@Bot/permit` ≡ `/permit` keyword matching, Bridge requires token when enabled.
-- **Provider ecosystem** — NekoCode, VisionCoder, AIHubMix, MiniMax M3 presets; Claude Code 1M-context Opus + `append_system_prompt` + PermissionRequest hooks; Codex `request_user_input` app-server events; configurable `shell` + shell profile for `exec`.
+- **Provider ecosystem** — NekoCode, VisionCoder, AIHubMix, MiniMax M3 presets; Claude Code 1M-context Opus + `append_system_prompt` + PermissionRequest hooks; Codex structured interaction events; configurable `shell` + shell profile for `exec`.
 - **Observability** — blackbox testing framework (P0/P1/P2 + config-switch matrix), CUJ test framework, provider-resume regression suite for codex/opencode/kimi, Pi context-usage reporter in reply footer.
 
 ⚠️ **Behavior changes (action may be required)**: Telegram/Discord `progress_style` defaults to `compact` (set `legacy` to revert); QQ Bot default `intents` now include `INTERACTION_CREATE` (custom values must include `1<<26`); DingTalk `msgtype=file` inbound now reaches the agent; engine permission keywords are @mention-tolerant; `reset_on_idle_mins` defaults to 30 min; Bridge with no token configured refuses to start. See `changelogs/v1.3.3.md` for the full themed summary.
@@ -347,7 +347,7 @@ bootstrap listens only on `127.0.0.1:9820` and prints a one-time setup token plu
 
 ### 5️⃣ Pair a macOS Runtime
 
-Create a ten-minute pairing code in the setup wizard and run the shown Runtime installer on macOS. Runtime reads local Codex App projects over an outbound TLS connection, with no VPN or tunnel. Optionally configure WeCom WebSocket credentials, then start the business process.
+Create a ten-minute pairing code in the setup wizard and run the shown command in the current Codex Desktop App interactive terminal. The installer starts `cc-connect-runtime` in the foreground. Runtime reads projects from that App over an outbound TLS connection, with no VPN, tunnel, or second App Server. Optionally configure WeCom WebSocket credentials, then start the business process.
 
 That's it — send a message to your bot and cc-connect will relay it to your local agent.
 
@@ -401,7 +401,7 @@ make build
 
 > **Use the control setup wizard** — `cc-connect-control` owns administrator authentication, Runtime pairing, business configuration, logs, updates, and rollback. The business process exposes no public TCP listener and no management token.
 
-The main Web chat groups read-only Codex App projects and native threads by Runtime device. `/chat` restores the exact SQLite selection; New creates an unnamed draft that materializes on its first Turn, then exposes native settings, interactions, complete paginated history, deep links, and WebRTC voice. See [Deployment](docs/deployment.md) and [Unified workspace chat](docs/workspace-chat.md).
+The main Web chat shows every project and task from the current Codex App. `/chat` reads tasks and history from the App's authoritative tools; the first message on New creates the real App task, and follow-ups and observation reuse one `AgentSession`. Explicit `…` menus expose only title, pin, and archive operations supported by the current App schema. Runtime must start from the current App interactive terminal, and closing that terminal takes the device offline. See [Deployment](docs/deployment.md) and [Codex App workspace chat](docs/workspace-chat.md).
 
 If you prefer manual configuration:
 

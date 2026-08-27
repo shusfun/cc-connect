@@ -5,6 +5,7 @@ import { MessageSquare, Bot, User, Circle, ArrowRight } from 'lucide-react';
 import { Card, EmptyState, Badge } from '@/components/ui';
 import { listProjects, type ProjectSummary } from '@/api/projects';
 import { listSessions, type Session } from '@/api/sessions';
+import { useRefresh } from '@/store/refresh';
 
 interface ChatEntry {
   project: ProjectSummary;
@@ -24,6 +25,7 @@ function timeAgo(iso: string, t: (k: string) => string): string {
 
 export default function ChatList() {
   const { t } = useTranslation();
+  const { generation } = useRefresh();
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -60,11 +62,8 @@ export default function ChatList() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-    const handler = () => fetchData();
-    window.addEventListener('cc:refresh', handler);
-    return () => window.removeEventListener('cc:refresh', handler);
-  }, [fetchData]);
+    void fetchData();
+  }, [fetchData, generation]);
 
   if (loading && entries.length === 0) {
     return <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse">Loading...</div>;

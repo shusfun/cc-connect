@@ -7,6 +7,7 @@ import { listProjects, type ProjectSummary } from '@/api/projects';
 import PlatformSetupQR from './PlatformSetupQR';
 import PlatformManualForm from './PlatformManualForm';
 import { platformMeta } from '@/lib/platformMeta';
+import { useRefresh } from '@/store/refresh';
 
 const AGENT_OPTIONS = [
   { key: 'claudecode', label: 'Claude Code' },
@@ -42,6 +43,7 @@ const PLATFORM_OPTIONS: { key: string; label: string; color: string; qr?: boolea
 export default function ProjectList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { generation } = useRefresh();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +55,7 @@ export default function ProjectList() {
   const [newAgentType, setNewAgentType] = useState('claudecode');
   const [selectedPlat, setSelectedPlat] = useState('');
 
-  const fetch = useCallback(async () => {
+  const loadProjects = useCallback(async () => {
     try {
       setLoading(true);
       const data = await listProjects();
@@ -64,11 +66,8 @@ export default function ProjectList() {
   }, []);
 
   useEffect(() => {
-    fetch();
-    const handler = () => fetch();
-    window.addEventListener('cc:refresh', handler);
-    return () => window.removeEventListener('cc:refresh', handler);
-  }, [fetch]);
+    void loadProjects();
+  }, [generation, loadProjects]);
 
   const openWizard = () => {
     setShowWizard(true);
@@ -94,7 +93,7 @@ export default function ProjectList() {
 
   const handleQRComplete = () => {
     setShowWizard(false);
-    fetch();
+    void loadProjects();
   };
 
   const handleManualDone = async () => {
@@ -103,7 +102,7 @@ export default function ProjectList() {
     // We use the feishu save endpoint with empty credentials just to create the project.
     // Actually, let's guide the user to the project detail page to configure.
     setShowWizard(false);
-    fetch();
+    void loadProjects();
     navigate(`/projects/${newProjName}`);
   };
 
@@ -247,7 +246,7 @@ export default function ProjectList() {
             agentType={newAgentType}
             onComplete={() => {
               setShowWizard(false);
-              fetch();
+              void loadProjects();
             }}
             onCancel={() => setWizStep('platform')}
           />

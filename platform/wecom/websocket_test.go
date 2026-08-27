@@ -228,37 +228,6 @@ func wsCallbackFrame(t *testing.T, reqID string, body wsMsgCallbackBody) wsFrame
 	}
 }
 
-func TestWSGroupMediaPreflightRejectsBeforeDownload(t *testing.T) {
-	downloaded := make(chan struct{}, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		downloaded <- struct{}{}
-	}))
-	defer server.Close()
-	preflightCalled := make(chan *core.Message, 1)
-	platform := &WSPlatform{allowFrom: "*"}
-	platform.SetMessagePreflight(func(_ core.Platform, message *core.Message) bool {
-		preflightCalled <- message
-		return true
-	})
-	body := wsMsgCallbackBody{MsgID: "group-file", ChatID: "group-1", ChatType: "group", MsgType: "file"}
-	body.From.UserID = "user-1"
-	body.File = &wsMediaContent{URL: server.URL + "/secret-file"}
-	platform.handleMsgCallback(wsCallbackFrame(t, "req_group_file", body))
-	select {
-	case message := <-preflightCalled:
-		if message.Scope != core.ConversationScopeGroup || message.UserID != "user-1" {
-			t.Fatalf("preflight message = %#v", message)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("group media did not enter preflight")
-	}
-	select {
-	case <-downloaded:
-		t.Fatal("group media was downloaded before workspace chat rejection")
-	case <-time.After(100 * time.Millisecond):
-	}
-}
-
 func TestHandleMsgCallback_SingleChat_ChatIDFallback(t *testing.T) {
 	p, captured := newCapturedWSPlatform()
 

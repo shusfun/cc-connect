@@ -30,7 +30,6 @@ type WSPlatform struct {
 	allowFrom   string
 	conn        *websocket.Conn
 	handler     core.MessageHandler
-	preflight   func(core.Platform, *core.Message) bool
 	ctx         context.Context
 	cancel      context.CancelFunc
 	mu          sync.Mutex // protects conn writes
@@ -118,14 +117,6 @@ func (p *WSPlatform) generateReqID(prefix string) string {
 }
 
 func (p *WSPlatform) Name() string { return "wecom" }
-
-// WorkspaceChatTransport 显式允许 WebSocket 智能机器人进入统一工作区聊天。
-// Webhook Platform 不实现此能力，因此仍使用独立的平台会话域。
-func (p *WSPlatform) WorkspaceChatTransport() string { return "wecom" }
-
-func (p *WSPlatform) SetMessagePreflight(preflight func(core.Platform, *core.Message) bool) {
-	p.preflight = preflight
-}
 
 func (p *WSPlatform) Start(handler core.MessageHandler) error {
 	p.handler = handler
@@ -393,14 +384,6 @@ func (p *WSPlatform) handleMsgCallback(frame wsFrame) {
 	if body.ChatType == "group" {
 		chatName = body.ChatID
 	}
-	if body.ChatType == "group" && p.preflight != nil && p.preflight(p, &core.Message{
-		SessionKey: sessionKey, Platform: "wecom", Scope: core.ConversationScopeGroup,
-		MessageID: body.MsgID, UserID: body.From.UserID, UserName: body.From.UserID,
-		ChatName: chatName, ReplyCtx: rctx,
-	}) {
-		return
-	}
-
 	current, quoted := wsCollectInboundParts(&body)
 	quotedContent := formatWSQuotedContent(quoted)
 

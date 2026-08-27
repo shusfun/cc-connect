@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/chenhg5/cc-connect/agent/codex"
+	"github.com/chenhg5/cc-connect/agent/codexapp"
 	"github.com/chenhg5/cc-connect/core"
 	"github.com/chenhg5/cc-connect/releaseinstall"
 	"github.com/chenhg5/cc-connect/runtimeclient"
@@ -43,7 +43,8 @@ func run(args []string) error {
 	serverURL := flags.String("server", "", "control 的公开 HTTPS URL")
 	pairingCode := flags.String("code", "", "Web 生成的一次性配对码")
 	deviceName := flags.String("name", hostname(), "设备显示名称")
-	codexHome := flags.String("codex-home", "", "可选 CODEX_HOME")
+	toolsSocket := flags.String("codex-app-tools-socket", "", "可选 Codex Desktop App tools Socket；默认自动发现")
+	appNode := flags.String("codex-app-node", "", "可选 Codex Desktop App 内置 Node 路径")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -71,6 +72,17 @@ func run(args []string) error {
 		fmt.Printf("Runtime 已配对：%s\n", deviceID)
 		return nil
 	}
+	bridgeFD, err := codexapp.InheritedBridgeFD()
+	if err != nil {
+		return err
+	}
+	if bridgeFD == 0 {
+		socketPath := strings.TrimSpace(*toolsSocket)
+		if socketPath == "" {
+			socketPath = strings.TrimSpace(os.Getenv("CODEX_APP_TOOLS_PIPE_PATH"))
+		}
+		return codexapp.BootstrapRuntime(socketPath, strings.TrimSpace(*appNode), args)
+	}
 	identity, err := store.Load()
 	if err != nil {
 		return fmt.Errorf("请先在 Web 生成配对码并运行 cc-connect-runtime pair: %w", err)
@@ -88,24 +100,18 @@ func run(args []string) error {
 			slog.Error("Runtime 未确认更新回滚失败", "error", rollbackErr)
 		}
 	}()
-	agentValue, err := codex.New(map[string]any{"backend": "app_server", "codex_home": strings.TrimSpace(*codexHome)})
+	agentValue, err := codexapp.New(map[string]any{
+		"socket_path": strings.TrimSpace(*toolsSocket), "node_path": strings.TrimSpace(*appNode),
+		"bridge_fd": bridgeFD,
+	})
 	if err != nil {
 		return err
 	}
 	defer func() { _ = agentValue.Stop() }()
-	catalog, okCatalog := agentValue.(core.WorkspaceCatalogProvider)
-	validator, okValidator := agentValue.(core.WorkspaceAccessValidator)
-	backend, okBackend := agentValue.(core.NativeConversationBackend)
-	settings, okSettings := agentValue.(core.NativeConversationSettingsController)
-	turns, okTurns := agentValue.(core.NativeConversationTurnController)
-	realtime, _ := agentValue.(core.NativeConversationRealtimeController)
-	if !okCatalog || !okValidator || !okBackend || !okSettings || !okTurns {
-		return errors.New("本机 Codex 后端缺少原生会话能力，请更新 cc-connect-runtime")
-	}
-	if err := validateCodexRuntime(context.Background(), catalog, backend); err != nil {
+	if err := validateCodexRuntime(context.Background(), agentValue); err != nil {
 		return err
 	}
-	handler, err := runtimeclient.NewHandler(runtimeclient.Dependencies{Catalog: catalog, Validator: validator, Backend: backend, Settings: settings, Turns: turns, Realtime: realtime, Updater: updater})
+	handler, err := runtimeclient.NewHandler(runtimeclient.Dependencies{Agent: agentValue, Updater: updater})
 	if err != nil {
 		return err
 	}
@@ -126,26 +132,22 @@ func run(args []string) error {
 	}
 }
 
-func validateCodexRuntime(ctx context.Context, catalog core.WorkspaceCatalogProvider, backend core.NativeConversationBackend) error {
-	workspaces, err := catalog.ListWorkspaces(ctx)
+func validateCodexRuntime(ctx context.Context, agent core.Agent) error {
+	catalog, ok := agent.(core.AgentProjectCatalog)
+	if !ok {
+		return errors.New("Codex Desktop App 代理缺少项目目录能力")
+	}
+	projects, err := catalog.ListProjects(ctx)
 	if err != nil {
 		return fmt.Errorf("无法读取 Codex App 项目状态: %w", err)
 	}
-	var probeErrors []error
-	for _, workspace := range workspaces {
-		if !workspace.Available {
-			continue
-		}
-		if _, err := backend.NativeRuntimeCatalog(ctx, workspace); err != nil {
-			probeErrors = append(probeErrors, fmt.Errorf("项目 %s: %w", workspace.Ref, err))
-			continue
-		}
-		return nil
+	if len(projects) == 0 {
+		return errors.New("Codex Desktop App 当前没有可用项目")
 	}
-	if len(probeErrors) > 0 {
-		return fmt.Errorf("codex CLI、认证或 App Server 校验失败: %w", errors.Join(probeErrors...))
+	if _, err := agent.ListSessions(ctx); err != nil {
+		return fmt.Errorf("无法读取 Codex App 任务状态: %w", err)
 	}
-	return errors.New("codex App 状态中没有有效项目")
+	return nil
 }
 
 func defaultStateDirectory() string {

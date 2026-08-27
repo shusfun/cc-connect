@@ -44,7 +44,6 @@ type ManagementServer struct {
 	timerScheduler     *TimerScheduler
 	heartbeatScheduler *HeartbeatScheduler
 	bridgeServer       *BridgeServer
-	workspaceChat      *WorkspaceChatService
 
 	setupFeishuSave      func(req FeishuSetupSaveRequest) error
 	setupWeixinSave      func(req WeixinSetupSaveRequest) error
@@ -83,11 +82,10 @@ func (m *ManagementServer) RegisterEngine(name string, e *Engine) {
 	m.engines[name] = e
 }
 
-func (m *ManagementServer) SetCronScheduler(cs *CronScheduler)             { m.cronScheduler = cs }
-func (m *ManagementServer) SetTimerScheduler(ts *TimerScheduler)           { m.timerScheduler = ts }
-func (m *ManagementServer) SetHeartbeatScheduler(hs *HeartbeatScheduler)   { m.heartbeatScheduler = hs }
-func (m *ManagementServer) SetBridgeServer(bs *BridgeServer)               { m.bridgeServer = bs }
-func (m *ManagementServer) SetWorkspaceChat(service *WorkspaceChatService) { m.workspaceChat = service }
+func (m *ManagementServer) SetCronScheduler(cs *CronScheduler)           { m.cronScheduler = cs }
+func (m *ManagementServer) SetTimerScheduler(ts *TimerScheduler)         { m.timerScheduler = ts }
+func (m *ManagementServer) SetHeartbeatScheduler(hs *HeartbeatScheduler) { m.heartbeatScheduler = hs }
+func (m *ManagementServer) SetBridgeServer(bs *BridgeServer)             { m.bridgeServer = bs }
 func (m *ManagementServer) SetSetupFeishuSave(fn func(FeishuSetupSaveRequest) error) {
 	m.setupFeishuSave = fn
 }
@@ -246,12 +244,6 @@ func (m *ManagementServer) buildHandler(mux *http.ServeMux) http.Handler {
 	// Bridge
 	mux.HandleFunc(prefix+"/bridge/adapters", m.wrap(m.handleBridgeAdapters))
 
-	// Unified workspace chat
-	mux.HandleFunc(prefix+"/chat/workspaces", m.wrap(m.handleWorkspaceChatWorkspaces))
-	mux.HandleFunc(prefix+"/chat/workspaces/", m.wrap(m.handleWorkspaceChatWorkspaceRoutes))
-	mux.HandleFunc(prefix+"/chat/selection", m.wrap(m.handleWorkspaceChatSelection))
-	mux.HandleFunc(prefix+"/chat/ws", m.wrap(m.handleWorkspaceChatWS))
-
 	// control 仅通过私有 server Unix Socket 访问；公开反代不转发 /internal/。
 	mux.HandleFunc("/internal/v1/control/runtime-activity", m.wrap(m.handleRuntimeActivity))
 
@@ -263,11 +255,13 @@ func (m *ManagementServer) handleRuntimeActivity(w http.ResponseWriter, r *http.
 		mgmtError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if m.workspaceChat == nil {
-		mgmtJSON(w, http.StatusOK, WorkspaceChatRuntimeActivity{})
-		return
+	active := 0
+	m.mu.RLock()
+	for _, engine := range m.engines {
+		active += len(engine.ActiveSessionKeys())
 	}
-	mgmtJSON(w, http.StatusOK, m.workspaceChat.RuntimeActivity())
+	m.mu.RUnlock()
+	mgmtJSON(w, http.StatusOK, map[string]int{"active_turns": active, "pending_interactions": 0, "realtime_sessions": 0})
 }
 
 func (m *ManagementServer) Stop() {
@@ -544,6 +538,10 @@ func (m *ManagementServer) handleProjectRoutes(w http.ResponseWriter, r *http.Re
 		m.handleProjectDetail(w, r, projName, engine)
 	case "sessions":
 		m.handleProjectSessions(w, r, projName, engine, rest)
+	case "agent-projects":
+		m.handleAgentProjects(w, r, engine)
+	case "agent-capabilities":
+		m.handleAgentCapabilities(w, r, engine)
 	case "send":
 		m.handleProjectSend(w, r, engine)
 	case "providers":
@@ -561,6 +559,42 @@ func (m *ManagementServer) handleProjectRoutes(w http.ResponseWriter, r *http.Re
 	default:
 		mgmtError(w, http.StatusNotFound, "not found")
 	}
+}
+
+func (m *ManagementServer) handleAgentProjects(w http.ResponseWriter, r *http.Request, e *Engine) {
+	if r.Method != http.MethodGet {
+		mgmtError(w, http.StatusMethodNotAllowed, "GET only")
+		return
+	}
+	catalog, ok := e.agent.(AgentProjectCatalog)
+	if !ok {
+		mgmtError(w, http.StatusNotImplemented, "agent project catalog is unavailable")
+		return
+	}
+	projects, err := catalog.ListProjects(r.Context())
+	if err != nil {
+		mgmtError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	mgmtJSON(w, http.StatusOK, map[string]any{"projects": projects})
+}
+
+func (m *ManagementServer) handleAgentCapabilities(w http.ResponseWriter, r *http.Request, e *Engine) {
+	if r.Method != http.MethodGet {
+		mgmtError(w, http.StatusMethodNotAllowed, "GET only")
+		return
+	}
+	catalog, ok := e.agent.(AgentSessionCapabilityCatalog)
+	if !ok {
+		mgmtError(w, http.StatusNotImplemented, "agent task capability catalog is unavailable")
+		return
+	}
+	capabilities, err := catalog.SessionCapabilities(r.Context(), r.URL.Query().Get("host_id"))
+	if err != nil {
+		mgmtError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	mgmtJSON(w, http.StatusOK, map[string]any{"capabilities": capabilities})
 }
 
 func (m *ManagementServer) handleProjectDetail(w http.ResponseWriter, r *http.Request, name string, e *Engine) {
@@ -852,6 +886,15 @@ func (m *ManagementServer) handleProjectSessions(w http.ResponseWriter, r *http.
 
 	switch r.Method {
 	case http.MethodGet:
+		if _, authoritative := e.agent.(AuthoritativeSessionHistory); authoritative {
+			sessions, err := e.agent.ListSessions(r.Context())
+			if err != nil {
+				mgmtError(w, http.StatusBadGateway, err.Error())
+				return
+			}
+			mgmtJSON(w, http.StatusOK, map[string]any{"sessions": sessions, "authoritative": true})
+			return
+		}
 		activeKeys := make(map[string]string) // sessionKey → platform
 		e.interactiveMu.Lock()
 		for key, state := range e.interactiveStates {
@@ -924,6 +967,9 @@ func (m *ManagementServer) handleProjectSessions(w http.ResponseWriter, r *http.
 		var body struct {
 			SessionKey string `json:"session_key"`
 			Name       string `json:"name"`
+			ProjectID  string `json:"project_id"`
+			Prompt     string `json:"prompt"`
+			UseLocal   bool   `json:"use_local"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			mgmtError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -931,6 +977,27 @@ func (m *ManagementServer) handleProjectSessions(w http.ResponseWriter, r *http.
 		}
 		if body.SessionKey == "" {
 			mgmtError(w, http.StatusBadRequest, "session_key is required")
+			return
+		}
+		if creator, ok := e.agent.(AgentSessionCreator); ok {
+			if strings.TrimSpace(body.Prompt) == "" {
+				mgmtError(w, http.StatusBadRequest, "prompt is required")
+				return
+			}
+			created, err := creator.CreateSession(r.Context(), AgentSessionCreateRequest{ProjectID: body.ProjectID, Prompt: body.Prompt, Title: body.Name, UseLocal: body.UseLocal})
+			if err != nil {
+				mgmtError(w, http.StatusBadGateway, err.Error())
+				return
+			}
+			summary := strings.TrimSpace(created.Summary)
+			if summary == "" {
+				summary = strings.TrimSpace(body.Name)
+			}
+			if summary == "" {
+				summary = "新任务"
+			}
+			e.sessions.SwitchToAgentSession(body.SessionKey, created.ID, e.agent.Name(), summary)
+			mgmtJSON(w, http.StatusCreated, map[string]any{"session": created, "session_key": body.SessionKey})
 			return
 		}
 
@@ -953,6 +1020,21 @@ func (m *ManagementServer) handleProjectSessions(w http.ResponseWriter, r *http.
 func (m *ManagementServer) handleProjectSessionDetail(w http.ResponseWriter, r *http.Request, e *Engine, sessionID string) {
 	switch r.Method {
 	case http.MethodGet:
+		if reader, ok := e.agent.(AgentSessionReader); ok {
+			limit := 10
+			if value := r.URL.Query().Get("history_limit"); value != "" {
+				if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+					limit = parsed
+				}
+			}
+			snapshot, err := reader.ReadSession(r.Context(), sessionID, r.URL.Query().Get("host_id"), r.URL.Query().Get("cursor"), limit)
+			if err != nil {
+				mgmtError(w, http.StatusBadGateway, err.Error())
+				return
+			}
+			mgmtJSON(w, http.StatusOK, snapshot)
+			return
+		}
 		s := e.sessions.FindByID(sessionID)
 		if s == nil {
 			mgmtError(w, http.StatusNotFound, "session not found")
@@ -1008,14 +1090,40 @@ func (m *ManagementServer) handleProjectSessionDetail(w http.ResponseWriter, r *
 		mgmtJSON(w, http.StatusOK, data)
 
 	case http.MethodDelete:
+		if controller, ok := e.agent.(AgentSessionMetadataController); ok {
+			archived := true
+			if err := controller.UpdateSessionMetadata(r.Context(), sessionID, r.URL.Query().Get("host_id"), AgentSessionMetadataPatch{Archived: &archived}); err != nil {
+				mgmtError(w, http.StatusBadGateway, err.Error())
+				return
+			}
+			mgmtOK(w, "task archived")
+			return
+		}
 		if e.sessions.DeleteByID(sessionID) {
 			mgmtOK(w, "session deleted")
 		} else {
 			mgmtError(w, http.StatusNotFound, "session not found")
 		}
 
+	case http.MethodPatch:
+		controller, ok := e.agent.(AgentSessionMetadataController)
+		if !ok {
+			mgmtError(w, http.StatusNotImplemented, "task metadata control is unavailable")
+			return
+		}
+		var body AgentSessionMetadataPatch
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			mgmtError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+			return
+		}
+		if err := controller.UpdateSessionMetadata(r.Context(), sessionID, r.URL.Query().Get("host_id"), body); err != nil {
+			mgmtError(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		mgmtOK(w, "task metadata updated")
+
 	default:
-		mgmtError(w, http.StatusMethodNotAllowed, "GET or DELETE only")
+		mgmtError(w, http.StatusMethodNotAllowed, "GET, PATCH or DELETE only")
 	}
 }
 
@@ -1034,6 +1142,27 @@ func (m *ManagementServer) handleProjectSessionSwitch(w http.ResponseWriter, r *
 	}
 	if body.SessionKey == "" || body.SessionID == "" {
 		mgmtError(w, http.StatusBadRequest, "session_key and session_id are required")
+		return
+	}
+	if _, authoritative := e.agent.(AuthoritativeSessionHistory); authoritative {
+		var selected *AgentSessionInfo
+		sessions, err := e.agent.ListSessions(r.Context())
+		if err != nil {
+			mgmtError(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		for index := range sessions {
+			if sessions[index].ID == body.SessionID {
+				selected = &sessions[index]
+				break
+			}
+		}
+		if selected == nil {
+			mgmtError(w, http.StatusNotFound, "task not found")
+			return
+		}
+		s := e.sessions.SwitchToAgentSession(body.SessionKey, selected.ID, e.agent.Name(), selected.Summary)
+		mgmtJSON(w, http.StatusOK, map[string]any{"message": "active task switched", "active_session_id": s.ID, "agent_session_id": selected.ID})
 		return
 	}
 	s, err := e.sessions.SwitchSession(body.SessionKey, body.SessionID)
@@ -1064,11 +1193,22 @@ func (m *ManagementServer) handleProjectSend(w http.ResponseWriter, r *http.Requ
 		mgmtError(w, http.StatusBadRequest, "message is required")
 		return
 	}
-	if err := e.SendToSession(body.SessionKey, body.Message); err != nil {
-		mgmtError(w, http.StatusInternalServerError, err.Error())
-		return
+	for _, platform := range e.platforms {
+		if dispatcher, ok := platform.(ManagementMessageDispatcher); ok {
+			if body.SessionKey == "" {
+				mgmtError(w, http.StatusBadRequest, "session_key is required")
+				return
+			}
+			err := dispatcher.DispatchManagementMessage(&Message{SessionKey: body.SessionKey, Platform: platform.Name(), MessageID: fmt.Sprintf("web-%d", time.Now().UnixNano()), UserID: "management", ChannelID: "management", Content: body.Message})
+			if err != nil {
+				mgmtError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			mgmtOK(w, "message accepted")
+			return
+		}
 	}
-	mgmtOK(w, "message sent")
+	mgmtError(w, http.StatusNotImplemented, "management message platform is unavailable")
 }
 
 // ── Provider endpoints ────────────────────────────────────────
