@@ -254,6 +254,21 @@ func TestWriteInitialServerConfigCreatesCodexAppProject(t *testing.T) {
 	}
 }
 
+func TestWriteInitialServerConfigCreatesWebOnlyCodexAppProject(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "config.toml")
+	if err := writeInitialServerConfig(path, directory, serverConfigurationRequest{Language: "zh"}); err != nil {
+		t.Fatalf("writeInitialServerConfig() error = %v", err)
+	}
+	loaded, err := appconfig.Load(path)
+	if err != nil {
+		t.Fatalf("generated web-only config is invalid: %v", err)
+	}
+	if len(loaded.Projects) != 1 || loaded.Projects[0].Agent.Type != "codexapp" || len(loaded.Projects[0].Platforms) != 0 {
+		t.Fatalf("generated project = %#v", loaded.Projects)
+	}
+}
+
 func TestValidatePublicURLRequiresBareHTTPSOrigin(t *testing.T) {
 	if got, err := validatePublicURL("https://cc.example.com/"); err != nil || got != "https://cc.example.com" {
 		t.Fatalf("validatePublicURL(valid) = %q, %v", got, err)
