@@ -25,6 +25,7 @@ Note 只提供故障信号和已验证判断；命令、制品集合和当前运
 | 纯 Web 项目在生成配置或启动时被判定“无平台” | 在 Agent 能力已初始化后，通过真实 Engine 组装入口验证 management Web 平台可达 | 聚焦组装验证；区分静态配置形状与运行时能力 | Web 平台可达即允许纯 Web 项目；不可达时返回准确能力错误，不添加虚构消息平台 |
 | Runtime 暂存 Release 报 `cosign` 不在 PATH | 核验常驻 Runtime 的真实可执行文件、进程 PATH 来源和安装入口传入的 cosign 所有权 | 只读检查加一次签名探针；区分制品错误与验证器未进入常驻环境 | manifest 用同一 OIDC identity 验签成功但常驻进程找不到命令即定位环境所有权；先修正受管 Runtime 环境，不重试部署或跳过签名 |
 | 核验 deploy-host 版本 | 只调用 `cc-connect-deploy-host --version`，并同时核对 systemd `MainPID` | 裸 `version` 会被 Go flag 解析器忽略并启动第二个服务实例，可能替换同一路径 Unix Socket | 版本命令退出且进程列表只有 systemd `MainPID`；若 Socket API 与状态文件不一致，先排查重复实例，不继续部署 |
+| 容器更新在 `/v1/prepare` 固定 2 分钟超时 | 核验宿主无 pending、生产容器健康，再检查 Prepare 是否包含 Release 下载、镜像拉取和 cosign 验签 | 冷路径允许独立 10 分钟请求预算；status、activate、commit 等控制 RPC 继续使用 2 分钟预算 | 两次都在同一客户端 deadline 失败且无 pending 时修正 Prepare 预算；不得无界重试或整体放宽控制 RPC |
 | 已失败的 Release 需要修复交付 | 核验失败 tag 的 SHA、不可变状态和后续目标提交 | 低成本平台查询；避免移动历史 tag 或重复同一失败输入 | 使用新提交和后续补丁 tag；没有当前发布授权时止于诊断与建议 |
 
 每轮只选择与精确错误和当前身份匹配的一项。没有匹配信号时回到 workflow、脚本和实时状态形成新的候选，不依次尝试本表。
