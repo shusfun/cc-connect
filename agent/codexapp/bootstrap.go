@@ -57,8 +57,8 @@ function candidatePaths() {
 function probe(path) {
   return new Promise(resolve => {
 	const probeToken = randomUUID();
-	const toolsProbeId = "cc-connect-tools-" + probeToken;
-	const projectsProbeId = "cc-connect-projects-" + probeToken;
+	const toolsProbeId = 1;
+	const projectsProbeId = 2;
     const socket = net.connect(path);
     let pending = Buffer.alloc(0);
     let settled = false;
