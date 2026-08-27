@@ -775,10 +775,8 @@ func addSessionHistory(agent Agent, session *Session, role, content string) {
 	if session == nil {
 		return
 	}
-	if agent != nil {
-		if _, authoritative := agent.(AuthoritativeSessionHistory); authoritative {
-			return
-		}
+	if _, authoritative := agent.(AuthoritativeSessionHistory); authoritative {
+		return
 	}
 	session.AddHistory(role, content)
 }

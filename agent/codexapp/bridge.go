@@ -65,7 +65,6 @@ type bridgeRPCClient interface {
 
 type BridgeOptions struct {
 	SocketPath      string
-	NodePath        string
 	ContextThreadID string
 	IPCSocketPath   string
 	InheritedFD     int
@@ -361,19 +360,6 @@ func (b *Bridge) Close() error {
 	b.contextID = ""
 	b.catalog.Store(nil)
 	return client.close()
-}
-
-func (b *Bridge) nodePath() (string, error) {
-	paths := []string{strings.TrimSpace(b.opts.NodePath), strings.TrimSpace(os.Getenv("CODEX_APP_NODE_PATH")),
-		"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node", "/Applications/Codex.app/Contents/Resources/cua_node/bin/node"}
-	for _, path := range paths {
-		if path != "" {
-			if info, err := os.Stat(path); err == nil && !info.IsDir() {
-				return path, nil
-			}
-		}
-	}
-	return "", errors.New("codex app bridge: signed Desktop App Node runtime was not found")
 }
 
 func (b *Bridge) socketCandidates() ([]string, error) {

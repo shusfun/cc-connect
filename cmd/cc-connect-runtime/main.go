@@ -101,8 +101,7 @@ func run(args []string) error {
 		}
 	}()
 	agentValue, err := codexapp.New(map[string]any{
-		"socket_path": strings.TrimSpace(*toolsSocket), "node_path": strings.TrimSpace(*appNode),
-		"bridge_fd": bridgeFD,
+		"socket_path": strings.TrimSpace(*toolsSocket), "bridge_fd": bridgeFD,
 	})
 	if err != nil {
 		return err
@@ -135,14 +134,14 @@ func run(args []string) error {
 func validateCodexRuntime(ctx context.Context, agent core.Agent) error {
 	catalog, ok := agent.(core.AgentProjectCatalog)
 	if !ok {
-		return errors.New("Codex Desktop App 代理缺少项目目录能力")
+		return errors.New("codex Desktop App 代理缺少项目目录能力")
 	}
 	projects, err := catalog.ListProjects(ctx)
 	if err != nil {
 		return fmt.Errorf("无法读取 Codex App 项目状态: %w", err)
 	}
 	if len(projects) == 0 {
-		return errors.New("Codex Desktop App 当前没有可用项目")
+		return errors.New("codex Desktop App 当前没有可用项目")
 	}
 	if _, err := agent.ListSessions(ctx); err != nil {
 		return fmt.Errorf("无法读取 Codex App 任务状态: %w", err)
