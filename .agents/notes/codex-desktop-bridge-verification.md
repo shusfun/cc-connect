@@ -23,7 +23,7 @@
 
 1. 顶层 `cc-connect-runtime` 必须从当前 App 交互终端启动。
 2. launcher 使用 `syscall.Exec` 替换为 App 内置 Node supervisor，保留 App 顶层执行上下文。
-3. supervisor 对候选 Socket 使用独立只读探测连接，使用数字 JSON-RPC ID 依次执行 `tools/list` 和 `list_projects`；关闭探测连接后再建立业务连接。当前 App 主机对字符串探针 ID 会直接关闭新连接。
+3. supervisor 对候选 Socket 使用数字 JSON-RPC ID 依次执行 `tools/list` 和 `list_projects`；唯一候选校验成功后必须把同一连接移交 worker。不能关闭探测连接后再建立业务连接，当前 App 会关闭尚未及时发送首个请求的新连接；多个候选均成功时关闭全部已探测连接并明确报歧义。当前 App 主机对字符串探针 ID 会直接关闭新连接。
 4. supervisor 启动 Go Runtime worker，并通过双向 FD 3 转交已验证连接；worker 不自行扫描或直连 Socket。
 5. 每次 `tools/call` 都生成新的 `callId` 和 `turnId`。固定 ID 即使上一进程已经退出，也可能被 App 拒绝。
 6. Socket 关闭时 supervisor 终止旧 worker、重新扫描并建立新代际；新 worker 从 `read_thread` 权威快照收敛。
@@ -55,4 +55,4 @@ Codex App 发布公开稳定的等价 Remote/Socket API、tools Socket 身份校
 
 ## 最后核验
 
-2026-08-28，在真实 App Socket 和活动 task 上验证：字符串探针 ID 会在响应前断开，数字 ID 可返回 27 项工具并让 Runtime 断线后恢复在线；顶层 App Node supervisor、worker FD 3、唯一调用 ID 可完成项目、任务和历史只读集成，且未新增 `codex app-server` 进程。
+2026-08-28，在真实 App Socket 和活动 task 上验证：字符串探针 ID 会在响应前断开，数字 ID 可返回 27 项工具；`tools/list` 与 `list_projects` 成功后复用同一 Socket 可启动 worker，丢弃已验证连接后再建立空业务连接会在 worker 接管前被 App 关闭。顶层 App Node supervisor、worker FD 3、唯一调用 ID 可完成项目、任务和历史只读集成，且未新增 `codex app-server` 进程。

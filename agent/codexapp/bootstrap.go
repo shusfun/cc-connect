@@ -70,8 +70,9 @@ function probe(path) {
       socket.off("data", onData);
       socket.off("error", onFailure);
       socket.off("close", onFailure);
-	  socket.destroy();
-      resolve({path, error});
+      if (error) socket.destroy();
+      else socket.pause();
+      resolve({path, error, socket: error ? null : socket});
     }
     function onFailure(error) { finish(error?.message || "socket closed during probe"); }
     function onData(chunk) {
@@ -121,14 +122,11 @@ async function selectSocket() {
   if (paths.length === 0) throw new Error("no current-UID Desktop App tools socket found");
   const results = await Promise.all(paths.map(probe));
   const active = results.filter(result => !result.error);
-	if (active.length === 1) {
-		return new Promise((resolve, reject) => {
-			const socket = net.connect(active[0].path);
-			socket.once("connect", () => resolve(socket));
-			socket.once("error", reject);
-		});
-	}
-  if (active.length > 1) throw new Error("multiple active Desktop App tools sockets are ambiguous: " + active.map(result => result.path).join(", "));
+  if (active.length === 1) return active[0].socket;
+  if (active.length > 1) {
+    active.forEach(result => result.socket.destroy());
+    throw new Error("multiple active Desktop App tools sockets are ambiguous: " + active.map(result => result.path).join(", "));
+  }
   throw new Error("no active Desktop App tools socket passed probes: " + results.map(result => result.path + ": " + result.error).join("; "));
 }
 

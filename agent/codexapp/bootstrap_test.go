@@ -53,6 +53,21 @@ func TestBootstrapRelayUsesNumericProbeIDsAcceptedByDesktopApp(t *testing.T) {
 	}
 }
 
+func TestBootstrapRelayReusesValidatedSocketForWorker(t *testing.T) {
+	if !strings.Contains(bootstrapRelayScript, "if (active.length === 1) return active[0].socket;") {
+		t.Fatal("bootstrap relay does not hand the validated Desktop App socket to the worker")
+	}
+	if strings.Contains(bootstrapRelayScript, "net.connect(active[0].path)") {
+		t.Fatal("bootstrap relay opens an unvalidated second Desktop App socket")
+	}
+	if !strings.Contains(bootstrapRelayScript, "else socket.pause();") {
+		t.Fatal("bootstrap relay does not pause the validated socket before worker handoff")
+	}
+	if !strings.Contains(bootstrapRelayScript, "active.forEach(result => result.socket.destroy());") {
+		t.Fatal("bootstrap relay leaks validated sockets when multiple active candidates are ambiguous")
+	}
+}
+
 func TestInheritedRelayDoesNotScanDesktopSockets(t *testing.T) {
 	candidatesCalled := false
 	bridge, err := NewBridge(BridgeOptions{
