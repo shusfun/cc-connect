@@ -350,7 +350,7 @@ func testReleaseServer(t *testing.T) *httptest.Server {
 		tag := parts[len(parts)-2]
 		manifest := releasecontract.Manifest{Version: 1, Repository: releasecontract.Repository, Workflow: releasecontract.Workflow,
 			Tag: tag, CommitSHA: strings.Repeat("a", 40), RuntimeContractHash: runtimeprotocol.ContractHash,
-			ControlSchema: controlstore.SchemaVersion, WorkspaceChatSchema: 3, GeneratedAt: time.Now().UTC()}
+			ControlSchema: controlstore.SchemaVersion, GeneratedAt: time.Now().UTC()}
 		for _, target := range [][3]string{{"control", "linux", "amd64"}, {"control", "linux", "arm64"}, {"server", "linux", "amd64"}, {"server", "linux", "arm64"}, {"deployhost", "linux", "amd64"}, {"deployhost", "linux", "arm64"}, {"runtime", "darwin", "amd64"}, {"runtime", "darwin", "arm64"}} {
 			hash := sha256.Sum256([]byte(strings.Join(target[:], "/")))
 			manifest.Artifacts = append(manifest.Artifacts, releasecontract.Artifact{Name: "cc-connect-" + strings.Join(target[:], "-") + ".tar.gz", Component: target[0], OS: target[1], Arch: target[2], SHA256: hex.EncodeToString(hash[:]), Size: 1})

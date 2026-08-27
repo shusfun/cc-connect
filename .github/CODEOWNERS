@@ -11,14 +11,9 @@
 # regressions in these files have historically caused user-visible bugs
 # (e.g. cmdSwitch wiping /history) that escaped per-function unit coverage.
 #
-# Reviewers touching these files should also run the Critical User Journey
-# tests locally:
-#
-#     go test ./core/ -run TestCUJ
-#
-# and confirm the corresponding CUJ test was updated (or a new CUJ added)
-# if user-visible behavior changes. See AGENTS.md → "Critical User
-# Journeys (CUJ)" for details.
+# Reviewers should identify the affected user-visible and lifecycle risks,
+# then require evidence that distinguishes those risks. The complete merge
+# gate remains owned by CI.
 # ---------------------------------------------------------------------------
 
 # Engine core: message routing, command handling, interactive state.
@@ -43,8 +38,7 @@
 # all-language consistency.
 /core/i18n.go                       @chenhg5
 
-# CUJ test framework itself — guards against regressions in the
-# tests that guard against regressions.
+# User-journey test framework.
 /core/cuj_test.go                   @chenhg5
 
 # Build / CI / project policy.

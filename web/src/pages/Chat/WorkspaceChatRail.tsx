@@ -1,65 +1,100 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Archive,
   ChevronDown,
   ChevronRight,
-  Code2,
   Copy,
-  FilePlus2,
   Folder,
   FolderGit2,
-  Loader2,
-  MessageSquare,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  PinOff,
   Plus,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ConversationRef, NativeThread, Workspace } from '@/api/workspaceChat';
-import { statusType } from './workspaceChatState';
+import type { AgentProject, AgentSessionCapabilities, AgentTask } from '@/api/sessions';
 
 interface Props {
   open: boolean;
   loading: boolean;
-  creating: boolean;
-  workspaces: Workspace[];
-  threads: NativeThread[];
-  workspaceRef?: string;
-  conversation?: ConversationRef;
+  projects: AgentProject[];
+  tasks: AgentTask[];
+  capabilitiesByHost: Record<string, AgentSessionCapabilities>;
+  selectedProjectID?: string;
+  selectedTaskID?: string;
   onClose: () => void;
-  onWorkspace: (workspace: Workspace) => void;
-  onThread: (thread: NativeThread) => void;
-  onNew: () => void;
-  onCopyLink: (thread: NativeThread) => void;
+  onNewTask: (project: AgentProject) => void;
+  onTask: (project: AgentProject, task: AgentTask) => void;
+  onRenameTask: (task: AgentTask) => void;
+  onTogglePin: (task: AgentTask) => void;
+  onArchiveTask: (task: AgentTask) => void;
+  onCopyLink: (project: AgentProject, task: AgentTask) => void;
 }
 
-function threadLabel(thread: NativeThread): string {
-  return thread.name || thread.preview || thread.id.slice(0, 12);
+function taskLabel(task: AgentTask): string {
+  return task.summary?.trim() || task.id.slice(0, 12);
 }
 
-function toggleSet(current: Set<string>, key: string): Set<string> {
-  const next = new Set(current);
-  if (next.has(key)) next.delete(key); else next.add(key);
-  return next;
+function taskStatus(status?: string): string {
+  switch (status) {
+    case 'active': return '进行中';
+    case 'idle':
+    case 'completed': return '已完成';
+    case 'systemError': return '发生错误';
+    default: return status || '状态未知';
+  }
 }
 
-function WorkspaceButton({ workspace, active, onClick, rootOnly = false }: { workspace: Workspace; active: boolean; onClick: () => void; rootOnly?: boolean }) {
+function ActionMenu({ label, open, onToggle, onClose, children }: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
+    const closeOutside = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) onClose();
+    };
+    const closeWithKeyboard = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', closeOutside);
+    document.addEventListener('keydown', closeWithKeyboard);
+    return () => {
+      document.removeEventListener('mousedown', closeOutside);
+      document.removeEventListener('keydown', closeWithKeyboard);
+    };
+  }, [onClose, open]);
+
   return (
-    <button
-      type="button"
-      disabled={!workspace.available}
-      onClick={onClick}
-      title={workspace.available ? workspace.root_name : workspace.error}
-      className={cn(
-        'mb-1 flex w-full min-w-0 items-start gap-2 rounded-md px-2 py-2 text-left transition-colors',
-        active ? 'bg-accent/12 text-accent' : 'hover:bg-gray-100 dark:hover:bg-white/[0.06]',
-        !workspace.available && 'cursor-not-allowed opacity-45',
+    <div ref={rootRef} className="relative shrink-0">
+      <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={label} title={label} onClick={(event) => { event.stopPropagation(); onToggle(); }} className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-white/[0.1] dark:hover:text-white">
+        <MoreHorizontal size={15} />
+      </button>
+      {open && (
+        <div ref={menuRef} role="menu" className="absolute right-0 top-8 z-50 min-w-40 rounded-lg border border-gray-200 bg-white p-1 shadow-xl dark:border-white/[0.12] dark:bg-[#1a1a1d]">
+          {children}
+        </div>
       )}
-    >
-      {rootOnly ? <Code2 size={15} className="mt-0.5 shrink-0" /> : <Folder size={15} className="mt-0.5 shrink-0 text-amber-500" />}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{rootOnly ? workspace.root_name : workspace.project_name}</span>
-        <span className="block truncate text-[10px] text-gray-400">{workspace.available ? workspace.root_name : workspace.error}</span>
-      </span>
+    </div>
+  );
+}
+
+function MenuItem({ icon, children, danger, disabledReason, onClick }: { icon: ReactNode; children: ReactNode; danger?: boolean; disabledReason?: string; onClick: () => void }) {
+  return (
+    <button type="button" role="menuitem" disabled={Boolean(disabledReason)} title={disabledReason} onClick={onClick} className={cn('flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-white/[0.08]', danger ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-200')}>
+      {icon}{children}
     </button>
   );
 }
@@ -67,87 +102,95 @@ function WorkspaceButton({ workspace, active, onClick, rootOnly = false }: { wor
 export function WorkspaceChatRail(props: Props) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const groupedWorkspaces = useMemo(() => {
-    const devices = new Map<string, { id: string; name: string; online: boolean; projects: Map<string, Workspace[]> }>();
-    props.workspaces.forEach((workspace) => {
-      const device = devices.get(workspace.device_id) || { id: workspace.device_id, name: workspace.device_name, online: workspace.online, projects: new Map<string, Workspace[]>() };
-      device.online ||= workspace.online;
-      device.projects.set(workspace.project_id, [...(device.projects.get(workspace.project_id) || []), workspace]);
-      devices.set(workspace.device_id, device);
-    });
-    return [...devices.values()];
-  }, [props.workspaces]);
+  const [menuKey, setMenuKey] = useState('');
+  const capabilitiesFor = (hostID?: string) => props.capabilitiesByHost[hostID || ''] || props.capabilitiesByHost[''];
 
   useEffect(() => {
-    const keys: string[] = [];
-    groupedWorkspaces.forEach((device) => {
-      keys.push(`device:${device.id}`);
-      device.projects.forEach((_roots, projectID) => keys.push(`${device.id}:${projectID}`));
+    setExpanded((current) => {
+      if (current.size > 0) return current;
+      return new Set(props.projects.map((project) => project.id));
     });
-    setExpanded(new Set(keys));
-  }, [groupedWorkspaces]);
+  }, [props.projects]);
+
+  const toggleProject = (projectID: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(projectID)) next.delete(projectID); else next.add(projectID);
+      return next;
+    });
+  };
 
   return (
     <>
       <aside className={cn(
-        'absolute inset-y-0 left-0 z-30 flex w-[min(19rem,calc(100vw-4rem))] flex-col border-r border-gray-200 bg-white transition-transform dark:border-white/[0.08] dark:bg-[#0b0b0d] md:static md:z-auto md:w-[19rem] md:translate-x-0',
+        'absolute inset-y-0 left-0 z-30 flex w-[min(19rem,calc(100vw-3rem))] flex-col border-r border-gray-200 bg-[#f7f7f8] transition-transform dark:border-white/[0.08] dark:bg-[#111113] md:static md:z-auto md:w-[19rem] md:translate-x-0',
         props.open ? 'translate-x-0' : '-translate-x-full',
       )}>
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-3 dark:border-white/[0.08]">
-          <div className="flex min-w-0 items-center gap-2 text-sm font-semibold"><FolderGit2 size={16} className="shrink-0" /><span className="truncate">{t('workspaceChat.workspaces')}</span></div>
-          <button type="button" className="rounded-md p-1 hover:bg-gray-100 md:hidden dark:hover:bg-white/[0.08]" onClick={props.onClose} aria-label={t('common.close')}><X size={17} /></button>
+          <div className="flex min-w-0 items-center gap-2 text-sm font-semibold"><FolderGit2 size={16} /><span className="truncate">{t('workspaceChat.projects', 'Codex App 项目')}</span></div>
+          <button type="button" className="rounded-md p-1 hover:bg-gray-200 md:hidden dark:hover:bg-white/[0.08]" onClick={props.onClose} aria-label={t('common.close')}><X size={17} /></button>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto p-2">
-          {groupedWorkspaces.map((device) => {
-            const deviceKey = `device:${device.id}`;
-            const deviceExpanded = expanded.has(deviceKey);
-            return <div key={device.id} className="mb-2">
-              <button type="button" onClick={() => setExpanded((current) => toggleSet(current, deviceKey))} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-semibold uppercase text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.06]">
-                {deviceExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}<Code2 size={14} /><span className="truncate">{device.name}</span><span className={`ml-auto h-2 w-2 rounded-full ${device.online ? 'bg-green-500' : 'bg-gray-400'}`} />
-              </button>
-              {deviceExpanded && <div className="ml-2 border-l border-gray-200 pl-1 dark:border-white/[0.1]">{[...device.projects.entries()].map(([projectID, roots]) => {
-                const project = roots[0];
-                if (!project) return null;
-                const projectKey = `${device.id}:${projectID}`;
-                if (roots.length === 1) return <WorkspaceButton key={project.ref} workspace={project} active={project.ref === props.workspaceRef} onClick={() => props.onWorkspace(project)} />;
-                const projectExpanded = expanded.has(projectKey);
-                return <div key={projectKey} className="mb-1">
-                  <button type="button" onClick={() => setExpanded((current) => toggleSet(current, projectKey))} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/[0.06]">
-                    {projectExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}<Folder size={14} className="text-amber-500" /><span className="truncate">{project.project_name}</span>
+        <nav className="min-h-0 flex-1 overflow-y-auto p-2" aria-label={t('workspaceChat.projects', 'Codex App 项目')}>
+          {props.projects.map((project) => {
+            const projectTasks = props.tasks
+              .filter((task) => task.project_id === project.id && !task.archived)
+              .sort((left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)) || (right.modified_at || '').localeCompare(left.modified_at || ''));
+            const isExpanded = expanded.has(project.id);
+            const projectMenuKey = `project:${project.id}`;
+            const projectCapabilities = capabilitiesFor(project.host_id);
+            return (
+              <section key={project.id} className="mb-1">
+                <div className={cn('flex items-center rounded-md', props.selectedProjectID === project.id && 'bg-gray-200/70 dark:bg-white/[0.07]')}>
+                  <button type="button" onClick={() => toggleProject(project.id)} aria-expanded={isExpanded} aria-label={`${project.name} 展开任务`} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left hover:text-gray-950 dark:hover:text-white">
+                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <Folder size={15} className="shrink-0 text-amber-500" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">{project.name}</span>
+                      <span className="block truncate text-[10px] text-gray-400">{project.path || project.kind || project.id}</span>
+                    </span>
                   </button>
-                  {projectExpanded && <div className="ml-5">{roots.map((workspace) => <WorkspaceButton key={workspace.ref} workspace={workspace} active={workspace.ref === props.workspaceRef} onClick={() => props.onWorkspace(workspace)} rootOnly />)}</div>}
-                </div>;
-              })}</div>}
-            </div>;
-          })}
-          {!props.loading && props.workspaces.length === 0 && <p className="p-4 text-sm text-gray-400">{t('workspaceChat.noWorkspaces')}</p>}
+                  {project.kind !== 'unassigned' && (
+                    <ActionMenu label={`${project.name} 操作`} open={menuKey === projectMenuKey} onToggle={() => setMenuKey(menuKey === projectMenuKey ? '' : projectMenuKey)} onClose={() => setMenuKey('')}>
+                      <MenuItem icon={<Plus size={14} />} disabledReason={projectCapabilities?.create.supported ? undefined : projectCapabilities?.create.reason || '当前 App 未提供创建任务能力'} onClick={() => { setMenuKey(''); props.onNewTask(project); }}>{t('workspaceChat.newTask', '新建任务')}</MenuItem>
+                    </ActionMenu>
+                  )}
+                </div>
 
-          {props.workspaceRef && (
-            <section className="mt-4 border-t border-gray-200 pt-3 dark:border-white/[0.08]">
-              <div className="mb-2 flex items-center justify-between px-2">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-500"><MessageSquare size={13} />{t('workspaceChat.threads')}</div>
-                <button type="button" onClick={props.onNew} disabled={props.creating} className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40 dark:hover:bg-white/[0.08] dark:hover:text-white" title={t('workspaceChat.newThread')} aria-label={t('workspaceChat.newThread')}>
-                  {props.creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={15} />}
-                </button>
-              </div>
-              {props.conversation?.kind === 'draft' && (
-                <div className="mb-1 flex min-w-0 items-center gap-2 rounded-md bg-accent/12 px-2 py-2 text-accent">
-                  <FilePlus2 size={14} className="shrink-0" /><span className="min-w-0 flex-1 truncate text-sm font-medium">{t('workspaceChat.newDraft')}</span>
-                </div>
-              )}
-              {props.threads.map((thread) => (
-                <div key={thread.id} className={cn('group mb-1 flex min-w-0 items-center rounded-md', props.conversation?.kind === 'thread' && props.conversation.id === thread.id ? 'bg-accent/12 text-accent' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/[0.06]')}>
-                  <button type="button" onClick={() => props.onThread(thread)} className="min-w-0 flex-1 px-2 py-2 text-left">
-                    <span className="block truncate text-sm font-medium">{threadLabel(thread)}</span>
-                    <span className="flex items-center gap-1.5 truncate text-[10px] text-gray-400"><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />{statusType(thread.status) || '-'}</span>
-                  </button>
-                  <button type="button" onClick={() => props.onCopyLink(thread)} className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 opacity-100 hover:bg-white/70 hover:text-gray-900 md:opacity-0 md:group-hover:opacity-100 dark:hover:bg-black/30 dark:hover:text-white" title={t('workspaceChat.copyLink')} aria-label={t('workspaceChat.copyLink')}><Copy size={13} /></button>
-                </div>
-              ))}
-              {!props.loading && props.threads.length === 0 && props.conversation?.kind !== 'draft' && <p className="px-2 py-3 text-xs text-gray-400">{t('workspaceChat.noThreads')}</p>}
-            </section>
-          )}
+                {isExpanded && (
+                  <div className="ml-3 border-l border-gray-200 py-1 pl-2 dark:border-white/[0.1]">
+                    {projectTasks.map((task) => {
+                      const taskMenuKey = `task:${task.id}`;
+                      const selected = props.selectedTaskID === task.id;
+                      const taskCapabilities = capabilitiesFor(task.host_id || project.host_id);
+                      return (
+                        <div key={`${task.host_id || ''}:${task.id}`} className={cn('group mb-0.5 flex min-w-0 items-center rounded-md', selected ? 'bg-white text-gray-950 shadow-sm dark:bg-white/[0.1] dark:text-white' : 'text-gray-700 hover:bg-gray-200/70 dark:text-gray-300 dark:hover:bg-white/[0.06]')}>
+                          <button type="button" onClick={() => props.onTask(project, task)} aria-label={`打开任务 ${taskLabel(task)}`} className="min-w-0 flex-1 px-2 py-2 text-left">
+                            <span className="flex items-center gap-1.5">
+                              {task.pinned && <Pin size={11} className="shrink-0 text-amber-500" />}
+                              <span className="block truncate text-sm font-medium">{taskLabel(task)}</span>
+                            </span>
+                            <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-gray-400">
+                              <span className={cn('h-1.5 w-1.5 rounded-full', task.status === 'active' ? 'bg-emerald-500' : task.status === 'systemError' ? 'bg-red-500' : 'bg-gray-400')} />
+                              {taskStatus(task.status)}
+                            </span>
+                          </button>
+                          <ActionMenu label={`${taskLabel(task)} 操作`} open={menuKey === taskMenuKey} onToggle={() => setMenuKey(menuKey === taskMenuKey ? '' : taskMenuKey)} onClose={() => setMenuKey('')}>
+                            <MenuItem icon={<Pencil size={14} />} disabledReason={taskCapabilities?.rename.supported ? undefined : taskCapabilities?.rename.reason || '当前 App 未提供重命名能力'} onClick={() => { setMenuKey(''); props.onRenameTask(task); }}>重命名</MenuItem>
+                            <MenuItem icon={task.pinned ? <PinOff size={14} /> : <Pin size={14} />} disabledReason={taskCapabilities?.pin.supported ? undefined : taskCapabilities?.pin.reason || '当前 App 未提供置顶能力'} onClick={() => { setMenuKey(''); props.onTogglePin(task); }}>{task.pinned ? '取消置顶' : '置顶'}</MenuItem>
+                            <MenuItem icon={<Copy size={14} />} onClick={() => { setMenuKey(''); props.onCopyLink(project, task); }}>复制链接</MenuItem>
+                            <MenuItem icon={<Archive size={14} />} danger disabledReason={taskCapabilities?.archive.supported ? undefined : taskCapabilities?.archive.reason || '当前 App 未提供归档能力'} onClick={() => { setMenuKey(''); props.onArchiveTask(task); }}>归档</MenuItem>
+                          </ActionMenu>
+                        </div>
+                      );
+                    })}
+                    {!props.loading && projectTasks.length === 0 && <p className="px-2 py-2 text-xs text-gray-400">{t('workspaceChat.noTasks', '暂无任务')}</p>}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+          {!props.loading && props.projects.length === 0 && <p className="p-4 text-sm leading-6 text-gray-400">{t('workspaceChat.noProjects', '当前 Codex App 没有可用项目')}</p>}
         </nav>
       </aside>
       {props.open && <button type="button" className="absolute inset-0 z-20 bg-black/30 md:hidden" onClick={props.onClose} aria-label={t('common.close')} />}

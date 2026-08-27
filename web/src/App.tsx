@@ -38,8 +38,8 @@ export default function App() {
         <Route path="providers" element={<ProviderList />} />
         <Route path="skills" element={<SkillList />} />
         <Route path="chat" element={<WorkspaceChat />} />
-        <Route path="chat/:workspaceRef/draft/:draftRef" element={<WorkspaceChat />} />
-        <Route path="chat/:workspaceRef/:threadId" element={<WorkspaceChat />} />
+        <Route path="chat/:projectId/new" element={<WorkspaceChat />} />
+        <Route path="chat/:projectId/:taskId" element={<WorkspaceChat />} />
         <Route path="platform-sessions" element={<ChatList />} />
         <Route path="platform-sessions/:name" element={<ChatView />} />
         <Route path="cron" element={<CronList />} />

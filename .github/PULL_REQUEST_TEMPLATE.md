@@ -1,83 +1,45 @@
-<!--
-Thanks for contributing! Please fill in the sections below.
-The reviewer will use the checklist at the bottom to gate merge.
--->
+<!-- Thanks for contributing. Describe the change and the evidence selected for its actual risks. -->
 
 ## Summary
 
-<!-- 1-3 sentences explaining WHAT this PR does and WHY. -->
+<!-- What changes, why it is needed, and any user-visible effect. -->
 
 ## Type of change
 
-<!-- Mark all that apply: -->
-
-- [ ] Bug fix (non-breaking change that fixes an issue)
-- [ ] New feature (non-breaking change that adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing behavior to change)
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
 - [ ] Documentation only
-- [ ] Internal refactor / chore (no user-visible change)
+- [ ] Internal refactor / chore
 
-## Testing
+## Change risks
 
-<!-- Explain how you verified the change. Be specific. -->
+<!-- Identify affected contracts, consumers, persisted data, lifecycle owners, security boundaries, concurrency, deployment paths, or user journeys. -->
 
-### Automated tests added in this PR
+## Selected evidence
 
-<!-- List the test functions you added or modified. -->
+<!-- List the evidence collected and explain which risk each item covers. Choose evidence by impact; do not paste a routine command list. -->
 
-- `TestX_Y_Z` in `path/to/file_test.go` — what it asserts
+## Bug evidence
 
-### For bug fixes only — regression test
+<!-- For a bug fix, show the observed pre-fix symptom and the post-fix result through the same meaningful entry point. Include a regression test when it is the strongest durable evidence. Write N/A otherwise. -->
 
-<!-- A bug fix PR MUST include a regression test that:
-     (1) fails on the pre-fix code, and
-     (2) passes on the fixed code.
-     Name it so the bug is searchable later. -->
+## Uncovered risks
 
-- Regression test name: `Test...`
-- Manual verification this test catches the regression:
-  - [ ] Reverted the fix locally; the regression test failed as expected.
+<!-- State what was not verified, why, and the remaining risk. Write None when all identified risks are covered. -->
 
-### Critical User Journeys (CUJ) impact
+## Review checks
 
-<!-- See AGENTS.md → "Critical User Journeys (CUJ)" and the inventory in
-     projects/cc-connect/agents/qa-cursor/release-gate/CUJ-INVENTORY.md.
-     Mark which CUJ groups this PR touches: -->
-
-- [ ] No CUJ touched (small refactor, doc change, etc.)
-- [ ] A — basic conversation
-- [ ] B — session lifecycle (`/new` `/switch` `/list` `/history` etc.)
-- [ ] C — agent execution control (`/mode` `/cancel` `/stop` permissions)
-- [ ] D — security & permissions (`allow_from` `admin_from` `banned_words` rate limits)
-- [ ] E — scheduled tasks (`/cron` `/timer`)
-- [ ] F — config switching (`/lang` `/provider` `/model` reload)
-- [ ] G — error handling & robustness (LLM failure, ws reconnect, agent crash)
-- [ ] H — multi-platform / multi-project isolation
-- [ ] I — UI rendering correctness (cards, streaming, display modes)
-
-If any CUJ group is touched, confirm:
-
-- [ ] `go test ./core/ -run TestCUJ` passes locally.
-- [ ] If the change alters an existing user-visible flow, the corresponding
-      CUJ test was updated (or a new CUJ added) to cover the new behavior.
-
-## Manual / user-visible behavior change
-
-<!-- Describe what a user will see or do differently after this PR.
-     If none, write "None". -->
-
-## Checklist (reviewer will verify)
-
-- [ ] `go build ./...` passes
-- [ ] `go test ./...` passes (with `-race` if touching concurrency)
-- [ ] AGENTS.md Pre-Commit Checklist items are satisfied
-- [ ] No new hardcoded platform/agent names in `core/`
-- [ ] i18n strings have all-language translations (if any new user-facing text)
-- [ ] No secrets / credentials in source
+- [ ] Breaking and compatibility implications are explicit
+- [ ] All current producers and consumers of changed contracts were considered
+- [ ] Persisted data and migration behavior were considered
+- [ ] Security and secret-handling boundaries remain valid
+- [ ] User-facing strings have the required translations
+- [ ] Documentation or examples reflect changed behavior or configuration
+- [ ] CI status and failures were reviewed without weakening gates
 
 ## Related
 
-<!-- Link to issue, RFC, design doc, prior PR, etc. -->
-
 - Issue:
+- Decision / design document:
 - Related PR:

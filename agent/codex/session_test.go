@@ -278,37 +278,16 @@ func TestCodexPromptPreamble_EmptyIsNoop(t *testing.T) {
 	}
 }
 
-func TestGetModelAndReasoningEffort_FromRuntimeConfigWhenUnset(t *testing.T) {
+func TestGetModelAndReasoningEffort_DoNotStartAppServerWhenUnset(t *testing.T) {
 	workDir := t.TempDir()
 	binDir := filepath.Join(workDir, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("mkdir bin: %v", err)
 	}
 
-	script := `#!/bin/sh
-while IFS= read -r line; do
-  id=$(printf '%s' "$line" | sed -n 's/.*"id":[[:space:]]*\([0-9][0-9]*\).*/\1/p')
-  case "$line" in
-    *'"method":"initialize"'*)
-      printf '{"id":%s,"result":{"protocolVersion":"2"}}\n' "$id"
-      ;;
-    *'"method":"config/read"'*)
-      sleep 2
-      printf '{"id":%s,"result":{"config":{"model":"gpt-5.4","model_reasoning_effort":"xhigh"},"origins":{}}}\n' "$id"
-      ;;
-  esac
-done
-`
-	powershellScript := `
-while (($line = [Console]::In.ReadLine()) -ne $null) {
-  if ($line -like '*"method":"initialize"*') {
-    [Console]::Out.WriteLine('{"id":1,"result":{"protocolVersion":"2"}}')
-  } elseif ($line -like '*"method":"config/read"*') {
-    Start-Sleep -Milliseconds 2000
-    [Console]::Out.WriteLine('{"id":2,"result":{"config":{"model":"gpt-5.4","model_reasoning_effort":"xhigh"},"origins":{}}}')
-  }
-}
-`
+	markerPath := filepath.Join(workDir, "codex-executed")
+	script := "#!/bin/sh\ntouch \"" + markerPath + "\"\nexit 97\n"
+	powershellScript := "New-Item -ItemType File -Path '" + markerPath + "' -Force | Out-Null\nexit 97\n"
 	writeFakeCodexScript(t, binDir, script, powershellScript)
 
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -319,11 +298,14 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
 	}
 	defer cs.Close()
 
-	if got := cs.GetModel(); got != "gpt-5.4" {
-		t.Fatalf("GetModel() = %q, want gpt-5.4", got)
+	if got := cs.GetModel(); got != "" {
+		t.Fatalf("GetModel() = %q, want empty explicit configuration", got)
 	}
-	if got := cs.GetReasoningEffort(); got != "xhigh" {
-		t.Fatalf("GetReasoningEffort() = %q, want xhigh", got)
+	if got := cs.GetReasoningEffort(); got != "" {
+		t.Fatalf("GetReasoningEffort() = %q, want empty explicit configuration", got)
+	}
+	if _, err := os.Stat(markerPath); !os.IsNotExist(err) {
+		t.Fatalf("reading session metadata executed Codex CLI: %v", err)
 	}
 }
 

@@ -24,8 +24,8 @@ func init() {
 
 // Agent drives OpenAI Codex CLI using `codex exec --json`.
 //
-// `codex exec` has no approval IPC, so approvals are not interactive on the
-// exec backend. To get interactive approvals, switch to backend="app_server".
+// `codex exec` has no approval IPC, so approvals are not interactive.
+// Desktop App tasks use the separate codexapp agent.
 //
 // Modes on the exec backend (maps to codex exec flags):
 //   - "suggest":   --sandbox read-only       + approval_policy=never (no prompts)
@@ -37,7 +37,6 @@ type Agent struct {
 	model           string
 	reasoningEffort string
 	mode            string // "suggest" | "auto-edit" | "full-auto" | "yolo"
-	backend         string // "exec" | "app_server"
 	codexHome       string
 	systemPrompt    string
 	appendPrompt    string
@@ -48,8 +47,6 @@ type Agent struct {
 	configEnv       []string // env vars from [projects.agent.options.env] — persists across SetSessionEnv calls
 	sessionEnv      []string
 	mu              sync.RWMutex
-	controlMu       sync.Mutex
-	control         *appServerSession
 }
 
 func New(opts map[string]any) (core.Agent, error) {
@@ -65,13 +62,12 @@ func New(opts map[string]any) (core.Agent, error) {
 	systemPrompt, _ := opts["system_prompt"].(string)
 	appendPrompt, _ := opts["append_system_prompt"].(string)
 	mode = normalizeMode(mode)
-	var err error
-	backend, err = parseBackend(backend)
-	if err != nil {
-		return nil, err
+	backend = strings.TrimSpace(backend)
+	if backend != "" && backend != "exec" {
+		return nil, fmt.Errorf("codex: backend %q was removed; use agent type codexapp for Desktop App tasks", backend)
 	}
 	if _, exists := opts["app_server_url"]; exists {
-		return nil, fmt.Errorf("codex: app_server_url is not supported; app_server uses stdio://")
+		return nil, fmt.Errorf("codex: app_server_url was removed; use agent type codexapp")
 	}
 
 	cmd, cliExtraArgs := core.ParseCmdOpts(opts, "codex")
@@ -102,7 +98,6 @@ func New(opts map[string]any) (core.Agent, error) {
 		model:           model,
 		reasoningEffort: normalizeReasoningEffort(reasoningEffort),
 		mode:            mode,
-		backend:         backend,
 		codexHome:       strings.TrimSpace(codexHome),
 		systemPrompt:    strings.TrimSpace(systemPrompt),
 		appendPrompt:    strings.TrimSpace(appendPrompt),
@@ -111,19 +106,6 @@ func New(opts map[string]any) (core.Agent, error) {
 		configEnv:       configEnv,
 		activeIdx:       -1,
 	}, nil
-}
-
-func parseBackend(raw string) (string, error) {
-	backend := strings.TrimSpace(raw)
-	if backend == "" {
-		return "exec", nil
-	}
-	switch backend {
-	case "exec", "app_server":
-		return backend, nil
-	default:
-		return "", fmt.Errorf("codex: unsupported backend %q; expected exec or app_server", backend)
-	}
 }
 
 func normalizeMode(raw string) string {
@@ -462,7 +444,6 @@ func (a *Agent) StartSession(ctx context.Context, sessionID string) (core.AgentS
 	mode := a.mode
 	model := a.model
 	reasoningEffort := a.reasoningEffort
-	backend := a.backend
 	codexHome := a.codexHome
 	systemPrompt := a.systemPrompt
 	appendPrompt := a.appendPrompt
@@ -495,13 +476,6 @@ func (a *Agent) StartSession(ctx context.Context, sessionID string) (core.AgentS
 		}
 	}
 
-	if backend == "app_server" {
-		control, err := a.appServerControl(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return control.logicalSession(ctx, sessionID, model, reasoningEffort, mode, systemPrompt, appendPrompt)
-	}
 	if codexHome != "" {
 		extraEnv = append(extraEnv, "CODEX_HOME="+codexHome)
 	}
@@ -536,13 +510,6 @@ func (a *Agent) DeleteSession(_ context.Context, sessionID string) error {
 }
 
 func (a *Agent) Stop() error {
-	a.controlMu.Lock()
-	control := a.control
-	a.control = nil
-	a.controlMu.Unlock()
-	if control != nil {
-		return control.Close()
-	}
 	return nil
 }
 
@@ -564,10 +531,7 @@ func (a *Agent) WorkspaceAgentOptions() map[string]any {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	opts := map[string]any{
-		"mode":    a.mode,
-		"backend": a.backend,
-	}
+	opts := map[string]any{"mode": a.mode}
 	if a.model != "" {
 		opts["model"] = a.model
 	}
@@ -790,22 +754,15 @@ func (a *Agent) activeProviderCodexConfig() (name string, apiKey string, wireAPI
 
 // PermissionModes returns the supported codex permission modes.
 //
-// Behavior depends on backend:
-//   - exec backend (default): codex exec has no approval IPC, so all modes run
-//     with approval_policy=never. Sandbox tier is what controls access. The
-//     "suggest" label refers to the *intent* (read-only safety) — the CLI does
-//     not pop interactive approval prompts on this backend.
-//   - app_server backend: "suggest" enables real interactive approval requests
-//     (execCommandApproval / applyPatchApproval / permissionsApproval).
-//
-// Note: auto-edit and full-auto produce the same flags on the exec backend
+// Codex exec has no approval IPC, so all modes use approval_policy=never.
+// Note: auto-edit and full-auto produce the same flags
 // (codex CLI has no separate "ask for shell only" mode); auto-edit is kept as
 // an alias for backward compatibility with existing user configs.
 func (a *Agent) PermissionModes() []core.PermissionModeInfo {
 	return []core.PermissionModeInfo{
 		{Key: "suggest", Name: "Suggest", NameZh: "建议",
-			Desc:   "Read-only sandbox; on exec backend no prompts, on app_server backend asks for every tool call",
-			DescZh: "只读沙箱；exec 后端不弹审批，app_server 后端每次工具调用都会询问"},
+			Desc:   "Read-only sandbox without interactive prompts",
+			DescZh: "只读沙箱，不弹出交互式审批"},
 		{Key: "auto-edit", Name: "Auto Edit", NameZh: "自动编辑",
 			Desc:   "Workspace-write sandbox, no approval prompts (alias of Full Auto)",
 			DescZh: "工作区可写沙箱，不弹审批（等同于全自动）"},

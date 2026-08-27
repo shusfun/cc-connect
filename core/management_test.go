@@ -23,6 +23,18 @@ type deadlineAwareModelAgent struct {
 	hasDeadline bool
 }
 
+type managementCapabilityAgent struct{ stubAgent }
+
+func (*managementCapabilityAgent) SessionCapabilities(_ context.Context, hostID string) (AgentSessionCapabilities, error) {
+	if hostID != "local" {
+		return AgentSessionCapabilities{}, errors.New("unexpected host")
+	}
+	return AgentSessionCapabilities{
+		Create: AgentSessionCapability{Supported: true},
+		Pin:    AgentSessionCapability{Reason: "当前 App 不支持置顶"},
+	}, nil
+}
+
 func (a *deadlineAwareModelAgent) AvailableModels(ctx context.Context) []ModelOption {
 	a.mu.Lock()
 	_, ok := ctx.Deadline()
@@ -196,6 +208,24 @@ func TestMgmt_Status(t *testing.T) {
 	}
 	if data["projects_count"] != float64(1) {
 		t.Fatalf("expected 1 project, got %v", data["projects_count"])
+	}
+}
+
+func TestMgmt_AgentCapabilitiesPreserveSupportedStateAndReason(t *testing.T) {
+	_, ts, engine := testManagementServer(t)
+	engine.agent = &managementCapabilityAgent{}
+	r := mgmtGet(t, ts.URL+"/api/v1/projects/test-project/agent-capabilities?host_id=local")
+	if !r.OK {
+		t.Fatalf("capability request failed: %s", r.Error)
+	}
+	var data struct {
+		Capabilities AgentSessionCapabilities `json:"capabilities"`
+	}
+	if err := json.Unmarshal(r.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if !data.Capabilities.Create.Supported || data.Capabilities.Pin.Supported || data.Capabilities.Pin.Reason == "" {
+		t.Fatalf("unexpected capabilities: %#v", data.Capabilities)
 	}
 }
 

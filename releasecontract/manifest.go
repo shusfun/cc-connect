@@ -33,7 +33,6 @@ type Manifest struct {
 	CommitSHA           string     `json:"commit_sha"`
 	RuntimeContractHash string     `json:"runtime_contract_hash"`
 	ControlSchema       int        `json:"control_schema"`
-	WorkspaceChatSchema int        `json:"workspace_chat_schema"`
 	GeneratedAt         time.Time  `json:"generated_at"`
 	Artifacts           []Artifact `json:"artifacts"`
 }
@@ -68,7 +67,7 @@ func (m Manifest) Validate() error {
 	if _, err := hex.DecodeString(m.CommitSHA); err != nil {
 		return errors.New("release manifest: commit SHA is invalid")
 	}
-	if strings.TrimSpace(m.RuntimeContractHash) == "" || m.ControlSchema < 1 || m.WorkspaceChatSchema < 1 || m.GeneratedAt.IsZero() {
+	if strings.TrimSpace(m.RuntimeContractHash) == "" || m.ControlSchema < 1 || m.GeneratedAt.IsZero() {
 		return errors.New("release manifest: compatibility metadata is incomplete")
 	}
 	required := map[string]struct{}{

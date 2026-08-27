@@ -51,7 +51,6 @@ type Server struct {
 	internalListener net.Listener
 	proxy            *httputil.ReverseProxy
 	loginLimiter     *loginLimiter
-	attachments      *AttachmentStore
 	supervisor       *Supervisor
 	deployment       *DeploymentManager
 	closeOnce        sync.Once
@@ -75,14 +74,8 @@ func New(config Config, store *controlstore.Store, broker *Broker) (*Server, err
 		slog.Warn("control proxy failed", "error", err)
 		writeJSON(w, http.StatusBadGateway, false, nil, "业务进程当前不可用")
 	}
-	attachments, err := NewAttachmentStore(filepath.Join(config.AppDirectory, "attachments"))
-	if err != nil {
-		return nil, err
-	}
-	broker.setAttachmentStore(attachments)
 	return &Server{
 		config: config, store: store, broker: broker, proxy: proxy, loginLimiter: newLoginLimiter(),
-		attachments: attachments,
 	}, nil
 }
 
@@ -165,7 +158,6 @@ func (s *Server) publicHandler() http.Handler {
 	mux.HandleFunc("/runtime/v1/pair", s.handleRuntimePair)
 	mux.HandleFunc("/runtime/v1/install.sh", s.handleRuntimeInstaller)
 	mux.HandleFunc("/runtime/v1/connect", s.handleRuntimeConnect)
-	mux.HandleFunc("/runtime/v1/attachments/", s.handleRuntimeAttachment)
 	mux.HandleFunc("/api/", s.requireSession(func(w http.ResponseWriter, r *http.Request) { s.proxy.ServeHTTP(w, r) }))
 	return s.withStatic(mux)
 }
@@ -194,41 +186,6 @@ func (s *Server) internalHandler() http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusAccepted, true, run, "")
-	})
-	mux.HandleFunc("GET /runtime/v1/events", func(w http.ResponseWriter, r *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, false, nil, "streaming is unavailable")
-			return
-		}
-		workspaceRef := strings.TrimSpace(r.URL.Query().Get("workspace_ref"))
-		threadID := strings.TrimSpace(r.URL.Query().Get("thread_id"))
-		events, cancel := s.broker.SubscribeEvents()
-		defer cancel()
-		w.Header().Set("Content-Type", "application/x-ndjson")
-		w.WriteHeader(http.StatusOK)
-		flusher.Flush()
-		encoder := json.NewEncoder(w)
-		for {
-			select {
-			case <-r.Context().Done():
-				return
-			case event, open := <-events:
-				if !open {
-					return
-				}
-				if workspaceRef != "" && event.Resource.WorkspaceRef != workspaceRef {
-					continue
-				}
-				if threadID != "" && event.Resource.ConversationRef != threadID {
-					continue
-				}
-				if err := encoder.Encode(event); err != nil {
-					return
-				}
-				flusher.Flush()
-			}
-		}
 	})
 	mux.HandleFunc("GET /runtime/v1/devices", func(w http.ResponseWriter, r *http.Request) {
 		devices, err := s.broker.Devices(r.Context())
@@ -262,19 +219,6 @@ func (s *Server) internalHandler() http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, true, json.RawMessage(payload), "")
-	})
-	mux.HandleFunc("POST /runtime/v1/attachments", func(w http.ResponseWriter, r *http.Request) {
-		var request runtimeprotocol.AttachmentStageRequest
-		if err := decodeRequest(r, &request); err != nil {
-			writeJSON(w, http.StatusBadRequest, false, nil, err.Error())
-			return
-		}
-		result, err := s.broker.StageAttachments(r.Context(), request)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, false, nil, err.Error())
-			return
-		}
-		writeJSON(w, http.StatusCreated, true, result, "")
 	})
 	return mux
 }
@@ -615,31 +559,6 @@ func (s *Server) handleRuntimeConnect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusMethodNotAllowed, false, nil, "method not allowed")
 }
 
-func (s *Server) handleRuntimeAttachment(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeJSON(w, http.StatusMethodNotAllowed, false, nil, "method not allowed")
-		return
-	}
-	if r.Header.Get("Origin") != "" {
-		writeJSON(w, http.StatusForbidden, false, nil, "runtime attachment requires a non-browser client")
-		return
-	}
-	ref := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/runtime/v1/attachments/"))
-	if ref == "" || strings.Contains(ref, "/") {
-		writeJSON(w, http.StatusBadRequest, false, nil, "attachment reference is invalid")
-		return
-	}
-	content, err := s.broker.DownloadAttachment(
-		r.Context(), r.Header.Get("X-CC-Device-ID"), ref, r.Header.Get("X-CC-Timestamp"),
-		r.Header.Get("X-CC-Nonce"), r.Header.Get("X-CC-Signature"),
-	)
-	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, false, nil, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, true, content, "")
-}
-
 func (s *Server) handleServiceStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet || s.supervisor == nil {
 		writeJSON(w, http.StatusServiceUnavailable, false, nil, "业务进程监管尚未配置")
@@ -896,25 +815,22 @@ func validatePublicURL(raw string) (string, error) {
 }
 
 func writeInitialServerConfig(path, appDirectory string, request serverConfigurationRequest) error {
-	enabled := true
-	transports := []string{"web"}
-	if request.EnableWeCom {
-		transports = append(transports, "wecom")
-	}
 	language := strings.TrimSpace(request.Language)
 	if language == "" {
 		language = "zh"
 	}
 	value := struct {
-		DataDir       string                        `toml:"data_dir"`
-		Language      string                        `toml:"language"`
-		WorkspaceChat appconfig.WorkspaceChatConfig `toml:"workspace_chat"`
+		DataDir  string                    `toml:"data_dir"`
+		Language string                    `toml:"language"`
+		Projects []appconfig.ProjectConfig `toml:"projects"`
 	}{
 		DataDir: appDirectory, Language: language,
-		WorkspaceChat: appconfig.WorkspaceChatConfig{
-			Enabled: &enabled, Transports: transports,
-			WeCom: appconfig.WorkspaceChatWeComConfig{BotID: strings.TrimSpace(request.WeComBotID), BotSecret: strings.TrimSpace(request.WeComSecret), AllowFrom: strings.TrimSpace(request.AllowFrom)},
-		},
+		Projects: []appconfig.ProjectConfig{{Name: "codex-app", Agent: appconfig.AgentConfig{Type: "codexapp"}}},
+	}
+	if request.EnableWeCom {
+		value.Projects[0].Platforms = []appconfig.PlatformConfig{{Type: "wecom", Options: map[string]any{
+			"mode": "websocket", "bot_id": strings.TrimSpace(request.WeComBotID), "bot_secret": strings.TrimSpace(request.WeComSecret), "allow_from": strings.TrimSpace(request.AllowFrom),
+		}}}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("control plane: create app directory: %w", err)
@@ -1142,9 +1058,6 @@ func (s *Server) Close(ctx context.Context) error {
 	var result error
 	s.closeOnce.Do(func() {
 		_ = s.broker.Close()
-		if s.attachments != nil {
-			result = errors.Join(result, s.attachments.Close())
-		}
 		if s.publicServer != nil {
 			result = errors.Join(result, s.publicServer.Shutdown(ctx))
 		}

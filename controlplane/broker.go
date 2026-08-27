@@ -14,7 +14,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,16 +27,14 @@ type Broker struct {
 	store *controlstore.Store
 	now   func() time.Time
 
-	mu            sync.RWMutex
-	connections   map[string]*runtimeConnection
-	challenges    map[string]challenge
-	generations   map[string]uint64
-	closed        bool
-	workspaceKey  []byte
-	eventSubs     map[uint64]*eventSubscription
-	nextEventSub  uint64
-	attachments   *AttachmentStore
-	requestNonces map[string]time.Time
+	mu           sync.RWMutex
+	connections  map[string]*runtimeConnection
+	challenges   map[string]challenge
+	generations  map[string]uint64
+	closed       bool
+	workspaceKey []byte
+	eventSubs    map[uint64]*eventSubscription
+	nextEventSub uint64
 }
 
 type eventSubscription struct {
@@ -120,14 +117,8 @@ func NewBroker(store *controlstore.Store) (*Broker, error) {
 	return &Broker{
 		store: store, now: time.Now, connections: make(map[string]*runtimeConnection),
 		challenges: make(map[string]challenge), generations: make(map[string]uint64), workspaceKey: key,
-		eventSubs: make(map[uint64]*eventSubscription), requestNonces: make(map[string]time.Time),
+		eventSubs: make(map[uint64]*eventSubscription),
 	}, nil
-}
-
-func (b *Broker) setAttachmentStore(store *AttachmentStore) {
-	b.mu.Lock()
-	b.attachments = store
-	b.mu.Unlock()
 }
 
 func (b *Broker) IssueChallenge(ctx context.Context, deviceID string) (string, time.Time, error) {
@@ -273,7 +264,7 @@ func (b *Broker) readLoop(connection *runtimeConnection) {
 				close(waiter)
 			}
 		} else {
-			if envelope.Method == runtimeprotocol.MethodCatalogChanged {
+			if envelope.Method == runtimeprotocol.MethodProjectChanged {
 				if err := b.persistCatalog(connection.deviceID, envelope.Payload); err != nil {
 					connection.close(err)
 					return
@@ -298,13 +289,13 @@ func (b *Broker) readLoop(connection *runtimeConnection) {
 }
 
 func (b *Broker) publishRuntimeEvent(envelope runtimeprotocol.Envelope) {
-	if envelope.Resource.WorkspaceRef != "" {
-		entry, err := b.store.ResolveLocalWorkspaceReference(context.Background(), envelope.DeviceID, envelope.Resource.WorkspaceRef)
+	if envelope.Resource.ProjectRef != "" {
+		entry, err := b.store.ResolveLocalWorkspaceReference(context.Background(), envelope.DeviceID, envelope.Resource.ProjectRef)
 		if err != nil {
 			slog.Warn("runtime event workspace reference rejected", "device_id", envelope.DeviceID, "error", err)
 			return
 		}
-		envelope.Resource.WorkspaceRef = entry.GlobalRef
+		envelope.Resource.ProjectRef = entry.GlobalRef
 	}
 	b.mu.RLock()
 	subscribers := make(map[uint64]*eventSubscription, len(b.eventSubs))
@@ -351,55 +342,10 @@ func (b *Broker) removeConnection(connection *runtimeConnection) {
 		delete(b.connections, connection.deviceID)
 		removed = true
 	}
-	attachments := b.attachments
 	b.mu.Unlock()
-	if removed && attachments != nil {
-		attachments.CleanupDevice(connection.deviceID)
-	}
 	if removed {
 		_ = b.store.RecordAudit(context.Background(), "runtime:"+connection.deviceID, "runtime_disconnected", "device:"+connection.deviceID, "succeeded", nil)
 	}
-}
-
-func (b *Broker) authenticateSignedRequest(ctx context.Context, purpose, deviceID, resource, timestamp, nonce, signatureText string) error {
-	unixSeconds, err := strconv.ParseInt(strings.TrimSpace(timestamp), 10, 64)
-	if err != nil {
-		return errors.New("control broker: invalid signed request timestamp")
-	}
-	now := b.now()
-	signedAt := time.Unix(unixSeconds, 0)
-	if signedAt.Before(now.Add(-2*time.Minute)) || signedAt.After(now.Add(2*time.Minute)) {
-		return errors.New("control broker: signed request timestamp is outside the allowed window")
-	}
-	deviceID = strings.TrimSpace(deviceID)
-	nonce = strings.TrimSpace(nonce)
-	if deviceID == "" || nonce == "" || len(nonce) > 256 {
-		return errors.New("control broker: signed request device and nonce are required")
-	}
-	device, err := b.store.Device(ctx, deviceID)
-	if err != nil || device.RevokedAt != nil {
-		return errors.New("control broker: active device not found")
-	}
-	signature, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(signatureText))
-	if err != nil || !ed25519.Verify(ed25519.PublicKey(device.PublicKey), runtimeprotocol.SignedRequestMessage(purpose, deviceID, resource, timestamp, nonce), signature) {
-		return errors.New("control broker: signed request verification failed")
-	}
-	nonceKey := deviceID + "\x00" + nonce
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed || b.connections[deviceID] == nil {
-		return errors.New("control broker: device is offline")
-	}
-	for key, expiresAt := range b.requestNonces {
-		if !expiresAt.After(now) {
-			delete(b.requestNonces, key)
-		}
-	}
-	if _, exists := b.requestNonces[nonceKey]; exists {
-		return errors.New("control broker: signed request nonce was already used")
-	}
-	b.requestNonces[nonceKey] = now.Add(2 * time.Minute)
-	return nil
 }
 
 func (c *runtimeConnection) close(cause error) {
@@ -429,13 +375,9 @@ func (b *Broker) RevokeDevice(ctx context.Context, deviceID string) error {
 	b.mu.Lock()
 	connection := b.connections[deviceID]
 	delete(b.connections, deviceID)
-	attachments := b.attachments
 	b.mu.Unlock()
 	if connection != nil {
 		connection.close(errors.New("device revoked"))
-	}
-	if attachments != nil {
-		attachments.CleanupDevice(deviceID)
 	}
 	_ = b.store.RecordAudit(context.Background(), "admin", "device_revoked", "device:"+deviceID, "succeeded", nil)
 	return nil
@@ -498,7 +440,7 @@ func (b *Broker) Call(ctx context.Context, deviceID string, method runtimeprotoc
 func (b *Broker) refreshCatalog(connection *runtimeConnection) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	raw, err := b.Call(ctx, connection.deviceID, runtimeprotocol.MethodCatalogList, runtimeprotocol.Resource{}, nil)
+	raw, err := b.Call(ctx, connection.deviceID, runtimeprotocol.MethodProjectList, runtimeprotocol.Resource{}, nil)
 	if err != nil {
 		slog.Warn("runtime catalog refresh failed", "device_id", connection.deviceID, "error", err)
 		return
@@ -509,23 +451,23 @@ func (b *Broker) refreshCatalog(connection *runtimeConnection) {
 }
 
 func (b *Broker) persistCatalog(deviceID string, raw []byte) error {
-	var catalog runtimeprotocol.Catalog
+	var catalog runtimeprotocol.ProjectCatalog
 	if err := strictJSON(raw, &catalog); err != nil {
 		return err
 	}
-	entries := make([]controlstore.CatalogEntry, 0, len(catalog.Workspaces))
-	for _, workspace := range catalog.Workspaces {
-		if strings.TrimSpace(workspace.LocalRef) == "" {
+	entries := make([]controlstore.CatalogEntry, 0, len(catalog.Projects))
+	for _, project := range catalog.Projects {
+		if strings.TrimSpace(project.LocalRef) == "" {
 			continue
 		}
-		publicPayload, err := json.Marshal(workspace)
+		publicPayload, err := json.Marshal(project)
 		if err != nil {
 			continue
 		}
 		entries = append(entries, controlstore.CatalogEntry{
-			DeviceID: deviceID, LocalRef: workspace.LocalRef,
-			GlobalRef: b.workspaceRef(deviceID, workspace.LocalRef), Payload: publicPayload,
-			Available: workspace.Available, Reason: workspace.Reason,
+			DeviceID: deviceID, LocalRef: project.LocalRef,
+			GlobalRef: b.workspaceRef(deviceID, project.LocalRef), Payload: publicPayload,
+			Available: project.Available, Reason: project.Reason,
 		})
 	}
 	if err := b.store.ReplaceDeviceCatalog(context.Background(), deviceID, entries); err != nil {
@@ -572,33 +514,33 @@ func (b *Broker) Catalog(ctx context.Context) ([]CatalogWorkspace, error) {
 	}
 	result := make([]CatalogWorkspace, 0, len(entries))
 	for _, entry := range entries {
-		var workspace runtimeprotocol.Workspace
-		if err := strictJSON(entry.Payload, &workspace); err != nil {
+		var project runtimeprotocol.Project
+		if err := strictJSON(entry.Payload, &project); err != nil {
 			return nil, fmt.Errorf("control broker: corrupt catalog entry %s: %w", entry.GlobalRef, err)
 		}
 		device := byID[entry.DeviceID]
 		result = append(result, CatalogWorkspace{
 			Ref: entry.GlobalRef, DeviceID: entry.DeviceID, DeviceName: device.Name,
-			ProjectID: workspace.ProjectID, ProjectName: workspace.ProjectName,
-			RootIndex: workspace.RootIndex, RootName: workspace.RootName, Available: workspace.Available && device.Online,
-			Reason: offlineReason(workspace, device.Online), Order: workspace.Order, Online: device.Online, UpdatedAt: entry.UpdatedAt,
+			ProjectID: project.ProjectID, ProjectName: project.ProjectName,
+			RootName: project.ProjectName, Available: project.Available && device.Online,
+			Reason: offlineReason(project, device.Online), Order: project.Order, Online: device.Online, UpdatedAt: entry.UpdatedAt,
 		})
 	}
 	return result, nil
 }
 
-func offlineReason(workspace runtimeprotocol.Workspace, online bool) string {
+func offlineReason(project runtimeprotocol.Project, online bool) string {
 	if !online {
 		return "设备离线，目录仅可只读查看"
 	}
-	return workspace.Reason
+	return project.Reason
 }
 
 func (b *Broker) ResolveAndCall(ctx context.Context, request runtimeprotocol.InternalRequest) (json.RawMessage, error) {
 	deviceID := request.DeviceID
 	resource := request.Resource
-	if resource.WorkspaceRef != "" {
-		entry, err := b.store.ResolveWorkspaceReference(ctx, resource.WorkspaceRef)
+	if resource.ProjectRef != "" {
+		entry, err := b.store.ResolveWorkspaceReference(ctx, resource.ProjectRef)
 		if err != nil {
 			return nil, err
 		}
@@ -606,46 +548,12 @@ func (b *Broker) ResolveAndCall(ctx context.Context, request runtimeprotocol.Int
 			return nil, errors.New("control broker: workspace reference belongs to another device")
 		}
 		deviceID = entry.DeviceID
-		resource.WorkspaceRef = entry.LocalRef
+		resource.ProjectRef = entry.LocalRef
 	}
 	if deviceID == "" {
 		return nil, errors.New("control broker: device_id is required")
 	}
 	return b.Call(ctx, deviceID, request.Method, resource, request.Payload)
-}
-
-func (b *Broker) StageAttachments(ctx context.Context, request runtimeprotocol.AttachmentStageRequest) ([]runtimeprotocol.AttachmentReference, error) {
-	entry, err := b.store.ResolveWorkspaceReference(ctx, strings.TrimSpace(request.WorkspaceRef))
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(request.DeviceID) != entry.DeviceID {
-		return nil, errors.New("control broker: workspace reference belongs to another device")
-	}
-	b.mu.RLock()
-	connection := b.connections[entry.DeviceID]
-	attachments := b.attachments
-	b.mu.RUnlock()
-	if connection == nil {
-		return nil, errors.New("device_offline")
-	}
-	if attachments == nil {
-		return nil, errors.New("control broker: attachment store is unavailable")
-	}
-	return attachments.Stage(entry.DeviceID, entry.LocalRef, request.Attachments)
-}
-
-func (b *Broker) DownloadAttachment(ctx context.Context, deviceID, ref, timestamp, nonce, signature string) (runtimeprotocol.AttachmentContent, error) {
-	if err := b.authenticateSignedRequest(ctx, runtimeprotocol.SignedPurposeAttachmentDownload, deviceID, ref, timestamp, nonce, signature); err != nil {
-		return runtimeprotocol.AttachmentContent{}, err
-	}
-	b.mu.RLock()
-	attachments := b.attachments
-	b.mu.RUnlock()
-	if attachments == nil {
-		return runtimeprotocol.AttachmentContent{}, errors.New("control broker: attachment store is unavailable")
-	}
-	return attachments.Take(deviceID, ref)
 }
 
 func (b *Broker) Close() error {

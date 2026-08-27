@@ -4,11 +4,12 @@ import {
   Clock, Play, Plus, Trash2, Terminal, MessageSquare, Power,
   ChevronDown,
 } from 'lucide-react';
-import { Button, Badge, Modal, Input, Textarea, EmptyState } from '@/components/ui';
+import { Button, Badge, Modal, Input, Textarea, EmptyState, useFeedback } from '@/components/ui';
 import { listCronJobs, createCronJob, updateCronJob, deleteCronJob, triggerCronJob, type CronJob } from '@/api/cron';
 import { listProjects, type ProjectSummary } from '@/api/projects';
 import { listSessions, type Session } from '@/api/sessions';
 import { formatTime, cn } from '@/lib/utils';
+import { useRefresh } from '@/store/refresh';
 
 const MODE_OPTIONS = ['bypassPermissions', 'acceptEdits', 'auto', 'plan', 'dontAsk'] as const;
 
@@ -178,6 +179,8 @@ const emptyForm: JobForm = {
 /* ── Main page ── */
 export default function CronList() {
   const { t } = useTranslation();
+  const { generation } = useRefresh();
+  const { notify, confirm: askConfirmation } = useFeedback();
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -222,11 +225,8 @@ export default function CronList() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-    const handler = () => fetchData();
-    window.addEventListener('cc:refresh', handler);
-    return () => window.removeEventListener('cc:refresh', handler);
-  }, [fetchData]);
+    void fetchData();
+  }, [fetchData, generation]);
 
   const openAdd = () => {
     setEditJob(null);
@@ -278,26 +278,31 @@ export default function CronList() {
         await createCronJob(body);
       }
       setShowForm(false);
-      fetchData();
+      void fetchData();
     } catch (e: any) {
-      alert(e.message);
+      notify(e.message, 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('common.confirmDelete'))) return;
-    await deleteCronJob(id);
-    fetchData();
+    if (!await askConfirmation({ title: t('cron.delete'), message: t('common.confirmDelete'), confirmLabel: t('common.delete'), danger: true })) return;
+    try {
+      await deleteCronJob(id);
+      void fetchData();
+      notify(t('common.success'), 'success');
+    } catch (e: any) {
+      notify(e.message, 'error');
+    }
   };
 
   const handleToggleEnabled = async (job: CronJob) => {
     try {
       await updateCronJob(job.id, { enabled: !job.enabled });
-      fetchData();
+      void fetchData();
     } catch (e: any) {
-      alert(e.message);
+      notify(e.message, 'error');
     }
   };
 
@@ -305,10 +310,10 @@ export default function CronList() {
     setTriggeringId(job.id);
     try {
       await triggerCronJob(job.id);
-      alert(t('cron.triggerPending'));
-      fetchData();
+      notify(t('cron.triggerPending'), 'success');
+      void fetchData();
     } catch (e: any) {
-      alert(e.message);
+      notify(e.message, 'error');
     } finally {
       setTriggeringId(null);
     }

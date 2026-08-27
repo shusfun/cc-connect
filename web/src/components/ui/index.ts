@@ -4,3 +4,4 @@ export { Badge } from './Badge';
 export { Modal } from './Modal';
 export { Input, Textarea } from './Input';
 export { EmptyState } from './EmptyState';
+export { FeedbackProvider, useFeedback } from './FeedbackProvider';

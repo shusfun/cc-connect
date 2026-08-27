@@ -24,7 +24,6 @@ import (
 	"github.com/chenhg5/cc-connect/core"
 	"github.com/chenhg5/cc-connect/daemon"
 	"github.com/chenhg5/cc-connect/remotenative"
-	"github.com/chenhg5/cc-connect/storage/workspacechat"
 	// Agent and platform imports are in separate plugin_*.go files
 	// controlled by build tags. See Makefile for selective compilation.
 )
@@ -332,8 +331,11 @@ func main() {
 	config.ConfigPath = configPath
 	slog.Info("config loaded", "path", configPath)
 
-	workspaceChatEnabled := cfg.WorkspaceChat.Enabled != nil && *cfg.WorkspaceChat.Enabled
-	if len(cfg.Projects) == 0 && !workspaceChatEnabled {
+	runtimeSocket := strings.TrimSpace(rootOpts.runtimeSocket)
+	if runtimeSocket == "" {
+		runtimeSocket = strings.TrimSpace(os.Getenv("CC_RUNTIME_SOCKET"))
+	}
+	if len(cfg.Projects) == 0 {
 		fmt.Fprintf(os.Stderr, "Error: no projects configured in %s\n", configPath)
 		fmt.Fprintln(os.Stderr, "Add at least one [[project]] section to your config.toml, or run:")
 		fmt.Fprintln(os.Stderr, "  cc-connect init")
@@ -367,7 +369,13 @@ func main() {
 				proj.Agent.Options["run_as_env"] = proj.RunAsEnv
 			}
 		}
-		agent, err := core.CreateAgent(proj.Agent.Type, buildAgentOptions(cfg.DataDir, proj))
+		var agent core.Agent
+		var err error
+		if strings.EqualFold(proj.Agent.Type, "codexapp") && runtimeSocket != "" {
+			agent, err = remotenative.New(runtimeSocket)
+		} else {
+			agent, err = core.CreateAgent(proj.Agent.Type, buildAgentOptions(cfg.DataDir, proj))
+		}
 		if err != nil {
 			slog.Error("failed to create agent", "project", proj.Name, "error", err)
 			os.Exit(1)
@@ -376,6 +384,9 @@ func main() {
 		providerWiring := wireAgentProviders(agent, proj.Agent)
 
 		var platforms []core.Platform
+		if _, authoritative := agent.(core.AuthoritativeSessionHistory); authoritative {
+			platforms = append(platforms, core.NewManagementPlatform())
+		}
 		for _, pc := range proj.Platforms {
 			opts := make(map[string]any, len(pc.Options)+2)
 			for k, v := range pc.Options {
@@ -940,60 +951,6 @@ func main() {
 		effectiveWorkDirs = append(effectiveWorkDirs, effectiveWorkDir)
 	}
 
-	var workspaceChatService *core.WorkspaceChatService
-	var workspaceChatPlatforms []core.Platform
-	if workspaceChatEnabled {
-		runtimeSocket := strings.TrimSpace(rootOpts.runtimeSocket)
-		if runtimeSocket == "" {
-			runtimeSocket = strings.TrimSpace(os.Getenv("CC_RUNTIME_SOCKET"))
-		}
-		backend, err := remotenative.New(runtimeSocket)
-		if err != nil {
-			slog.Error("workspace chat remote runtime unavailable", "error", err)
-			os.Exit(1)
-		}
-		repository, err := workspacechat.Open(cfg.DataDir)
-		if err != nil {
-			slog.Error("workspace chat persistence unavailable", "error", err)
-			os.Exit(1)
-		}
-		workspaceChatService, err = core.NewWorkspaceChatService(core.WorkspaceChatDependencies{
-			Catalog: backend, Validator: backend, Backend: backend, Settings: backend, Turns: backend, Realtime: backend,
-			I18n: core.NewI18n(configuredLanguage(cfg.Language)),
-		}, repository, cfg.WorkspaceChat.Transports)
-		if err != nil {
-			_ = repository.Close()
-			slog.Error("workspace chat startup failed", "error", err)
-			os.Exit(1)
-		}
-		for _, engine := range engines {
-			engine.SetMessageInterceptor(workspaceChatService.HandleIncoming)
-		}
-		if workspaceChatService.TransportEnabled("wecom") {
-			platform, err := core.CreatePlatform("wecom", map[string]any{
-				"mode": "websocket", "bot_id": cfg.WorkspaceChat.WeCom.BotID,
-				"bot_secret": cfg.WorkspaceChat.WeCom.BotSecret, "allow_from": cfg.WorkspaceChat.WeCom.AllowFrom,
-				"cc_data_dir": cfg.DataDir,
-			})
-			if err != nil {
-				slog.Error("workspace chat wecom transport creation failed", "error", err)
-				os.Exit(1)
-			}
-			if preflight, ok := platform.(core.MessagePreflightConfigurer); ok {
-				preflight.SetMessagePreflight(workspaceChatService.HandleIncoming)
-			}
-			if err := platform.Start(func(source core.Platform, message *core.Message) {
-				if !workspaceChatService.HandleIncoming(source, message) {
-					slog.Error("workspace chat rejected message from its dedicated transport", "transport", source.Name())
-				}
-			}); err != nil {
-				slog.Error("workspace chat wecom transport startup failed", "error", err)
-				os.Exit(1)
-			}
-			workspaceChatPlatforms = append(workspaceChatPlatforms, platform)
-		}
-	}
-
 	// Start cron scheduler
 	cronStore, err := core.NewCronStore(cfg.DataDir)
 	if err != nil {
@@ -1140,9 +1097,6 @@ func main() {
 		mgmtSrv.SetHeartbeatScheduler(heartbeatSched)
 		if bridgeSrv != nil {
 			mgmtSrv.SetBridgeServer(bridgeSrv)
-		}
-		if workspaceChatService != nil && workspaceChatService.TransportEnabled("web") {
-			mgmtSrv.SetWorkspaceChat(workspaceChatService)
 		}
 		mgmtSrv.SetSetupFeishuSave(func(req core.FeishuSetupSaveRequest) error {
 			platType := req.PlatformType
@@ -1373,16 +1327,6 @@ func main() {
 	if mgmtListener != nil {
 		_ = mgmtListener.Close()
 		_ = os.Remove(serverSocket)
-	}
-	for _, platform := range workspaceChatPlatforms {
-		if err := platform.Stop(); err != nil {
-			slog.Error("workspace chat transport shutdown failed", "transport", platform.Name(), "error", err)
-		}
-	}
-	if workspaceChatService != nil {
-		if err := workspaceChatService.Close(); err != nil {
-			slog.Error("workspace chat shutdown failed", "error", err)
-		}
 	}
 	if bridgeSrv != nil {
 		bridgeSrv.Stop()
