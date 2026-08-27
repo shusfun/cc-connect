@@ -7,6 +7,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useThemeStore } from '@/store/theme';
 import { useAuthStore } from '@/store/auth';
+import { useNavigate } from 'react-router-dom';
+import { useRefresh } from '@/store/refresh';
 
 const languages = [
   { code: 'en', label: 'EN' },
@@ -22,6 +24,8 @@ export default function Header({ onOpenNavigation }: { onOpenNavigation: () => v
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useThemeStore();
   const logout = useAuthStore((s) => s.logout);
+  const navigate = useNavigate();
+  const { refresh } = useRefresh();
   const [spinning, setSpinning] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
@@ -36,7 +40,7 @@ export default function Header({ onOpenNavigation }: { onOpenNavigation: () => v
 
   const handleRefresh = () => {
     setSpinning(true);
-    window.dispatchEvent(new CustomEvent('cc:refresh'));
+    refresh();
     setTimeout(() => setSpinning(false), 1000);
   };
 
@@ -113,7 +117,7 @@ export default function Header({ onOpenNavigation }: { onOpenNavigation: () => v
       </button>
 
       {/* Logout */}
-      <button type="button" onClick={() => window.location.assign('/profile')} className={btnCls} aria-label={t('nav.profile')}>
+      <button type="button" onClick={() => navigate('/profile')} className={btnCls} aria-label={t('nav.profile')}>
         <UserRound size={16} />
       </button>
       <button

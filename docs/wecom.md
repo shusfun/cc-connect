@@ -97,53 +97,21 @@ level=INFO msg="wecom-ws: subscribed successfully" bot_id=your-bot-id
 - **图片回传**：通过 `aibot_upload_media_*` 上传临时素材，再用 `aibot_send_msg` 发送图片
 - **限制**：同一机器人仅支持 1 个长连接；30 条/分钟、1000 条/小时
 
-### 统一工作区对话
+### Codex App 任务
 
-启用 `[workspace_chat]` 并在 `transports` 中包含 `"wecom"` 后，企业微信单聊会与 Web `/chat` 共用 Codex App 项目、原生 thread、设置、Turn、交互和 SQLite 协调状态。只有 WebSocket 智能机器人平台显式接入该产品域；同名 Webhook 适配器仍使用独立的平台会话，不会被工作区聊天拦截。此模式不需要 VPN、内网穿透或公网回调，也不提供 WebRTC realtime。
+项目使用 `agent.type = "codexapp"` 时，企业微信不需要额外的工作区聊天配置。入站消息仍从企业微信 Platform 进入标准 Engine，和 Web `/chat` 观察同一个 Desktop App task ID；不存在消息拦截器、专用传输或独立数据库。
 
-```toml
-[workspace_chat]
-enabled = true
-transports = ["web", "wecom"]
-
-[workspace_chat.wecom]
-bot_id = "your-bot-id"
-bot_secret = "your-bot-secret"
-```
-
-可用命令：
+可用命令沿用所有平台的通用会话命令：
 
 | 命令 | 作用 |
 |------|------|
-| `/devices [页码]` | 查看配对的 macOS Runtime 并保存本次编号列表 |
-| `/device N` | 选择设备；后续项目和会话命令限定在该设备 |
-| `/projects [页码]` | 查看 Codex App 项目并保存本次编号列表 |
-| `/project N` | 按最近一次 `/projects` 快照选择项目；恢复最近 thread，无 thread 时创建草稿 |
-| `/threads [页码]` | 查看当前项目的原生会话 |
-| `/switch N` | 按最近一次 `/threads` 列表切换会话 |
-| `/new` | 新建并选择无名称草稿；首个普通 Turn 才创建原生会话 |
-| `/link` | 复制当前会话的 `codex://threads/{threadId}`；草稿需等待首个 Turn |
-| `/current` | 查看当前项目和会话 |
-| `/history [数量]` | 通过权威 Turn/item 分页查看最近对话，最多 50 个 Turn；每个 Turn 会读取全部 item 页 |
-| `/usage` | 查看当前原生会话 usage |
-| `/steer 内容` | 携带当前活动 Turn ID 补充该 Turn；支持普通附件 |
-| `/cancel` | 取消当前 Turn |
-| `/requests` | 查看审批、MCP elicitation 和结构化提问的编号快照 |
-| `/respond N decision或JSON` | 按请求快照提交 App Server 声明的审批、MCP elicitation 或权限决定 |
-| `/answer N 内容或JSON` | 回答编号快照中的结构化提问；多问题使用问题 ID 到文本/文本数组的 JSON 映射 |
-| `/models [页码]`、`/model N` | 查看并选择 App Server catalog 中的模型 |
-| `/efforts [页码]`、`/effort N` | 查看并选择当前模型支持的 effort |
-| `/modes [页码]`、`/mode N` | 查看并选择 Default/Plan collaboration mode |
-| `/permissions [页码]`、`/permission N` | 查看并选择允许的 permission profile |
-| `/tiers [页码]`、`/tier N` | 查看并选择当前模型支持的 service tier |
-| `/personalities [页码]`、`/personality N` | 查看并选择 personality |
-| `/summaries [页码]`、`/summary N` | 查看并选择 reasoning summary |
+| `/sessions` | 列出当前 Codex App 的任务 |
+| `/switch N` | 切换到最近一次任务列表中的任务 |
+| `/new [标题]` | 进入等待首条消息状态；下一条普通消息由 App 创建真实任务 |
+| `/history [数量]` | 从 App 权威快照读取当前任务历史 |
+| `/stop` | 停止 cc-connect 对当前 Turn 的观察；不会关闭 Desktop App |
 
-`/new` 不接受名称或其他参数。草稿首个普通消息会顺序执行 `thread/start + turn/start`；物化前 `/link` 明确返回“首个 Turn 后可用”。草稿状态下也可以使用全部设置编号命令，选择结果持久化到草稿并在首个 Turn 物化时一次性应用；设置列表快照绑定当前草稿或 thread，切换会话后不能误用旧编号。活动 Turn 下普通消息只提示使用 `/steer`，不会暗中改成 steer。
-
-`/respond N decline` 和 `/respond N cancel` 会为 MCP elicitation 生成协议要求的 `content: null`。MCP `accept` 必须提交完整 JSON，例如 `/respond 1 {"action":"accept","content":{"region":"us"}}`；权限请求和 App Server 提供的结构化决定也使用完整 JSON，Core 和 Codex backend 会按原请求严格校验字段和值。`/answer` 在只有一个问题时可直接跟文本；多问题示例为 `/answer 1 {"environment":"staging","checks":["unit","race"]}`，其中键必须是 `/requests` 对应请求中的原始问题 ID。交互响应不会写入数据库或日志。
-
-未选择项目时，普通消息只返回项目列表，不猜测服务器目录。工作区对话不支持企业微信群聊，群聊消息会收到明确拒绝提示。文本、图片和文件沿用企业微信现有附件能力；WebSocket 语音以企业微信提供的转写文本进入 Turn，不包含原始音频字节。项目、thread、设置和交互的编号选择都消费最近一次持久化快照，并重新验证目标，列表变化不会导致误选。
+普通 follow-up、Web 发送和企业微信发送都通过同一个 `AgentSession` 生命周期。任务已经在 Desktop App 中活动时也不会接管 writer；Runtime 只调用审核过的 Desktop tools 能力，并通过 `wait_threads` 和 `read_thread` 收敛状态。App 或 Runtime 离线、能力缺失时会返回真实原因，不切换到 Codex CLI。
 
 ---
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -32,10 +31,9 @@ type ClientConfig struct {
 }
 
 const (
-	maxRuntimeAttachmentSize = 50 << 20
-	runtimePingInterval      = 30 * time.Second
-	runtimePongWait          = 90 * time.Second
-	runtimePingWriteTimeout  = 10 * time.Second
+	runtimePingInterval     = 30 * time.Second
+	runtimePongWait         = 90 * time.Second
+	runtimePingWriteTimeout = 10 * time.Second
 )
 
 type EventCheckpointStore interface {
@@ -75,7 +73,6 @@ func NewClient(config ClientConfig) (*Client, error) {
 		pongWait:  runtimePongWait,
 	}
 	config.Handler.SetEventEmitter(client.emit)
-	config.Handler.SetAttachmentFetcher(client.fetchAttachment)
 	return client, nil
 }
 
@@ -304,7 +301,7 @@ func (c *Client) watchCatalog(ctx context.Context, interval time.Duration) {
 				continue
 			}
 			previous = current
-			if err := c.emit(runtimeprotocol.MethodCatalogChanged, runtimeprotocol.Resource{}, current); err != nil {
+			if err := c.emit(runtimeprotocol.MethodProjectChanged, runtimeprotocol.Resource{}, current); err != nil {
 				return
 			}
 		}
@@ -341,60 +338,6 @@ func (c *Client) challenge(ctx context.Context) (string, error) {
 		return "", errors.New("runtime client: update_required")
 	}
 	return envelope.Data.Challenge, nil
-}
-
-func (c *Client) fetchAttachment(ctx context.Context, ref string) (runtimeprotocol.AttachmentContent, error) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return runtimeprotocol.AttachmentContent{}, errors.New("runtime client: attachment reference is required")
-	}
-	nonceRaw := make([]byte, 18)
-	if _, err := rand.Read(nonceRaw); err != nil {
-		return runtimeprotocol.AttachmentContent{}, fmt.Errorf("runtime client: generate attachment nonce: %w", err)
-	}
-	nonce := base64.RawURLEncoding.EncodeToString(nonceRaw)
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	signature := ed25519.Sign(c.config.PrivateKey, runtimeprotocol.SignedRequestMessage(
-		runtimeprotocol.SignedPurposeAttachmentDownload, c.config.DeviceID, ref, timestamp, nonce,
-	))
-	base, _ := url.Parse(c.config.ServerURL)
-	base.Path = "/runtime/v1/attachments/" + url.PathEscape(ref)
-	base.RawQuery = ""
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, base.String(), nil)
-	if err != nil {
-		return runtimeprotocol.AttachmentContent{}, err
-	}
-	request.Header.Set("X-CC-Contract-Hash", runtimeprotocol.ContractHash)
-	request.Header.Set("X-CC-Device-ID", c.config.DeviceID)
-	request.Header.Set("X-CC-Timestamp", timestamp)
-	request.Header.Set("X-CC-Nonce", nonce)
-	request.Header.Set("X-CC-Signature", base64.RawURLEncoding.EncodeToString(signature))
-	response, err := c.http.Do(request)
-	if err != nil {
-		return runtimeprotocol.AttachmentContent{}, fmt.Errorf("runtime client: download attachment: %w", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	var envelope struct {
-		OK    bool                              `json:"ok"`
-		Data  runtimeprotocol.AttachmentContent `json:"data"`
-		Error string                            `json:"error"`
-	}
-	decoder := json.NewDecoder(io.LimitReader(response.Body, 72<<20))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&envelope); err != nil {
-		return runtimeprotocol.AttachmentContent{}, fmt.Errorf("runtime client: decode attachment response: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return runtimeprotocol.AttachmentContent{}, errors.New("runtime client: attachment response contains trailing JSON")
-	}
-	if !envelope.OK || response.StatusCode != http.StatusOK {
-		return runtimeprotocol.AttachmentContent{}, fmt.Errorf("runtime client: attachment rejected: %s", envelope.Error)
-	}
-	if len(envelope.Data.Data) == 0 || len(envelope.Data.Data) > maxRuntimeAttachmentSize {
-		return runtimeprotocol.AttachmentContent{}, errors.New("runtime client: attachment payload size is invalid")
-	}
-	return envelope.Data, nil
 }
 
 func (c *Client) respond(ctx context.Context, connection *websocket.Conn, generation uint64, request runtimeprotocol.Envelope) {

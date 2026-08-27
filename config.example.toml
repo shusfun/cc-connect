@@ -390,38 +390,6 @@ level = "info" # debug, info, warn, error
 # path = "/bridge/ws"                 # URL path (default: "/bridge/ws") / URL 路径
 
 # =============================================================================
-# Unified Workspace Chat / 统一工作区对话
-# =============================================================================
-# cc-connect-control normally generates this section atomically. Paired macOS
-# Runtime devices supply Codex App projects and native threads; Linux never
-# reads a local CODEX_HOME or starts a local Codex App Server.
-# 此区段通常由 cc-connect-control 原子生成。配对的 macOS Runtime 提供 Codex
-# App 项目和原生会话；Linux 不读取本地 CODEX_HOME，也不启动本地 App Server。
-# The project rail is read-only. New creates an unnamed SQLite draft; the first
-# Turn materializes its native thread. Web realtime uses WebRTC; WeCom supports
-# text, images, audio and files but not realtime voice.
-# 项目侧栏只读。新建只创建无名称 SQLite 草稿，首个 Turn 才物化原生 thread。
-# Web 实时语音使用 WebRTC；企业微信支持文本、图片、音频和文件，不支持实时语音。
-#
-# [workspace_chat]
-# enabled = true
-# transports = ["web", "wecom"]
-#
-# [workspace_chat.wecom]
-# bot_id = "your-bot-id"
-# bot_secret = "your-bot-secret"
-# data_dir/workspace_chat.db has one current PRAGMA user_version. A healthy
-# version mismatch removes exactly the db, -wal and -shm files and recreates it;
-# unreadable or corrupt databases fail startup and are preserved. No old state
-# is migrated, while native Codex threads under CODEX_HOME are unaffected.
-# data_dir/workspace_chat.db 只接受当前 PRAGMA user_version。健康数据库版本
-# 不匹配时精确删除 db、-wal、-shm 后重建；无法读取或损坏时保留文件并启动失败。
-# 不迁移旧协调状态，CODEX_HOME 中的 Codex 原生 thread 不受影响。
-# mode = "websocket"
-# bot_id = "your-bot-id"
-# bot_secret = "your-bot-secret"
-
-# =============================================================================
 # Hooks (Event Triggers / 事件钩子)
 # =============================================================================
 # Execute shell commands or send HTTP requests when lifecycle events occur.
@@ -715,6 +683,29 @@ level = "info" # debug, info, warn, error
 # [projects.platforms.options]
 # bot_token = "xoxb-..."
 # app_token = "xapp-..."
+
+# Codex Desktop App project / Codex Desktop App 项目
+# The App owns every task, turn, history entry, and writer. cc-connect connects
+# to the running App and never launches another App Server or CLI fallback.
+# App 独占任务、Turn、历史与 writer；cc-connect 只连接当前运行的 App，
+# 不启动第二个 App Server，也不回退到 CLI。
+#
+# [[projects]]
+# name = "codex-app"
+# [projects.agent]
+# type = "codexapp"
+# [projects.agent.options]
+# use_local = true
+# # Optional when automatic current-UID Socket discovery is ambiguous:
+# # 自动发现出现多个活动 Socket 时可显式指定：
+# # socket_path = "/tmp/codex-browser-use/<id>.sock"
+#
+# [[projects.platforms]]
+# type = "wecom"
+# [projects.platforms.options]
+# mode = "websocket"
+# bot_id = "your-bot-id"
+# bot_secret = "your-bot-secret"
 
 # =============================================================================
 # Project 1 / 项目 1

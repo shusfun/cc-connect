@@ -6,6 +6,7 @@ import { Badge, EmptyState } from '@/components/ui';
 import { listProjects, type ProjectSummary } from '@/api/projects';
 import { listSessions, type Session } from '@/api/sessions';
 import { cn } from '@/lib/utils';
+import { useRefresh } from '@/store/refresh';
 
 interface FlatSession extends Session {
   _project: string;
@@ -25,6 +26,7 @@ function timeAgo(iso: string, t: (k: string) => string): string {
 
 export default function SessionList() {
   const { t } = useTranslation();
+  const { generation } = useRefresh();
   const [allData, setAllData] = useState<{ project: string; sessions: Session[] }[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
@@ -52,11 +54,8 @@ export default function SessionList() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-    const handler = () => fetchData();
-    window.addEventListener('cc:refresh', handler);
-    return () => window.removeEventListener('cc:refresh', handler);
-  }, [fetchData]);
+    void fetchData();
+  }, [fetchData, generation]);
 
   const filtered = useMemo<FlatSession[]>(() => {
     const src = selectedProject

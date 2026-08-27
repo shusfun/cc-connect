@@ -1,286 +1,49 @@
-# CC-Connect Development Guide
+# CC-Connect 项目协作约束
 
-## Project Overview
+> 本文件只保存项目级硬不变量。具体方案、诊断路径和验证方式必须结合当前增量选择，不在这里维护固定步骤清单。
 
-CC-Connect is a bridge that connects AI coding agents (Claude Code, Codex, Gemini CLI, Cursor, etc.) with messaging platforms (Feishu/Lark, Telegram, Discord, Slack, DingTalk, WeChat Work, QQ, LINE). Users interact with their coding agent through their preferred messaging app.
+## 1. 职责与知识路由
 
-## Architecture
+- 处理会影响代码、契约、运行状态、部署或发布的任务时，使用 `$cc-connect-project-context` 核验当前所有者和适用经验；纯拼写文案或用户已给出无需判断的精确命令不需要加载它。
+- 当前代码、依赖清单、构建入口、CI/Release workflow 和实时平台状态优先于历史文档。`docs/history/` 只保存历史证据，不是当前运行手册。
+- 架构决定归 `docs/decisions/`，外部操作归部署手册，经过复验的高收益路径归 `.agents/notes/`。同一知识只保留一个当前所有者。
+- 未提交的架构过渡、单次通过数量、排查流水账、当前任务授权和未经实施的优化不得写成稳定能力。
 
-```
-┌─────────────────────────────────────────────────┐
-│                   cmd/cc-connect                │  ← entry point, CLI, daemon
-├─────────────────────────────────────────────────┤
-│                     config/                     │  ← TOML config parsing
-├─────────────────────────────────────────────────┤
-│                      core/                      │  ← engine, interfaces, i18n,
-│                                                 │     cards, sessions, registry
-├──────────────────────┬──────────────────────────┤
-│     agent/           │      platform/           │
-│  ├── claudecode/     │  ├── feishu/             │
-│  ├── codex/          │  ├── telegram/           │
-│  ├── cursor/         │  ├── discord/            │
-│  ├── gemini/         │  ├── slack/              │
-│  ├── iflow/          │  ├── dingtalk/           │
-│  ├── opencode/       │  ├── wecom/              │
-│  ├── acp/            │  ├── qq/                 │
-│  └── qoder/          │  ├── qqbot/              │
-│                      │  ├── line/               │
-│                      │  ├── weibo/              │
-│                      │  └── cloud-web/          │
-├──────────────────────┴──────────────────────────┤
-│                     daemon/                     │  ← systemd/launchd service
-└─────────────────────────────────────────────────┘
-```
+## 2. 权威所有者与依赖方向
 
-### Key Design Principles
+- `core/` 拥有通用接口、Engine 编排、会话、跨平台能力和 i18n。它可以使用与业务无关的公共依赖，但不得导入具体 `agent/*` 或 `platform/*`。
+- `agent/*` 和 `platform/*` 各自拥有外部进程或平台的协议、生命周期和适配逻辑，通过 registry 与 capability interface 接入。不得在 `core/` 通过名字判断或具体类型分支承载适配器知识。
+- `config/` 是配置解析与校验的权威来源；`Makefile` 是选择性编译标签的权威来源；共享构建版本以 `go.mod`、根 workspace/lock 和 workflow 为准。
+- `controlplane/` 拥有认证、设备、服务和部署业务事务；`runtimeclient/`、`runtimeprotocol/` 与 `remotenative/` 共同承载配对设备边界。其部署与激活所有权以 [Control、Server 与远程 Runtime 的部署所有权](docs/decisions/2026-08-24-control-runtime-deployment.md) 为准。
+- `web/` 消费管理 API，不是后端契约的第二权威来源。接口变化必须同时核对后端生产者、Web 及其他当前消费者。
 
-**`core/` is the nucleus.** It defines all interfaces (`Platform`, `Agent`, `AgentSession`, etc.) and contains the `Engine` that orchestrates message flow. The core package must **never** import from `agent/` or `platform/`.
+## 3. 契约、兼容与数据
 
-**Plugin architecture via registries.** Agents and platforms register themselves through `core.RegisterAgent()` and `core.RegisterPlatform()` in their `init()` functions. The engine creates instances via `core.CreateAgent()` / `core.CreatePlatform()` using string names from config.
+- REST、WebSocket、Runtime 协议、事件、配置和共享类型都只能有一个当前权威定义。修改时追踪生产者、传输边界、全部当前消费者、生成物和文档。
+- 不因“稳妥”增加别名、双读双写、旧 RPC、兼容开关或静默 fallback。确有公开消费者、存量数据或版本承诺时，按 [版本、兼容与迁移所有权](docs/decisions/2026-08-27-versioning-and-compatibility.md) 记录兼容所有者与退出条件。
+- 每个持久化存储自行拥有迁移策略。旧工作区聊天决定中的精确重建策略只适用于其明确的数据域，不得推广到 `control.db`、Session、配置或其他用户数据。
+- 能力探测只判断当前能力是否可用；缺失时返回明确原因，不切换到未声明的旧协议。
 
-**Dependency direction:**
-```
-cmd/ → config/, core/, agent/*, platform/*
-agent/*   → core/   (never other agents or platforms)
-platform/* → core/  (never other platforms or agents)
-core/     → stdlib only (never agent/ or platform/)
-```
+## 4. 安全、日志与生命周期
 
-### Core Interfaces
+- 运行日志统一使用 `slog` 并携带必要上下文；不得静默吞错。Token、Cookie、密码、密钥和认证材料必须在错误、日志和诊断输出中脱敏。
+- 客户端提交的路径、cwd、thread、设备和资源标识都不是天然可信输入；在权威边界重新校验归属，不把设备本地路径或私有路由字段暴露到公网契约。
+- 一个业务操作只能有一个事务或生命周期所有者。该所有者统一协调 context 取消、worker 登记与等待、channel 关闭、资源释放和最终状态发布。
+- 用户可见终态只能在权威写入和对应输出尝试完成后发布；失败路径必须收口回滚、取消和资源清理。
+- 新增用户可见文案时使用 `core/i18n.go` 的 `MsgKey`，并保持当前支持语言一致。
+- Release 签名、镜像/制品身份、control 与 deploy-host 权限边界不得降级；外部状态和操作以部署手册及平台实时信号为准。
 
-- **`Platform`** — messaging platform adapter (Start, Reply, Send, Stop)
-- **`Agent`** — AI coding agent adapter (StartSession, ListSessions, Stop)
-- **`AgentSession`** — a running bidirectional session (Send, RespondPermission, Events)
-- **`Engine`** — the central orchestrator that routes messages between platforms and agents
+## 5. 经验驱动的操作选择
 
-Optional capability interfaces (implement only when needed):
-- `CardSender` — rich card messages
-- `InlineButtonSender` — inline keyboard buttons
-- `ProviderSwitcher` — multi-model switching
-- `DoctorChecker` — agent-specific health checks
-- `AgentDoctorInfo` — CLI binary metadata for diagnostics
+- 日志、静态分析、测试、构建、浏览器和真实入口都是候选证据，不构成默认顺序或固定套餐。
+- 本地操作只补当前尚未覆盖的风险。完整合并与发布门禁的权威在 `.github/workflows/ci.yml` 和 `.github/workflows/release.yml`，普通任务不得默认在本地镜像整套 CI。
+- 复用当前进程、日志、下载、缓存、构建产物和已取得的等价结果。运行高成本或外部步骤前，先说明它覆盖的独立风险；没有新增信息收益时不运行。
+- 每取得一项结果都重新选择下一项操作或停止。最新需求和验收目标已满足后立即收口，不因历史清单继续追加动作。
+- 发现稳定且跨任务可复用的高收益路径时，更新已有 ADR、部署手册或 Agent Note；找不到明确所有者时再建立新的窄 Note。
 
-## Development Rules
+## 6. 当前知识入口
 
-### 0. v0.1.0 破坏性变更与单协议策略
-
-- 当前项目处于 `v0.1.0`，不承诺 REST、WebSocket、事件、命令、配置或持久化结构的向后兼容。需求替换现有契约时，直接更新权威定义及全部消费者。
-- 同一能力只能保留一套现行协议。禁止新旧路由、字段、事件、解析器、别名、双读双写、兼容开关和静默 fallback 并存。
-- 协议替换必须在同一变更中删除旧生产者、旧消费者、旧测试和旧文档；不得以“后续清理”为由暂时保留第二套路径。
-- 工作区聊天数据库结构变化时不编写版本迁移或旧结构读取器。发现 `workspace_chat.db` schema 版本不匹配时，精确删除该数据库及其 SQLite sidecar 后按当前结构重新创建；数据库损坏必须明确报错，不得伪装成版本升级后静默重建。
-- 上游协议的能力探测只用于判断当前能力是否可用。cc-connect 对外仍须提供一套权威契约，能力缺失时返回明确原因，不得切换到旧 RPC、旧字段或另一套下游协议。
-
-### 1. No Hardcoding Platform or Agent Names in Core
-
-The `core/` package must remain agnostic. Never write `if p.Name() == "feishu"` or `CreateAgent("claudecode", ...)` in core. Use interfaces and capability checks instead:
-
-```go
-// BAD — hardcodes platform knowledge in core
-if p.Name() == "feishu" && supportsCards(p) {
-
-// GOOD — capability-based check
-if supportsCards(p) {
-```
-
-```go
-// BAD — hardcodes agent type
-agent, _ := CreateAgent("claudecode", opts)
-
-// GOOD — derives from current agent
-agent, _ := CreateAgent(e.agent.Name(), opts)
-```
-
-### 2. Prefer Interfaces Over Type Switches
-
-When behavior differs across platforms/agents, define an optional interface in core and let implementations opt in:
-
-```go
-// In core/
-type AgentDoctorInfo interface {
-    CLIBinaryName() string
-    CLIDisplayName() string
-}
-
-// In agent/claudecode/
-func (a *Agent) CLIBinaryName() string  { return "claude" }
-func (a *Agent) CLIDisplayName() string { return "Claude" }
-
-// In core/ — query via interface, fallback gracefully
-if info, ok := agent.(AgentDoctorInfo); ok {
-    bin = info.CLIBinaryName()
-}
-```
-
-### 3. Configuration Over Code
-
-- Features that may vary per deployment should be configurable in `config.toml`
-- Use `map[string]any` options for agent/platform factories to stay flexible
-- Add new config fields with sensible defaults so existing configs don't break
-
-### 4. High Cohesion, Low Coupling
-
-- Each `agent/X/` package is self-contained: it handles process lifecycle, output parsing, and session management for agent X
-- Each `platform/X/` package is self-contained: it handles API connection, message receiving/sending, and card rendering for platform X
-- Cross-cutting concerns (i18n, cards, streaming, rate limiting) live in `core/`
-
-### 5. Error Handling
-
-- Always wrap errors with context: `fmt.Errorf("feishu: reply card: %w", err)`
-- Never silently swallow errors; at minimum log them with `slog.Error` / `slog.Warn`
-- Use `slog` (structured logging) consistently; never `log.Printf` or `fmt.Printf` for runtime logs
-- Redact tokens/secrets in error messages using `core.RedactToken()`
-
-### 6. Concurrency Safety
-
-- Agent sessions are accessed from multiple goroutines; protect shared state with `sync.Mutex` or `atomic` types
-- Use `context.Context` for cancellation propagation
-- Channels should have clear ownership; document who closes them
-- Prefer `sync.Once` for one-time teardown (`pendingPermission.resolve()`)
-
-### 7. i18n
-
-All user-facing strings must go through `core/i18n.go`:
-- Define a `MsgKey` constant
-- Add translations for all supported languages (EN, ZH, ZH-TW, JA, ES)
-- Use `e.i18n.T(MsgKey)` or `e.i18n.Tf(MsgKey, args...)`
-
-## Code Style
-
-- Follow standard Go conventions (`gofmt`, `go vet`)
-- Use `strings.EqualFold` for case-insensitive comparisons
-- Avoid `init()` for anything other than platform/agent registration
-- Keep functions focused; extract helpers when a function exceeds ~80 lines
-- Naming: `New()` for constructors, `Get/Set` for accessors, avoid stuttering (`feishu.FeishuPlatform` → `feishu.Platform`)
-
-## Testing
-
-### Requirements
-
-- All new features must include unit tests.
-- **All bug fixes MUST include a regression test in the same PR.** A bug
-  fix PR without a test that fails on the pre-fix code and passes on the
-  fixed code will not be merged. Name regression tests so the bug is
-  searchable later, e.g. `TestSwitchToAgentSession_PreservesHistory` for
-  the cmdSwitch history-loss bug.
-- Tests must pass before committing: `go test ./...`.
-- Changes that touch a Critical User Journey (CUJ) — see
-  `core/cuj_test.go` — should explicitly run `go test ./core/ -run TestCUJ`
-  before opening the PR.
-
-### Running Tests
-
-```bash
-# Full test suite
-go test ./...
-
-# Specific package
-go test ./core/ -v
-
-# Run specific test
-go test ./core/ -run TestHandlePendingPermission -v
-
-# Run Critical User Journey tests (recommended for any core/engine.go or
-# core/session.go change)
-go test ./core/ -run TestCUJ -v
-
-# With race detector (CI)
-go test -race ./...
-```
-
-### Test Patterns
-
-- Use stub types for `Platform` and `Agent` in core tests (see `core/engine_test.go`).
-- Test card rendering by inspecting the returned `*Card` struct, not JSON.
-- For agent session tests, simulate event streams via channels.
-- **For multi-step user behavior, add a CUJ test in `core/cuj_test.go`.**
-  CUJ tests assert what a USER sees on the platform side across multiple
-  actions (e.g. "create s1 → chat → /new s2 → /switch s1 → /history
-  must show s1's content"). They exist because per-function unit tests
-  can all pass while a user journey is still broken — the `/switch
-  loses history` bug shipped in exactly that scenario despite full
-  unit coverage of every individual function involved.
-
-### Critical User Journeys (CUJ)
-
-A CUJ test is a USER-perspective end-to-end scenario, not a developer-
-perspective unit test. The current inventory of CUJs and their coverage
-status lives in:
-
-`projects/cc-connect/agents/qa-cursor/release-gate/CUJ-INVENTORY.md`
-(in the spaceship agency workspace; the registered authoritative copy).
-
-Rules for adding/updating CUJ tests in `core/cuj_test.go`:
-
-1. Name: `TestCUJ_<group><id>_<short_camel_case>` (e.g. `TestCUJ_B3_SwitchPreservesHistory`).
-2. Use real `SessionManager` + real `Engine`; mock only external boundaries (`Platform` sender, `Agent` process).
-3. Drive the engine via `ReceiveMessage` — the same entrypoint platforms use, so engine/platform wiring is also covered.
-4. Assert what the USER sees via `p.getSent()`, not internal struct fields.
-5. ≥3 user actions per CUJ. A single-action assertion belongs in a unit test, not a CUJ.
-
-When a user-reported bug maps to an existing CUJ, add a sub-case to that
-CUJ rather than creating a new one.
-
-## Selective Compilation
-
-Each agent and platform is imported via a separate `plugin_*.go` file with a
-build tag (e.g. `//go:build !no_feishu`). By default **all** agents and
-platforms are compiled in.
-
-### Include only specific agents/platforms
-
-```bash
-# Only Claude Code agent + Feishu and Telegram platforms
-make build AGENTS=claudecode PLATFORMS_INCLUDE=feishu,telegram
-
-# Multiple agents
-make build AGENTS=claudecode,codex PLATFORMS_INCLUDE=feishu,telegram,discord
-```
-
-### Exclude specific agents/platforms
-
-```bash
-# Exclude some platforms you don't need
-make build EXCLUDE=discord,dingtalk,qq,qqbot,line
-```
-
-### Direct build tag usage (without Make)
-
-```bash
-go build -tags 'no_discord no_dingtalk no_qq no_qqbot no_line' ./cmd/cc-connect
-```
-
-Available tags: `no_acp`, `no_claudecode`, `no_codex`, `no_copilot`, `no_cursor`, `no_gemini`,
-`no_iflow`, `no_opencode`, `no_qoder`, `no_feishu`, `no_telegram`,
-`no_discord`, `no_slack`, `no_dingtalk`, `no_wecom`, `no_weixin`, `no_qq`, `no_qqbot`,
-`no_line`, `no_weibo`, `no_tuitui`.
-
-## Pre-Commit Checklist
-
-1. **Build passes**: `go build ./...`
-2. **Tests pass**: `go test ./...`
-3. **CUJ tests pass** (for any change in `core/engine.go`, `core/session.go`, `core/cron.go`, `core/timer.go`, or command handlers): `go test ./core/ -run TestCUJ`
-4. **Bug fix has a regression test**: a new test in this PR that fails on the pre-fix code and passes on the fix.
-5. **No new hardcoded platform/agent names in core**: grep for platform names in `core/*.go`.
-6. **i18n complete**: all new user-facing strings have translations for all languages.
-7. **No secrets in code**: no API keys, tokens, or credentials in source files.
-
-## Adding a New Platform
-
-1. Create `platform/newplatform/newplatform.go`
-2. Implement `core.Platform` interface (and optional interfaces as needed)
-3. Register in `init()`: `core.RegisterPlatform("newplatform", factory)`
-4. Create `cmd/cc-connect/plugin_platform_newplatform.go` with `//go:build !no_newplatform` tag
-5. Add `newplatform` to `ALL_PLATFORMS` in `Makefile`
-6. Add config example in `config.example.toml`
-7. Add unit tests
-
-## Adding a New Agent
-
-1. Create `agent/newagent/newagent.go`
-2. Implement `core.Agent` and `core.AgentSession` interfaces
-3. Register in `init()`: `core.RegisterAgent("newagent", factory)`
-4. Create `cmd/cc-connect/plugin_agent_newagent.go` with `//go:build !no_newagent` tag
-5. Add `newagent` to `ALL_AGENTS` in `Makefile`
-6. Optionally implement `AgentDoctorInfo` for `cc-connect doctor` support
-7. Add config example in `config.example.toml`
-8. Add unit tests
+- 架构与版本：`docs/decisions/2026-08-23-unified-workspace-chat.md`、`docs/decisions/2026-08-24-control-runtime-deployment.md`、`docs/decisions/2026-08-27-versioning-and-compatibility.md`
+- 部署运行手册：`docs/deployment.md`、`docs/deployment.zh-CN.md`
+- 发布与部署经验：`.agents/notes/release-deployment-efficiency.md`
+- 项目经验路由：`.agents/skills/cc-connect-project-context/SKILL.md`

@@ -12,15 +12,18 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { cn } from '@/lib/utils';
+import { useClipboard } from '@/hooks/useClipboard';
 
 // ── Markdown renderers ───────────────────────────────────────
 
 function CopyButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
+  const copy = useClipboard();
   const handleCopy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void copy(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
   return (
     <button
@@ -239,10 +242,12 @@ function StatusBadge({ status }: { status: BridgeStatus }) {
 
 function SessionMsgCopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const copy = useClipboard();
   const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void copy(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
   return (
     <button

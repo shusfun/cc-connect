@@ -13,8 +13,8 @@ func TestRuntimeStatePersistsOnlyEventMetadataAndAcknowledgements(t *testing.T) 
 	directory := t.TempDir()
 	store := &Store{directory: directory}
 	payload := []byte(`{"message":"conversation body must not be persisted"}`)
-	resource := runtimeprotocol.Resource{WorkspaceRef: "workspace-local", ConversationRef: "thread-1"}
-	if err := store.RecordUnconfirmed(7, 3, runtimeprotocol.MethodNativeEvent, resource, payload); err != nil {
+	resource := runtimeprotocol.Resource{ProjectRef: "project-local", TaskID: "task-1"}
+	if err := store.RecordUnconfirmed(7, 3, runtimeprotocol.MethodProjectChanged, resource, payload); err != nil {
 		t.Fatalf("RecordUnconfirmed() error = %v", err)
 	}
 	raw, err := os.ReadFile(filepath.Join(directory, "runtime-state.json"))
@@ -39,10 +39,10 @@ func TestRuntimeStatePersistsOnlyEventMetadataAndAcknowledgements(t *testing.T) 
 
 func TestRuntimeStateRetainsOlderGenerationWithoutResending(t *testing.T) {
 	store := &Store{directory: t.TempDir()}
-	if err := store.RecordUnconfirmed(1, 1, runtimeprotocol.MethodNativeEvent, runtimeprotocol.Resource{}, []byte("old")); err != nil {
+	if err := store.RecordUnconfirmed(1, 1, runtimeprotocol.MethodProjectChanged, runtimeprotocol.Resource{}, []byte("old")); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.RecordUnconfirmed(2, 1, runtimeprotocol.MethodNativeEvent, runtimeprotocol.Resource{}, []byte("new")); err != nil {
+	if err := store.RecordUnconfirmed(2, 1, runtimeprotocol.MethodProjectChanged, runtimeprotocol.Resource{}, []byte("new")); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Confirm(2, 1); err != nil {

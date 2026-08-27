@@ -15,44 +15,59 @@ import (
 // Version 是 control、server 和 Runtime 共同实现的唯一协议版本。
 const Version = "runtime-v1"
 
-const SignedPurposeAttachmentDownload = "attachment/download"
-
 type Method string
 
 const (
-	MethodCatalogList      Method = "catalog/list"
-	MethodThreadList       Method = "thread/list"
-	MethodThreadRead       Method = "thread/read"
-	MethodThreadStart      Method = "thread/start"
-	MethodTurnList         Method = "turn/list"
-	MethodItemList         Method = "item/list"
-	MethodRuntimeCatalog   Method = "runtime/catalog"
-	MethodThreadSubscribe  Method = "thread/subscribe"
-	MethodSettingsUpdate   Method = "settings/update"
-	MethodTurnStart        Method = "turn/start"
-	MethodTurnSteer        Method = "turn/steer"
-	MethodTurnInterrupt    Method = "turn/interrupt"
-	MethodInteractionReply Method = "interaction/respond"
-	MethodRealtimeStart    Method = "realtime/start"
-	MethodRealtimeAppend   Method = "realtime/append_text"
-	MethodRealtimeStop     Method = "realtime/stop"
-	MethodNativeEvent      Method = "native/event"
-	MethodCatalogChanged   Method = "catalog/changed"
-	MethodHeartbeat        Method = "runtime/heartbeat"
-	MethodAcknowledge      Method = "runtime/ack"
-	MethodUpdateRequired   Method = "runtime/update_required"
-	MethodUpdateStage      Method = "runtime/update/stage"
-	MethodUpdateActivate   Method = "runtime/update/activate"
-	MethodUpdateConfirm    Method = "runtime/update/confirm"
+	MethodProjectList    Method = "project/list"
+	MethodTaskList       Method = "task/list"
+	MethodTaskRead       Method = "task/read"
+	MethodTaskWait       Method = "task/wait"
+	MethodTaskSend       Method = "task/send"
+	MethodTaskCreate     Method = "task/create"
+	MethodTaskMetadata   Method = "task/metadata"
+	MethodCapabilityList Method = "capability/list"
+	MethodProjectChanged Method = "project/changed"
+	MethodHeartbeat      Method = "runtime/heartbeat"
+	MethodAcknowledge    Method = "runtime/ack"
+	MethodUpdateRequired Method = "runtime/update_required"
+	MethodUpdateStage    Method = "runtime/update/stage"
+	MethodUpdateActivate Method = "runtime/update/activate"
+	MethodUpdateConfirm  Method = "runtime/update/confirm"
 )
 
 var methods = map[Method]struct{}{
-	MethodCatalogList: {}, MethodThreadList: {}, MethodThreadRead: {}, MethodThreadStart: {},
-	MethodTurnList: {}, MethodItemList: {}, MethodRuntimeCatalog: {}, MethodThreadSubscribe: {},
-	MethodSettingsUpdate: {}, MethodTurnStart: {}, MethodTurnSteer: {}, MethodTurnInterrupt: {},
-	MethodInteractionReply: {}, MethodRealtimeStart: {}, MethodRealtimeAppend: {}, MethodRealtimeStop: {},
-	MethodNativeEvent: {}, MethodCatalogChanged: {}, MethodHeartbeat: {}, MethodAcknowledge: {}, MethodUpdateRequired: {},
+	MethodProjectList: {}, MethodTaskList: {}, MethodTaskRead: {}, MethodTaskWait: {},
+	MethodTaskSend: {}, MethodTaskCreate: {}, MethodTaskMetadata: {}, MethodCapabilityList: {},
+	MethodProjectChanged: {}, MethodHeartbeat: {}, MethodAcknowledge: {}, MethodUpdateRequired: {},
 	MethodUpdateStage: {}, MethodUpdateActivate: {}, MethodUpdateConfirm: {},
+}
+
+type TaskRef struct {
+	TaskID string `json:"task_id"`
+	HostID string `json:"host_id,omitempty"`
+}
+
+type TaskReadRequest struct {
+	TaskRef
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+}
+
+type TaskWaitRequest struct {
+	TaskRef
+	Cursor    string `json:"cursor,omitempty"`
+	TimeoutMS int64  `json:"timeout_ms,omitempty"`
+}
+
+type TaskSendRequest struct {
+	TaskRef
+	Prompt    string `json:"prompt"`
+	MessageID string `json:"message_id,omitempty"`
+}
+
+type TaskSendResult struct {
+	TaskID  string `json:"task_id"`
+	Content string `json:"content,omitempty"`
 }
 
 type RuntimeUpdateRequest struct {
@@ -78,70 +93,29 @@ func contractHash() string {
 	}
 	sort.Strings(names)
 	canonical := Version + "|contract_hash,device_id,connection_generation,sequence,request_id,method,resource,payload,error|" + strings.Join(names, ",") +
-		"|native_user_input:type,text,attachment_ref,mime_type,file_name,detail|native_event:event,request_id,native_connection_generation|attachment_download:workspace_ref,type,mime_type,file_name,data|runtime_update:tag"
+		"|project:local_ref,project_id,project_name,available,reason,order|task:task_id,host_id,cursor,limit,timeout_ms,prompt,message_id|capability:create,rename,pin,archive,fork,handoff,interactive_response|runtime_update:tag"
 	sum := sha256.Sum256([]byte(canonical))
 	return hex.EncodeToString(sum[:])
 }
 
 type Resource struct {
-	WorkspaceRef    string `json:"workspace_ref,omitempty"`
-	ConversationRef string `json:"conversation_ref,omitempty"`
-	TurnID          string `json:"turn_id,omitempty"`
-	ItemID          string `json:"item_id,omitempty"`
-	InteractionID   string `json:"interaction_id,omitempty"`
+	ProjectRef string `json:"project_ref,omitempty"`
+	TaskID     string `json:"task_id,omitempty"`
 }
 
 // Workspace 描述 Runtime 本地目录的可公开元数据。LocalRef 仅在 control 与
 // Runtime 之间传输，RootPath/CODEX_HOME 不属于协议。
-type Workspace struct {
+type Project struct {
 	LocalRef    string `json:"local_ref"`
 	ProjectID   string `json:"project_id"`
 	ProjectName string `json:"project_name"`
-	RootIndex   int    `json:"root_index"`
-	RootName    string `json:"root_name"`
 	Available   bool   `json:"available"`
 	Reason      string `json:"reason,omitempty"`
 	Order       int    `json:"order"`
 }
 
-type Catalog struct {
-	Workspaces []Workspace `json:"workspaces"`
-}
-
-type AttachmentUpload struct {
-	Type     string `json:"type"`
-	MimeType string `json:"mime_type,omitempty"`
-	FileName string `json:"file_name,omitempty"`
-	Data     []byte `json:"data"`
-}
-
-type AttachmentStageRequest struct {
-	DeviceID     string             `json:"device_id"`
-	WorkspaceRef string             `json:"workspace_ref"`
-	Attachments  []AttachmentUpload `json:"attachments"`
-}
-
-type AttachmentReference struct {
-	Ref      string `json:"ref"`
-	Type     string `json:"type"`
-	MimeType string `json:"mime_type,omitempty"`
-	FileName string `json:"file_name,omitempty"`
-}
-
-type AttachmentContent struct {
-	WorkspaceRef string `json:"workspace_ref"`
-	Type         string `json:"type"`
-	MimeType     string `json:"mime_type,omitempty"`
-	FileName     string `json:"file_name,omitempty"`
-	Data         []byte `json:"data"`
-}
-
-// NativeEventPayload 保留 Runtime 原生订阅的私有路由字段。Event 仍使用
-// 对外事件 JSON，避免把原生 JSON-RPC request id 和连接代际暴露给 Web。
-type NativeEventPayload struct {
-	Event                      json.RawMessage `json:"event"`
-	RequestID                  json.RawMessage `json:"request_id,omitempty"`
-	NativeConnectionGeneration uint64          `json:"native_connection_generation"`
+type ProjectCatalog struct {
+	Projects []Project `json:"projects"`
 }
 
 // SignedRequestMessage 是 Runtime HTTP 边界的唯一签名规范。

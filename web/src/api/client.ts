@@ -2,7 +2,7 @@ const API_BASE = '/api/v1';
 
 type UnauthorizedHandler = () => void;
 
-class ApiClient {
+export class ApiClient {
   private csrfToken: string = '';
   private onUnauthorized?: UnauthorizedHandler;
 
@@ -40,8 +40,16 @@ class ApiClient {
       this.onUnauthorized();
       throw new ApiError('Unauthorized', 401);
     }
-    const json = await res.json();
-    if (!json.ok) {
+    let json: { ok?: boolean; error?: string; data?: T };
+    try {
+      json = await res.json() as { ok?: boolean; error?: string; data?: T };
+    } catch {
+      const message = res.ok
+        ? 'Invalid API response'
+        : `HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
+      throw new ApiError(message, res.status);
+    }
+    if (!res.ok || !json.ok) {
       throw new ApiError(json.error || 'Unknown error', res.status);
     }
     return json.data as T;

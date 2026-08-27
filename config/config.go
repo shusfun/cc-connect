@@ -109,7 +109,6 @@ type Config struct {
 	Queue              QueueConfig             `toml:"queue"`
 	Webhook            WebhookConfig           `toml:"webhook"`
 	Bridge             BridgeConfig            `toml:"bridge"`
-	WorkspaceChat      WorkspaceChatConfig     `toml:"workspace_chat"`
 	Hooks              []HookConfig            `toml:"hooks"`
 	IdleTimeoutMins    *int                    `toml:"idle_timeout_mins,omitempty"`  // max minutes between consecutive agent events; 0 = no timeout; default 120
 	MaxTurnTimeMins    *int                    `toml:"max_turn_time_mins,omitempty"` // absolute wall-clock cap per turn in minutes; 0 = disabled (default)
@@ -173,20 +172,6 @@ type HookConfig struct {
 	URL     string `toml:"url,omitempty"`     // HTTP endpoint (type=http)
 	Timeout int    `toml:"timeout,omitempty"` // seconds; 0 = default
 	Async   *bool  `toml:"async,omitempty"`   // nil = true (async by default)
-}
-
-// WorkspaceChatConfig controls the transport-independent workspace chat runtime.
-// Native Codex state is supplied by paired macOS Runtime devices.
-type WorkspaceChatConfig struct {
-	Enabled    *bool                    `toml:"enabled,omitempty"`
-	Transports []string                 `toml:"transports,omitempty"`
-	WeCom      WorkspaceChatWeComConfig `toml:"wecom,omitempty"`
-}
-
-type WorkspaceChatWeComConfig struct {
-	BotID     string `toml:"bot_id,omitempty"`
-	BotSecret string `toml:"bot_secret,omitempty"`
-	AllowFrom string `toml:"allow_from,omitempty"`
 }
 
 // Display mode constants.
@@ -1025,8 +1010,7 @@ func (c *Config) validateInternal(permissive bool) error {
 	default:
 		return fmt.Errorf("config: relay.visibility must be \"full\", \"summary\", or \"none\"")
 	}
-	workspaceChatEnabled := c.WorkspaceChat.Enabled != nil && *c.WorkspaceChat.Enabled
-	if len(c.Projects) == 0 && !workspaceChatEnabled {
+	if len(c.Projects) == 0 {
 		return fmt.Errorf("config: at least one [[projects]] entry is required")
 	}
 	projectNames := make(map[string]int, len(c.Projects))
@@ -1035,37 +1019,6 @@ func (c *Config) validateInternal(permissive bool) error {
 			return fmt.Errorf("config: projects[%d].name %q duplicates projects[%d].name", i, project.Name, previous)
 		}
 		projectNames[project.Name] = i
-	}
-	if workspaceChatEnabled {
-		seenTransport := make(map[string]struct{}, len(c.WorkspaceChat.Transports))
-		if len(c.WorkspaceChat.Transports) == 0 {
-			return fmt.Errorf("config: workspace_chat.transports requires at least one of \"web\" or \"wecom\"")
-		}
-		for _, raw := range c.WorkspaceChat.Transports {
-			transport := strings.ToLower(strings.TrimSpace(raw))
-			if transport == "" {
-				return fmt.Errorf("config: workspace_chat.transports must not contain empty values")
-			}
-			if transport != "web" && transport != "wecom" {
-				return fmt.Errorf("config: workspace_chat.transports has unsupported value %q", raw)
-			}
-			if _, exists := seenTransport[transport]; exists {
-				return fmt.Errorf("config: workspace_chat.transports contains duplicate value %q", raw)
-			}
-			seenTransport[transport] = struct{}{}
-		}
-		if _, enabled := seenTransport["wecom"]; enabled {
-			if strings.TrimSpace(c.WorkspaceChat.WeCom.BotID) == "" || strings.TrimSpace(c.WorkspaceChat.WeCom.BotSecret) == "" {
-				return fmt.Errorf("config: workspace_chat.wecom.bot_id and bot_secret are required when the wecom transport is enabled")
-			}
-			for i, project := range c.Projects {
-				for j, platform := range project.Platforms {
-					if strings.EqualFold(strings.TrimSpace(platform.Type), "wecom") {
-						return fmt.Errorf("config: projects[%d].platforms[%d] duplicates the workspace_chat.wecom transport", i, j)
-					}
-				}
-			}
-		}
 	}
 	for i, proj := range c.Projects {
 		prefix := fmt.Sprintf("projects[%d]", i)

@@ -11,7 +11,7 @@ func validManifest() Manifest {
 	manifest := Manifest{
 		Version: 1, Repository: Repository, Workflow: Workflow, Tag: "v0.1.0",
 		CommitSHA: strings.Repeat("a", 40), RuntimeContractHash: "contract", ControlSchema: 3,
-		WorkspaceChatSchema: 3, GeneratedAt: time.Now(),
+		GeneratedAt: time.Now(),
 	}
 	for _, target := range [][3]string{
 		{"control", "linux", "amd64"}, {"control", "linux", "arm64"},

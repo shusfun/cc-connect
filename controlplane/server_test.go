@@ -226,7 +226,7 @@ func TestDecodeRequestRejectsUnknownTrailingAndOversizedBodies(t *testing.T) {
 	}
 }
 
-func TestWriteInitialServerConfigCreatesWorkspaceOnlyServer(t *testing.T) {
+func TestWriteInitialServerConfigCreatesCodexAppProject(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "config.toml")
 	err := writeInitialServerConfig(path, directory, serverConfigurationRequest{
@@ -246,11 +246,11 @@ func TestWriteInitialServerConfigCreatesWorkspaceOnlyServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated config is invalid: %v", err)
 	}
-	if len(config.Projects) != 0 || config.WorkspaceChat.Enabled == nil || !*config.WorkspaceChat.Enabled {
+	if len(config.Projects) != 1 || config.Projects[0].Name != "codex-app" || config.Projects[0].Agent.Type != "codexapp" {
 		t.Fatalf("generated config = %#v", config)
 	}
-	if config.WorkspaceChat.WeCom.BotSecret != "bot-secret" || len(config.WorkspaceChat.Transports) != 2 {
-		t.Fatalf("generated workspace chat config = %#v", config.WorkspaceChat)
+	if len(config.Projects[0].Platforms) != 1 || config.Projects[0].Platforms[0].Type != "wecom" || config.Projects[0].Platforms[0].Options["bot_secret"] != "bot-secret" {
+		t.Fatalf("generated project platforms = %#v", config.Projects[0].Platforms)
 	}
 }
 
@@ -414,7 +414,7 @@ func TestBrokerCatalogKeepsIdenticalLocalRefsIsolatedByDevice(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		raw, _ := json.Marshal(runtimeprotocol.Catalog{Workspaces: []runtimeprotocol.Workspace{{
+		raw, _ := json.Marshal(runtimeprotocol.ProjectCatalog{Projects: []runtimeprotocol.Project{{
 			LocalRef: "same-local-ref", ProjectID: "project", ProjectName: "Project", Available: true,
 		}}})
 		if err := broker.persistCatalog(device.ID, raw); err != nil {

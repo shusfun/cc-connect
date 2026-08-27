@@ -1,17 +1,19 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FileCode, RefreshCw, RotateCcw, Settings2, ChevronDown, ChevronRight } from 'lucide-react';
-import { Card, Button } from '@/components/ui';
+import { Card, Button, useFeedback } from '@/components/ui';
 import { restartSystem, reloadConfig } from '@/api/status';
 import api from '@/api/client';
 import GlobalSettings from './GlobalSettings';
+import { useRefresh } from '@/store/refresh';
 
 export default function SystemConfig() {
   const { t } = useTranslation();
+  const { generation } = useRefresh();
+  const { notify, confirm: askConfirmation } = useFeedback();
   const [content, setContent] = useState('');
   const [format, setFormat] = useState<'toml' | 'json'>('toml');
   const [loading, setLoading] = useState(true);
-  const [actionMsg, setActionMsg] = useState('');
   const [showRaw, setShowRaw] = useState(false);
 
   const fetchConfig = useCallback(async () => {
@@ -40,30 +42,27 @@ export default function SystemConfig() {
   }, []);
 
   useEffect(() => {
-    fetchConfig();
-    const handler = () => fetchConfig();
-    window.addEventListener('cc:refresh', handler);
-    return () => window.removeEventListener('cc:refresh', handler);
-  }, [fetchConfig]);
+    void fetchConfig();
+  }, [fetchConfig, generation]);
 
   const handleRestart = async () => {
-    if (!confirm(t('system.restartConfirm'))) return;
+    if (!await askConfirmation({ title: t('system.restart'), message: t('system.restartConfirm'), confirmLabel: t('system.restart'), danger: true })) return;
     try {
       await restartSystem();
-      setActionMsg(t('common.success'));
+      notify(t('common.success'), 'success');
     } catch (e: any) {
-      setActionMsg(e.message);
+      notify(e.message, 'error');
     }
   };
 
   const handleReload = async () => {
-    if (!confirm(t('system.reloadConfirm'))) return;
+    if (!await askConfirmation({ title: t('system.reload'), message: t('system.reloadConfirm'), confirmLabel: t('system.reload') })) return;
     try {
       await reloadConfig();
-      setActionMsg(t('common.success'));
-      fetchConfig();
+      notify(t('common.success'), 'success');
+      void fetchConfig();
     } catch (e: any) {
-      setActionMsg(e.message);
+      notify(e.message, 'error');
     }
   };
 
@@ -74,10 +73,6 @@ export default function SystemConfig() {
         <Button variant="secondary" onClick={handleReload}><RefreshCw size={16} /> {t('system.reload')}</Button>
         <Button variant="danger" onClick={handleRestart}><RotateCcw size={16} /> {t('system.restart')}</Button>
       </div>
-
-      {actionMsg && (
-        <div className="text-sm text-accent bg-accent/10 border border-accent/20 rounded-lg px-4 py-2">{actionMsg}</div>
-      )}
 
       {/* Global Settings */}
       <div>

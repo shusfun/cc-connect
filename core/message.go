@@ -359,6 +359,13 @@ type LocationAttachment struct {
 	ProximityAlertRadius int     // maximum distance for proximity alerts in meters (optional)
 }
 
+type ConversationScope string
+
+const (
+	ConversationScopeDirect ConversationScope = "direct"
+	ConversationScopeGroup  ConversationScope = "group"
+)
+
 // Message represents a unified incoming message from any platform.
 type Message struct {
 	SessionKey   string // unique key for user context, e.g. "feishu:{chatID}:{userID}"
@@ -462,9 +469,17 @@ type HistoryEntry struct {
 
 // AgentSessionInfo describes one session as reported by the agent backend.
 type AgentSessionInfo struct {
-	ID           string
-	Summary      string
-	MessageCount int
-	ModifiedAt   time.Time
-	GitBranch    string
+	ID           string    `json:"id"`
+	Summary      string    `json:"summary,omitempty"`
+	MessageCount int       `json:"message_count,omitempty"`
+	ModifiedAt   time.Time `json:"modified_at,omitempty"`
+	GitBranch    string    `json:"git_branch,omitempty"`
+	ProjectID    string    `json:"project_id,omitempty"`
+	ProjectName  string    `json:"project_name,omitempty"`
+	CWD          string    `json:"cwd,omitempty"`
+	HostID       string    `json:"host_id,omitempty"`
+	Status       string    `json:"status,omitempty"`
+	Pinned       bool      `json:"pinned,omitempty"`
+	PinnedIndex  int       `json:"pinned_index,omitempty"`
+	Archived     bool      `json:"archived,omitempty"`
 }

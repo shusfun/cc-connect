@@ -47,8 +47,17 @@
 
 部署日志流是带持久游标的 NDJSON。重连时客户端提交最后确认的 `sequence`，服务端从 `control.db` 回放，运行结束后关闭流。
 
-## 工作区聊天
+## Codex App 任务
 
-工作区 REST/WS 仍位于 `/api/v1/chat/*`，由 control 完成 Cookie/CSRF/Origin 认证后通过私有 Unix Socket 转发给 `cc-connect-server`。浏览器只提交全局 `workspaceRef`，不提交设备路径、cwd 或本地附件路径。详细契约见[统一工作区对话](workspace-chat.zh-CN.md)。
+Web 使用现有项目管理 API，不存在独立的 `/api/v1/chat/*` 或聊天 WebSocket：
+
+- `GET /api/v1/projects/{name}/agent-projects`
+- `GET /api/v1/projects/{name}/agent-capabilities?host_id={host}`
+- `GET|POST /api/v1/projects/{name}/sessions`
+- `GET|PATCH|DELETE /api/v1/projects/{name}/sessions/{taskId}`
+- `POST /api/v1/projects/{name}/sessions/switch`
+- `POST /api/v1/projects/{name}/send`
+
+任务、历史与元数据来自 Codex App 权威能力；`send` 通过 Management Platform 进入 `Engine.ReceiveMessage`。详细契约见[Codex App 工作区聊天](workspace-chat.zh-CN.md)。
 
 普通接口使用 `{"ok":true,"data":...}`。失败使用非 2xx 状态和 `{"ok":false,"error":"..."}`。日志流使用 NDJSON，不包装为普通响应 envelope。

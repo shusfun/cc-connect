@@ -10,12 +10,14 @@ import {
   type Dashboard,
   type PairingCode,
 } from '@/api/control';
+import { useClipboard } from '@/hooks/useClipboard';
 
 const initialReleaseTag = 'v0.1.0';
 
 export default function SetupWizard() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const copy = useClipboard();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [publicURL, setPublicURL] = useState('');
   const [pairing, setPairing] = useState<PairingCode | null>(null);
@@ -39,8 +41,8 @@ export default function SetupWizard() {
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 3000);
-    return () => window.clearInterval(timer);
+    const timer = setInterval(() => void refresh(), 3000);
+    return () => clearInterval(timer);
   }, [refresh]);
 
   useEffect(() => {
@@ -103,7 +105,7 @@ export default function SetupWizard() {
         </div>
         <div className="mt-4 flex items-center justify-between">
           <span className="text-xs font-medium text-gray-500">{t('control.openrestyConfig')}</span>
-          <button type="button" title={t('common.copy')} onClick={() => navigator.clipboard.writeText(proxyConfig)} className="text-gray-500"><Clipboard size={15} /></button>
+          <button type="button" title={t('common.copy')} onClick={() => void copy(proxyConfig)} className="text-gray-500"><Clipboard size={15} /></button>
         </div>
         <pre className="mt-2 overflow-auto rounded-md bg-[#111114] p-3 text-xs leading-5 text-gray-300">{proxyConfig}</pre>
       </SetupSection>
@@ -117,8 +119,9 @@ export default function SetupWizard() {
         </div>
         {pairing && <div className="mt-4 space-y-2">
           <div className="flex items-center gap-2"><code className="font-semibold">{pairing.code}</code><span className="text-xs text-gray-500">{t('control.pairExpires', { time: new Date(pairing.expires_at).toLocaleTimeString() })}</span></div>
+          <p className="text-xs text-gray-500">{t('control.runtimeTerminalRequired')}</p>
           <pre className="overflow-auto rounded-md bg-[#111114] p-3 text-xs leading-5 text-gray-300">{pairCommand}</pre>
-          <button type="button" onClick={() => navigator.clipboard.writeText(pairCommand)} className="flex items-center gap-1 text-xs text-gray-500"><Clipboard size={13} />{t('common.copy')}</button>
+          <button type="button" onClick={() => void copy(pairCommand)} className="flex items-center gap-1 text-xs text-gray-500"><Clipboard size={13} />{t('common.copy')}</button>
         </div>}
       </SetupSection>
 

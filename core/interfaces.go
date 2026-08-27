@@ -15,12 +15,6 @@ type Platform interface {
 	Stop() error
 }
 
-// MessagePreflightConfigurer 允许平台在昂贵的附件下载前把轻量消息交给
-// Engine 的唯一 interceptor。返回 true 时平台不得继续下载或再次投递。
-type MessagePreflightConfigurer interface {
-	SetMessagePreflight(func(Platform, *Message) bool)
-}
-
 // ErrNotSupported indicates a platform doesn't support a particular operation.
 var ErrNotSupported = errors.New("operation not supported by this platform")
 
@@ -432,6 +426,12 @@ type AgentSession interface {
 	Close() error
 }
 
+// AgentSessionCreationTarget receives the authoritative project and optional
+// title for a session whose first Send creates the real agent task.
+type AgentSessionCreationTarget interface {
+	SetCreationTarget(projectID, title string)
+}
+
 // PermissionResult represents the user's decision on a permission request.
 type PermissionResult struct {
 	Behavior     string         `json:"behavior"`               // "allow" or "deny"
@@ -449,6 +449,98 @@ type ToolAuthorizer interface {
 // conversation history from their backend session files.
 type HistoryProvider interface {
 	GetSessionHistory(ctx context.Context, sessionID string, limit int) ([]HistoryEntry, error)
+}
+
+// AgentProjectInfo describes a project owned by an external agent application.
+// Path is metadata only; cc-connect must not infer ownership from it.
+type AgentProjectInfo struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Path            string `json:"path,omitempty"`
+	HostID          string `json:"host_id,omitempty"`
+	Kind            string `json:"kind,omitempty"`
+	IsGitRepository bool   `json:"is_git_repository"`
+}
+
+// AgentSessionSnapshot is the authoritative history snapshot returned by an
+// agent application. Cursor is opaque and is only passed back to that agent.
+type AgentSessionSnapshot struct {
+	Session    AgentSessionInfo `json:"session"`
+	History    []HistoryEntry   `json:"history"`
+	Cursor     string           `json:"cursor,omitempty"`
+	WaitCursor string           `json:"wait_cursor,omitempty"`
+	HasMore    bool             `json:"has_more"`
+}
+
+type AgentSessionCreateRequest struct {
+	ProjectID string `json:"project_id,omitempty"`
+	Prompt    string `json:"prompt"`
+	Title     string `json:"title,omitempty"`
+	UseLocal  bool   `json:"use_local"`
+}
+
+type AgentSessionMetadataPatch struct {
+	Title    *string `json:"title,omitempty"`
+	Pinned   *bool   `json:"pinned,omitempty"`
+	Archived *bool   `json:"archived,omitempty"`
+}
+
+// AgentSessionCapability describes whether an audited semantic operation is
+// currently available from the authoritative agent application.
+type AgentSessionCapability struct {
+	Supported bool   `json:"supported"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// AgentSessionCapabilities is the stable cc-connect capability vocabulary.
+// Implementations derive these values from their current backend schema and
+// must not expose unknown backend tools directly.
+type AgentSessionCapabilities struct {
+	Create              AgentSessionCapability `json:"create"`
+	Rename              AgentSessionCapability `json:"rename"`
+	Pin                 AgentSessionCapability `json:"pin"`
+	Archive             AgentSessionCapability `json:"archive"`
+	Fork                AgentSessionCapability `json:"fork"`
+	Handoff             AgentSessionCapability `json:"handoff"`
+	InteractiveResponse AgentSessionCapability `json:"interactive_response"`
+}
+
+// AgentProjectCatalog exposes projects from the authoritative agent app.
+type AgentProjectCatalog interface {
+	ListProjects(ctx context.Context) ([]AgentProjectInfo, error)
+}
+
+// AgentSessionReader reads history without taking over the task writer.
+type AgentSessionReader interface {
+	ReadSession(ctx context.Context, sessionID, hostID, cursor string, limit int) (AgentSessionSnapshot, error)
+}
+
+// AgentSessionWaiter waits for an authoritative task state change and then
+// returns the converged snapshot. The cursor is opaque to cc-connect.
+type AgentSessionWaiter interface {
+	WaitSession(ctx context.Context, sessionID, hostID, cursor string, timeout time.Duration) (AgentSessionSnapshot, error)
+}
+
+// AgentSessionCreator creates a task through the authoritative agent app.
+type AgentSessionCreator interface {
+	CreateSession(ctx context.Context, request AgentSessionCreateRequest) (AgentSessionInfo, error)
+}
+
+// AgentSessionMetadataController changes task metadata through the owner app.
+type AgentSessionMetadataController interface {
+	UpdateSessionMetadata(ctx context.Context, sessionID, hostID string, patch AgentSessionMetadataPatch) error
+}
+
+// AgentSessionCapabilityCatalog reports the current audited capabilities for
+// one authoritative app host. hostID may be empty for a local single-host app.
+type AgentSessionCapabilityCatalog interface {
+	SessionCapabilities(ctx context.Context, hostID string) (AgentSessionCapabilities, error)
+}
+
+// AuthoritativeSessionHistory marks agents whose backend owns all history.
+// SessionManager must only persist platform-to-session selection for them.
+type AuthoritativeSessionHistory interface {
+	AuthoritativeSessionHistory()
 }
 
 // ProviderConfig holds API provider settings for an agent.

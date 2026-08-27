@@ -256,10 +256,15 @@ sha256sum "$@"
 	if strings.TrimSpace(readFile(t, filepath.Join(state, "pair-count"))) != "1" {
 		t.Fatal("runtime installer paired more than once")
 	}
+	if strings.TrimSpace(readFile(t, filepath.Join(state, "start-count"))) != "2" {
+		t.Fatal("runtime installer did not hand off to the foreground Runtime")
+	}
 	slot := filepath.Join(state, "releases", fixture.manifest.Tag)
 	assertMode(t, filepath.Join(slot, "manifest.json"), 0o600)
 	assertMode(t, filepath.Join(slot, "manifest.bundle"), 0o600)
-	assertMode(t, filepath.Join(home, "Library/LaunchAgents/dev.cc-connect.runtime.plist"), 0o600)
+	if _, err := os.Stat(filepath.Join(home, "Library/LaunchAgents/dev.cc-connect.runtime.plist")); !os.IsNotExist(err) {
+		t.Fatalf("obsolete Runtime LaunchAgent was not removed: %v", err)
+	}
 	current, err := filepath.EvalSymlinks(filepath.Join(state, "current"))
 	currentInfo, currentStatErr := os.Stat(current)
 	slotInfo, slotStatErr := os.Stat(slot)
@@ -278,13 +283,13 @@ func newReleaseFixture(t *testing.T, executableRuntime bool) releaseFixture {
 	directory := t.TempDir()
 	manifest := releasecontract.Manifest{Version: 1, Repository: releasecontract.Repository, Workflow: releasecontract.Workflow,
 		Tag: "v0.1.0", CommitSHA: strings.Repeat("a", 40), RuntimeContractHash: runtimeprotocol.ContractHash,
-		ControlSchema: controlstore.SchemaVersion, WorkspaceChatSchema: 3, GeneratedAt: time.Now().UTC()}
+		ControlSchema: controlstore.SchemaVersion, GeneratedAt: time.Now().UTC()}
 	for _, target := range [][3]string{{"control", "linux", "amd64"}, {"control", "linux", "arm64"}, {"server", "linux", "amd64"}, {"server", "linux", "arm64"}, {"deployhost", "linux", "amd64"}, {"deployhost", "linux", "arm64"}, {"runtime", "darwin", "amd64"}, {"runtime", "darwin", "arm64"}} {
 		name := "cc-connect-" + strings.Join(target[:], "-") + ".tar.gz"
 		binary := "cc-connect-" + target[0]
 		contents := []byte(target[0])
 		if target[0] == "runtime" && executableRuntime {
-			contents = []byte("#!/bin/sh\nstate=\"$HOME/Library/Application Support/cc-connect-runtime\"\nmkdir -p \"$state\"\ncount=0\n[ ! -f \"$state/pair-count\" ] || count=$(cat \"$state/pair-count\")\nprintf '%s\\n' $((count + 1)) > \"$state/pair-count\"\nprintf '{\"server_url\":\"https://cc.example.com\",\"device_id\":\"device-test\"}\\n' > \"$state/identity.json\"\n")
+			contents = []byte("#!/bin/sh\nstate=\"$HOME/Library/Application Support/cc-connect-runtime\"\nmkdir -p \"$state\"\nif [ \"${1:-}\" = pair ]; then\n  count=0\n  [ ! -f \"$state/pair-count\" ] || count=$(cat \"$state/pair-count\")\n  printf '%s\\n' $((count + 1)) > \"$state/pair-count\"\n  printf '{\"server_url\":\"https://cc.example.com\",\"device_id\":\"device-test\"}\\n' > \"$state/identity.json\"\nelse\n  count=0\n  [ ! -f \"$state/start-count\" ] || count=$(cat \"$state/start-count\")\n  printf '%s\\n' $((count + 1)) > \"$state/start-count\"\nfi\n")
 		}
 		var archive []byte
 		if target[0] == "deployhost" {

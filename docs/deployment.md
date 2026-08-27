@@ -1,39 +1,60 @@
 # Web control-plane deployment
 
-Signed Releases contain Linux amd64/arm64 control, server, and deploy-host artifacts plus macOS amd64/arm64 Runtime artifacts. Installation and updates verify the GitHub OIDC/Sigstore manifest identity and every SHA-256; unsigned artifacts are rejected.
+## Sources of truth
 
-Linux can use either the native systemd lane or Docker Compose. The two lanes must not share one state directory. The formal container install downloads one complete signed Release and runs:
+Treat the Release workflow and signed manifest as the build contract, the selected GitHub Release as the artifact source, and live service/deployment state as runtime truth. Repository examples and prior logs are guidance only. Resolve `<tag>`, commit, architecture, manifest identity, and current service state before installation, update, rollback, or diagnosis.
+
+Signed Releases contain Linux amd64/arm64 control, server, and deploy-host artifacts plus macOS amd64/arm64 Runtime artifacts. Installation and updates verify the GitHub OIDC/Sigstore identity and every SHA-256; unsigned artifacts are rejected.
+
+Linux supports two independent lanes. Native installation runs control under systemd. Container installation runs only deploy-host under systemd; deploy-host owns the control container while control remains the sole owner of server. The lanes must not share a state directory. The macOS Runtime is not containerized and does not use launchd to connect to the App's private Socket.
+
+## Container lane
 
 ```bash
+gh release download <tag> --repo shusfun/cc-connect --dir release
 sudo ./release/bootstrap-container.sh --release-dir ./release
 ```
 
-This installs only `cc-connect-deploy-host.service` on the host. The executor is fixed to the `shusfun/cc-connect` Release identity, `ghcr.io/shusfun/cc-connect`, Compose project `cc-connect`, and service `cc-connect`. `compose.yaml` is the executor's fixed runtime input, not a standalone production entry point that bypasses the host executor.
+The bootstrap installs only `cc-connect-deploy-host.service`. The host executor is restricted to repository `shusfun/cc-connect`, image `ghcr.io/shusfun/cc-connect`, Compose project `cc-connect`, and service `cc-connect`. Its bundled `compose.yaml` is an executor input, not a standalone production entry point.
 
-The first log prints the one-time setup token. Compose binds only `127.0.0.1:9820`, runs as UID/GID 10001 with a read-only root filesystem, and bind-mounts `/var/lib/cc-connect-docker/control` and `/var/lib/cc-connect-docker/app`. Starting with the next tag that contains this change, Releases publish signed multi-architecture images and deploy-host artifacts; the already-published `v0.1.0` does not contain them.
+The container binds Web to `127.0.0.1:9820`, runs as UID/GID 10001 with a read-only root filesystem, and persists state under `/var/lib/cc-connect-docker/control` and `/var/lib/cc-connect-docker/app`. control never mounts the Docker Socket; it reaches deploy-host through the restricted Unix Socket. Web update and rollback remain control-owned business transactions, while deploy-host owns container replacement and watchdog rollback to the previous signed digest.
 
-Inside the container, control remains the only owner of server and never mounts the Docker Socket. It reaches the host executor through a read-only Unix Socket mount. Web update and rollback remain available: control owns activity checks, Runtime coordination, and the database backup, while the host executor owns only control-container replacement and watchdog rollback to the previous signed digest. The macOS Runtime is still installed with launchd and is never containerized.
-
-Download one complete signed tag on Linux, then run the bundled bootstrap:
+## Native systemd lane
 
 ```bash
-gh release download v0.1.0 --repo shusfun/cc-connect --dir release-v0.1.0
-sudo ./release-v0.1.0/bootstrap.sh --release-dir ./release-v0.1.0
+gh release download <tag> --repo shusfun/cc-connect --dir release
+sudo ./release/bootstrap.sh --release-dir ./release
 ```
 
-It creates release slots under `/opt/cc-connect/releases`, control state under `/var/lib/cc-connect/control`, app state under `/var/lib/cc-connect/app`, and private sockets under `/run/cc-connect`. systemd manages only control; control exclusively supervises server.
+The bootstrap creates release slots under `/opt/cc-connect/releases`, control state under `/var/lib/cc-connect/control`, app state under `/var/lib/cc-connect/app`, and private sockets under `/run/cc-connect`. systemd manages only control; control exclusively supervises server.
 
-The first start listens only on `127.0.0.1:9820` and prints a one-time setup token. Use SSH forwarding and complete the six Web steps: create the administrator, save the public HTTPS origin, pair Runtime, validate Codex and at least one project, optionally configure WeCom WebSocket, then atomically generate configuration and start server. Apply the Release's `openresty-1panel.conf` (repository copy: [1Panel/OpenResty template](../deploy/openresty-1panel.conf)) to an existing HTTPS site.
+## Initial setup and Runtime pairing
 
-Create a pairing code in the setup wizard and install Runtime on macOS:
+The first start listens only on `127.0.0.1:9820` and exposes a one-time setup token through the applicable service log. Use SSH forwarding to complete Web setup: create the administrator, save the public HTTPS origin, pair Runtime, validate Codex and at least one project, optionally configure WeCom, then atomically generate configuration and start server. Apply the Release's `openresty-1panel.conf` to the existing HTTPS site.
+
+Run the setup page's Runtime command in the current Codex Desktop App interactive terminal, equivalent to:
 
 ```bash
 curl -fsSL https://cc.example.com/runtime/v1/install.sh -o cc-connect-runtime-install.sh
-sh cc-connect-runtime-install.sh --server https://cc.example.com --code <code> --tag v0.1.0
+sh cc-connect-runtime-install.sh --server https://cc.example.com --code <code> --tag <tag>
 ```
 
-The Ed25519 private key stays in macOS Keychain. Runtime connects outbound over TLS/WebSocket and reads local Codex App state, so no VPN or inbound tunnel is required. Additional devices can be paired, renamed, revoked, and inspected through persistent connection logs in Operations. Catalog changes update only opaque project metadata; paths and conversation bodies never leave the Mac through catalog sync.
+After verification, installation, and pairing, the installer starts Runtime as a foreground process in that App terminal. Closing the terminal takes the device offline. The installer stops and precisely removes the obsolete `dev.cc-connect.runtime` LaunchAgent. Restart an installed Runtime from an App terminal with:
 
-For the native systemd lane, updates and rollbacks are manual Web operations. control blocks while Turns, interactions, or realtime are active; backs up `control.db`; stages online Runtime devices; switches a candidate slot; and confirms only after candidate health checks. Each activated Runtime keeps `pending-activation.json` until the candidate control reconnects it and sends `runtime/update/confirm`; lack of confirmation triggers the Runtime watchdog rollback. systemd `ExecStopPost` restores the previous server slot and database if candidate startup fails. Update, rollback, and restart share one execution slot, and rollback is limited to the previous successful release.
+```bash
+"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime"
+```
 
-Use the Web operations page for service and deployment logs. For SSH diagnosis, use `systemctl status cc-connect-control.service` and `journalctl -u cc-connect-control.service`; do not manually rewrite release links or delete activation backups.
+The Ed25519 private key stays in macOS Keychain. The launcher re-execs into the App-bundled Node supervisor and passes the verified App Socket to the Go worker through an inherited fd. Runtime connects outbound over TLS/WebSocket; catalog sync sends opaque project metadata and never conversation bodies. Runtime never starts a second Codex App Server.
+
+## Updates, rollback, and diagnosis
+
+Updates and rollback are initiated from Web. control checks active operations, backs up `control.db`, coordinates Runtime activation, and shares one execution slot with restart. The native lane switches signed release slots and uses systemd recovery. The container lane asks deploy-host to switch a verified digest and uses its persisted activation state. Do not manually edit release links, activation records, deployer state, or database backups.
+
+Start diagnosis from the reported symptom, UTC window, target tag/commit, and live operations state. Select only signals that can distinguish the current hypotheses; logs and commands below are candidates, not a checklist.
+
+- Native lane: Web operations state, `systemctl status cc-connect-control.service`, and `journalctl -u cc-connect-control.service`.
+- Container lane: Web operations state, `systemctl status cc-connect-deploy-host.service`, deploy-host journal, and read-only container status/logs for the expected image digest.
+- Runtime: the paired device's connection history, Runtime launchd state/logs, and the control-side run or request correlation ID.
+
+Before retrying or cancelling, reread the current run state and one independent signal such as log freshness, health, execution-slot state, or candidate revision. Preserve activation and backup evidence when automatic recovery fails.

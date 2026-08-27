@@ -5005,7 +5005,7 @@ func TestGetOrCreateWorkspaceAgent_InheritsSnapshotOptions(t *testing.T) {
 			},
 		},
 		opts: map[string]any{
-			"backend":          "app_server",
+			"transport":        "test_transport",
 			"snapshot_option":  "snapshot-only",
 			"codex_home":       "/tmp/codex-home",
 			"reasoning_effort": "high",
@@ -5030,8 +5030,8 @@ func TestGetOrCreateWorkspaceAgent_InheritsSnapshotOptions(t *testing.T) {
 	if !ok {
 		t.Fatalf("workspace agent type = %T, want *namedStubWorkspaceOptionAgent", wsAgentRaw)
 	}
-	if got := wsAgent.opts["backend"]; got != "app_server" {
-		t.Fatalf("workspace backend = %#v, want app_server", got)
+	if got := wsAgent.opts["transport"]; got != "test_transport" {
+		t.Fatalf("workspace transport = %#v, want test_transport", got)
 	}
 	if got := wsAgent.opts["snapshot_option"]; got != "snapshot-only" {
 		t.Fatalf("workspace snapshot_option = %#v, want snapshot-only", got)

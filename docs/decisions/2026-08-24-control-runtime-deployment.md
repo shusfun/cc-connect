@@ -1,45 +1,55 @@
 # Control、Server 与远程 Runtime 的部署所有权
 
+- 状态：Accepted
+- 日期：2026-08-24
+- 最后核验：2026-08-28，当前 control、deploy-host、Runtime 与 Codex Desktop Bridge 实现
+- 适用边界：原生 systemd、Docker deploy-host、macOS Runtime 和 Desktop App 连接所有权
+- 失效条件：部署所有者、制品拓扑或 Desktop Bridge 被新的 Accepted ADR 明确取代
+
+本文描述当前所有权边界。版本、协议和持久化判断同时遵循[版本、兼容与迁移所有权](./2026-08-27-versioning-and-compatibility.md)与[Codex Desktop App 任务所有权](./2026-08-23-unified-workspace-chat.md)。
+
 ## 问题
 
-Linux 公网 Web 需要统一认证、持久化和部署入口，但 Codex App 项目、thread、`CODEX_HOME` 与深链只存在于用户的 macOS 设备。让业务进程公开 Web 或在 Linux 复制 Codex 状态会形成双权威；让 systemd 同时管理 control 和 server 会使更新、回滚、日志和数据库恢复没有唯一生命周期所有者。
+Linux 公网 Web 需要统一认证、持久化和部署入口，但 Codex App 项目、任务与 writer 只存在于用户 Mac。Linux 复制 App 状态或自启 Codex App Server 会形成第二权威。容器与 systemd 若同时拥有同一服务、数据库或 Runtime 激活，也会破坏更新和回滚的唯一生命周期所有者。
 
 ## 决定
 
-交付四类独立制品：`cc-connect-control`、`cc-connect-server`、Linux `cc-connect-deploy-host` 和 macOS `cc-connect-runtime`。原生安装由 systemd 管理 control；容器安装由 systemd 只管理 deploy-host，deploy-host 管理 control 容器，control 通过私有 Unix Socket 监管 server。Runtime 使用出站 TLS/WebSocket 和 Ed25519 challenge-response 连接 control，并在本机复用 Codex 原生后端。服务器只保存不透明全局 `workspaceRef` 和最近目录 catalog，不复制 Codex 对话正文。
+交付 `cc-connect-control`、`cc-connect-server`、Linux `cc-connect-deploy-host` 和 macOS `cc-connect-runtime` 四类制品。原生安装由 systemd 管理 control；容器安装由 systemd 只管理 deploy-host，deploy-host 管理 control 容器，control 通过私有 Unix Socket 监管 server。两条 Linux 通道不得共用持久目录。
 
-control 是认证、设备、server、Release、执行槽、日志和跨重启 activation 的唯一生命周期所有者。工作区聊天仍由 `WorkspaceChatService` 独占 actor、Turn、交互和 realtime 状态，并只向 control 暴露部署前只读活动快照。
+control 是认证、设备、server、Release、执行槽、日志和跨重启 activation 的唯一生命周期所有者。Codex Desktop App 独占项目、task、Turn、历史和 writer；Runtime 只代理经过审核的 App tools 语义能力。SessionManager 只保存平台用户到 App task ID 的选择关系，服务器不复制对话正文。
 
-systemd 模式下 control 拥有签名 Release 的在线更新、回滚和跨重启 activation。Docker 模式下 control 仍拥有部署业务事务，deploy-host 独占 control 容器切换与 watchdog 回滚。control 不挂载 Docker Socket，只能通过带 peer credential 校验的 Unix Socket 请求固定 Release/tag 操作；Web 更新和回滚保持可用。两种模式不能同时指向同一持久目录。
+Runtime 使用出站 TLS/WebSocket 和 Ed25519 challenge-response 连接 control。由于当前 App 私有 Socket 的执行上下文限制，Runtime 不由 launchd 后台启动；安装器负责验签、安装和配对，然后必须在当前 Codex App 交互终端中前台启动 launcher。launcher re-exec 为 App 内置 Node supervisor，worker 仅使用继承的双向 FD，不启动 App Server。
 
-control 与 deploy-host 使用唯一的容器宿主协议指纹；不匹配只返回 `update_required`。候选确认同时校验正在运行的 control 编译版本、激活目标和宿主持久状态，不能由旧镜像确认新目标。
+systemd 模式下 control 拥有签名 Release 的在线更新、回滚和跨重启 activation。Docker 模式下 control 拥有部署业务事务，deploy-host 独占 control 容器切换和 watchdog 回滚。control 不挂载 Docker Socket，只能通过 peer credential 校验的 Unix Socket 请求固定 Release/tag 操作。
 
-Runtime 连接代际以 `control.db` 的最后 checkpoint 为下界，control 重启后不得复用旧 generation。每次连接拥有独立 context；断线会取消并等待该代 RPC 与原生订阅，旧响应不得写入新连接。设备撤销由 Broker 同步关闭活动连接。设备连接事件进入 `control.db.audit_events`，作为 Web 查询和实时日志的唯一持久来源。
+control 与 deploy-host 使用唯一容器宿主协议指纹；不匹配只返回 `update_required`。Runtime protocol 只承载项目、任务、快照、等待、发送、创建和元数据操作。候选确认同时校验正在运行的 control 编译版本、激活目标和宿主持久状态，旧镜像不能确认新目标。
 
-Release manifest 固定仓库 `shusfun/cc-connect`、workflow、tag、commit、八个目标制品及协议/数据库元数据。control、deploy-host 和 Runtime 均验证 GitHub OIDC/Sigstore identity、manifest 和 SHA-256；deploy-host 还独立验证固定 GHCR 镜像签名，不提供未签名 fallback。
+Runtime 连接代际以 `control.db` 的最后 checkpoint 为下界。每次连接拥有独立 context；断线会取消并等待该代 RPC 和 task 观察，旧响应不得写入新连接。设备撤销会同步关闭活动连接。设备连接事件写入 `control.db.audit_events`，作为 Web 查询和实时日志的持久来源。
+
+Release manifest 固定仓库、workflow、tag、commit、八个目标制品及协议/数据库元数据。control、deploy-host 和 Runtime 均验证 GitHub OIDC/Sigstore identity、manifest 和 SHA-256；deploy-host 还验证固定 GHCR 镜像签名，不提供未签名 fallback。
 
 ## 被考虑的替代方案
 
-- Linux 直接运行本地 Codex App Server：无法取得 macOS Codex App 的真实项目、认证和 thread 状态，并会产生第二权威。
-- VPN 或反向穿透到 macOS：服务器流量和公网入口已充足，且入站网络会扩大设备攻击面；出站 TLS 长连接足以覆盖需求。
-- systemd 分别管理 control 和 server：部署事务无法原子协调业务活动、日志、候选健康与数据库恢复。
-- 在容器内运行 systemd 或把 Docker Socket 交给 control：会产生第二个宿主生命周期所有者并扩大容器权限；容器模式改由 Compose 原子替换 control 容器。
-- control 在原进程内覆盖二进制：无法可靠处理 control 自更新的启动失败窗口。
+- Linux 或 macOS Runtime 自启 Codex App Server：无法复用当前 App writer，会形成第二任务权威。
+- launchd 后台直连 App tools Socket：当前 App 会拒绝该执行上下文，因此安装器移除旧 `dev.cc-connect.runtime` LaunchAgent。
+- VPN 或反向穿透到 macOS：出站 TLS 长连接已覆盖需求，入站网络只会扩大设备攻击面。
+- systemd 分别管理 control 和 server：部署事务无法原子协调业务活动、日志、候选健康和数据库恢复。
+- 把 Docker Socket 交给 control：扩大容器权限并产生第二个宿主生命周期所有者。
 
 ## 兼容与迁移
 
-项目为 `v0.1.0`。旧 management token、业务进程公开 TCP、`cc-connect web`、CLI update、`cc-connect daemon`、服务器 `template_project` 和本地 App Server 路径均删除，不保留双协议或兼容解析。
+旧 management token、业务进程公开 TCP、`cc-connect web`、CLI update、`cc-connect daemon`、服务器 `template_project`、本地 App Server 路径、WorkspaceChat 独立协议和 Runtime LaunchAgent 均删除，不保留双协议或兼容解析。
 
-`control.db` 使用显式事务迁移保存永久控制状态。`workspace_chat.db` 继续使用版本不匹配时精确重建的破坏性策略，Codex 原生 thread 不受影响。
+`control.db` 使用显式事务迁移保存永久控制状态。`workspace_chat.db` 已从当前架构删除；旧部署必须停服后精确删除数据库、sidecar 和已核验附件目录，不做迁移或重建。
 
 ## 事务与生命周期
 
-systemd 模式下 DeploymentManager 先锁定 Release 和机器级执行槽，再验签、检查活动 Turn/交互/realtime、检查磁盘、暂存在线 Runtime、备份 `control.db` 并写 activation record。进入 server stop 后运行不可取消；随后切换 `current` 并激活 Runtime，交给 systemd 启动候选 control。
+systemd 模式下 DeploymentManager 锁定 Release 和机器级执行槽，再验签、检查活动操作、检查磁盘、暂存在线 Runtime、备份 `control.db` 并写 activation record。进入 server stop 后运行不可取消；随后切换 `current` 并激活 Runtime，交给 systemd 启动候选 control。
 
-旧 control 停止后的第一次 `ExecStopPost` 只消费 handoff 标记。候选 control 启动后先恢复 Runtime 连接并发送 `runtime/update/confirm`；Runtime 在确认前保留本地 activation 看门狗。候选 control 健康后提交 run 并删除 activation；候选无法执行、Runtime 未确认或健康检查失败时，第二次 `ExecStopPost` 使用稳定 helper 恢复旧槽、数据库和已切换 Runtime。回滚复用同一事务，只允许上一成功槽。
+候选 control 恢复 Runtime 连接并确认激活；Runtime 在确认前保留本地 watchdog。候选健康后提交 run 并删除 activation；候选失败时稳定 helper 恢复旧槽、数据库和 Runtime。Docker 通道使用独立 `container-activation.json`，由 deploy-host 切换已验证 digest 并在超时后恢复 previous 状态。
 
-Docker 模式使用独立版本的 `container-activation.json`，不复用 systemd release slot 或 activation schema。control 检查活动操作、暂存 Runtime、备份 `control.db` 后请求 deploy-host 激活已准备的 digest；deploy-host 持久化 previous/pending 状态，再替换 control 容器。候选 control 验证 server、Runtime、数据库与宿主 pending 后确认。Compose 启动失败或确认超时会停止候选、恢复数据库备份与上一 digest；数据库无法恢复时保持容器停止并明确失败。
+Runtime 关闭只结束代理连接和 task 观察，不关闭 Codex App 或任务。App Socket 断开由 Node supervisor 终止旧 worker并建立新代际；control 只把设备标为离线，不能启动替代 writer。
 
-## 后果与验证
+## 架构风险目录
 
-多台 Mac 的项目和 thread 按设备隔离，离线设备保持只读 catalog 且不自动重发 Turn。两种安装模式都由 Web 发起更新并由 control 阻断活动原生操作。验证覆盖签名与摘要、路径逃逸、数据库备份、handoff 两阶段恢复、Runtime 私有槽激活、宿主执行器 peer credential、固定命令边界、watchdog 回滚、执行槽、持久日志游标、候选确认，以及非 root 容器、loopback 暴露和 bind 持久目录契约。
+主要风险包括多 Mac 隔离、App 终端生命周期、Socket/schema 变化、设备离线、活动操作阻断、签名摘要、数据库备份、两阶段恢复、宿主 peer credential、固定命令边界、watchdog、执行槽、非 root 容器、loopback 暴露和持久目录契约。验证按实际影响选择，但不得用历史成功代替当前 Release、服务和 App 连接状态。
