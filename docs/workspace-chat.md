@@ -5,17 +5,17 @@ The main Web chat and messaging platforms reach the currently running Codex Desk
 ## Prerequisites
 
 - Codex Desktop App must be running on macOS with at least one routable task.
-- `cc-connect-runtime` must start from the current Codex App interactive terminal. A regular Terminal, launchd, or another background process does not have the execution context required by the App tools Socket.
+- `cc-connect-runtime` must be initially started from the current Codex App interactive terminal. A regular Terminal, launchd, or another background process does not have the execution context required by the App tools Socket. After startup, the Node supervisor does not depend on that terminal remaining open.
 - Local projects use `agent.type = "codexapp"`. Linux control/server reaches the Mac through a paired `cc-connect-runtime` and never reads server-side `CODEX_HOME` state.
 - `agent.type = "codex"` remains the explicit standalone Codex CLI adapter and is never a Desktop fallback.
 
-The Runtime launcher first re-execs into the App-bundled Node supervisor. The supervisor prefers `CODEX_APP_TOOLS_PIPE_PATH`; otherwise it scans current-UID sockets under `/tmp/codex-browser-use/*.sock`. A candidate must pass `tools/list` schema validation and a `list_projects` probe. No candidate or multiple distinct active candidates is an explicit error. After closing the probe connection, the supervisor opens a fresh connection, starts the Go worker, and passes the duplex connection as fd 3. The worker never scans sockets itself.
+The Runtime launcher first re-execs into the App-bundled Node supervisor. The supervisor prefers `CODEX_APP_TOOLS_PIPE_PATH`; otherwise it scans current-UID sockets under `/tmp/codex-browser-use/*.sock`. A candidate must pass `tools/list` schema validation and a `list_projects` probe. No candidate or multiple distinct active candidates is an explicit error. After the unique candidate passes its probes, the supervisor passes that same duplex connection to the Go worker as fd 3. The worker never scans sockets itself.
 
 ## Current contract
 
 cc-connect maps only audited semantic capabilities: projects, tasks, authoritative snapshots, waits, sends, creation, and schema-advertised title, pin, archive, fork, and handoff operations. Missing required tools, incompatible fields, or schema changes fail explicitly. Unknown tools are never exposed automatically. Runtime never starts `codex app-server` and never calls `thread/resume`.
 
-The Socket transport uses four-byte little-endian length frames with an 8 MiB limit, JSON-RPC ID correlation, one writer, unique `callId`/`turnId` values, cancellation, and disconnect cleanup. When the App Socket closes, the supervisor terminates the old worker, rescans, and creates a new generation. The new worker reloads `tools/list`, computes a schema fingerprint, and atomically swaps the capability catalog. A write whose outcome became unknown after dispatch is not replayed.
+The Socket transport uses four-byte little-endian length frames with an 8 MiB limit, JSON-RPC ID correlation, one writer, unique `callId`/`turnId` values, cancellation, and disconnect cleanup. When the App Socket closes, the supervisor terminates the old worker, rescans, and creates a new generation. Worker exit for an update, normal shutdown, or failure also creates a new generation from the `current` Release, while launch-terminal detachment leaves the supervisor running. The new worker reloads `tools/list`, computes a schema fingerprint, and atomically swaps the capability catalog. A write whose outcome became unknown after dispatch is not replayed.
 
 ## Projects, tasks, and history
 

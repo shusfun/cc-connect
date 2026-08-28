@@ -18,7 +18,7 @@ Linux 公网 Web 需要统一认证、持久化和部署入口，但 Codex App �
 
 control 是认证、设备、server、Release、执行槽、日志和跨重启 activation 的唯一生命周期所有者。Codex Desktop App 独占项目、task、Turn、历史和 writer；Runtime 只代理经过审核的 App tools 语义能力。SessionManager 只保存平台用户到 App task ID 的选择关系，服务器不复制对话正文。
 
-Runtime 使用出站 TLS/WebSocket 和 Ed25519 challenge-response 连接 control。由于当前 App 私有 Socket 的执行上下文限制，Runtime 不由 launchd 后台启动；安装器负责验签、安装和配对，然后必须在当前 Codex App 交互终端中前台启动 launcher。launcher re-exec 为 App 内置 Node supervisor，worker 仅使用继承的双向 FD，不启动 App Server。
+Runtime 使用出站 TLS/WebSocket 和 Ed25519 challenge-response 连接 control。由于当前 App 私有 Socket 的执行上下文限制，Runtime 不由 launchd 后台启动；安装器负责验签、安装和配对，然后必须在当前 Codex App 交互终端中启动 launcher。launcher re-exec 为 App 内置 Node supervisor；supervisor 是持续生命周期所有者，不随启动终端挂断或单个 worker 退出而结束。worker 仅使用继承的双向 FD，不启动 App Server。
 
 systemd 模式下 control 拥有签名 Release 的在线更新、回滚和跨重启 activation。Docker 模式下 control 拥有部署业务事务，deploy-host 独占 control 容器切换和 watchdog 回滚。control 不挂载 Docker Socket，只能通过 peer credential 校验的 Unix Socket 请求固定 Release/tag 操作。
 
@@ -48,7 +48,7 @@ systemd 模式下 DeploymentManager 锁定 Release 和机器级执行槽，再�
 
 候选 control 恢复 Runtime 连接并确认激活；Runtime 在确认前保留本地 watchdog。候选健康后提交 run 并删除 activation；候选失败时稳定 helper 恢复旧槽、数据库和 Runtime。Docker 通道使用独立 `container-activation.json`，由 deploy-host 切换已验证 digest 并在超时后恢复 previous 状态。
 
-Runtime 关闭只结束代理连接和 task 观察，不关闭 Codex App 或任务。App Socket 断开由 Node supervisor 终止旧 worker并建立新代际；control 只把设备标为离线，不能启动替代 writer。
+Runtime 关闭只结束代理连接和 task 观察，不关闭 Codex App 或任务。App Socket 断开、Runtime 更新和 worker 退出都由 Node supervisor 统一清理旧代，再从 `current` Release 建立新代际；终端 `SIGHUP` 不结束 supervisor。control 只把设备标为离线，不能启动替代 writer。
 
 ## 架构风险目录
 

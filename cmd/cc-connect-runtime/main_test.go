@@ -48,6 +48,21 @@ func TestValidateCodexRuntimeRequiresDesktopAppProjectsAndTasks(t *testing.T) {
 	})
 }
 
+func TestRuntimeExitErrorOnlyAcceptsOwnedCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := runtimeExitError(ctx, context.Canceled); err != nil {
+		t.Fatalf("runtimeExitError(context.Canceled) = %v", err)
+	}
+	networkErr := errors.New("connection failed")
+	if err := runtimeExitError(ctx, networkErr); !errors.Is(err, networkErr) {
+		t.Fatalf("runtimeExitError(network error) = %v", err)
+	}
+	if err := runtimeExitError(context.Background(), context.Canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("runtimeExitError(unowned cancellation) = %v", err)
+	}
+}
+
 func TestRunRequiresInteractiveCodexAppTerminal(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("CODEX_APP_TOOLS_PIPE_PATH", "")
