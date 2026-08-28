@@ -54,10 +54,10 @@ export const savePublicURL = (publicURL: string) => api.post<{ public_url: strin
 export const getPreflightOperations = () => api.get<Array<{ id: string; ok: boolean; message: string }>>('/deploy/preflight-operations');
 export const configureServer = (input: {
 	language: string;
-	enable_wecom: boolean;
-	wecom_bot_id?: string;
-	wecom_bot_secret?: string;
-	wecom_allow_from?: string;
+	enable_feishu: boolean;
+	feishu_app_id?: string;
+	feishu_app_secret?: string;
+	feishu_allow_from?: string;
 }) => api.put<ServiceStatus>('/deploy/dashboard', input);
 export const createPairingCode = () => api.post<PairingCode>('/devices/pairing-code');
 export const renameDevice = (id: string, name: string) => api.patch(`/devices/${encodeURIComponent(id)}`, { name });

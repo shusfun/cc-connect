@@ -12,8 +12,13 @@ import (
 )
 
 const (
-	Repository = "shusfun/cc-connect"
-	Workflow   = ".github/workflows/release.yml"
+	Repository     = "shusfun/cc-connect"
+	Workflow       = ".github/workflows/release.yml"
+	CurrentVersion = 2
+	TransitionV1   = 1
+	ArchiveTarGzip = "tar.gz"
+	DesktopAppZIP  = "app-zip"
+	DesktopDMG     = "dmg"
 )
 
 type Artifact struct {
@@ -21,6 +26,7 @@ type Artifact struct {
 	Component string `json:"component"`
 	OS        string `json:"os"`
 	Arch      string `json:"arch"`
+	Format    string `json:"format,omitempty"`
 	SHA256    string `json:"sha256"`
 	Size      int64  `json:"size"`
 }
@@ -55,7 +61,7 @@ func Decode(raw []byte) (Manifest, error) {
 }
 
 func (m Manifest) Validate() error {
-	if m.Version != 1 || m.Repository != Repository || m.Workflow != Workflow {
+	if (m.Version != TransitionV1 && m.Version != CurrentVersion) || m.Repository != Repository || m.Workflow != Workflow {
 		return errors.New("release manifest: unsupported version, repository, or workflow")
 	}
 	if !strings.HasPrefix(m.Tag, "v") || strings.TrimSpace(m.Tag) != m.Tag || len(m.Tag) < 2 {
@@ -70,15 +76,19 @@ func (m Manifest) Validate() error {
 	if strings.TrimSpace(m.RuntimeContractHash) == "" || m.ControlSchema < 1 || m.GeneratedAt.IsZero() {
 		return errors.New("release manifest: compatibility metadata is incomplete")
 	}
-	required := map[string]struct{}{
-		"control/linux/amd64": {}, "control/linux/arm64": {},
-		"server/linux/amd64": {}, "server/linux/arm64": {},
-		"deployhost/linux/amd64": {}, "deployhost/linux/arm64": {},
-		"runtime/darwin/amd64": {}, "runtime/darwin/arm64": {},
-	}
+	required := requiredArtifacts(m.Version)
 	seen := make(map[string]struct{}, len(m.Artifacts))
 	for _, artifact := range m.Artifacts {
-		key := artifact.Component + "/" + artifact.OS + "/" + artifact.Arch
+		format := artifact.Format
+		if m.Version == TransitionV1 {
+			if format != "" {
+				return errors.New("release manifest: v1 artifact format must be omitted")
+			}
+			format = ArchiveTarGzip
+		} else if format == "" {
+			return errors.New("release manifest: v2 artifact format is required")
+		}
+		key := artifact.Component + "/" + artifact.OS + "/" + artifact.Arch + "/" + format
 		if _, expected := required[key]; !expected {
 			return fmt.Errorf("release manifest: unexpected artifact target %q", key)
 		}
@@ -99,9 +109,32 @@ func (m Manifest) Validate() error {
 	return nil
 }
 
+func requiredArtifacts(version int) map[string]struct{} {
+	required := map[string]struct{}{
+		"control/linux/amd64/tar.gz": {}, "control/linux/arm64/tar.gz": {},
+		"server/linux/amd64/tar.gz": {}, "server/linux/arm64/tar.gz": {},
+		"deployhost/linux/amd64/tar.gz": {}, "deployhost/linux/arm64/tar.gz": {},
+		"runtime/darwin/amd64/tar.gz": {}, "runtime/darwin/arm64/tar.gz": {},
+	}
+	if version == CurrentVersion {
+		required["desktop/darwin/universal/app-zip"] = struct{}{}
+		required["desktop/darwin/universal/dmg"] = struct{}{}
+	}
+	return required
+}
+
 func (m Manifest) Artifact(component, osName, arch string) (Artifact, bool) {
 	for _, artifact := range m.Artifacts {
 		if artifact.Component == component && artifact.OS == osName && artifact.Arch == arch {
+			return artifact, true
+		}
+	}
+	return Artifact{}, false
+}
+
+func (m Manifest) ArtifactWithFormat(component, osName, arch, format string) (Artifact, bool) {
+	for _, artifact := range m.Artifacts {
+		if artifact.Component == component && artifact.OS == osName && artifact.Arch == arch && artifact.Format == format {
 			return artifact, true
 		}
 	}

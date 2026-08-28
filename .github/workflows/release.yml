@@ -11,40 +11,50 @@ permissions:
   attestations: write
   packages: write
 
+env:
+  GO_VERSION: '1.25.1'
+  PNPM_VERSION: '10.32.1'
+  GOPROXY: https://goproxy.cn
+  GOSUMDB: sum.golang.org
+
 jobs:
-  release:
+  linux-artifacts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Verify release inputs
         run: |
-          test -f scripts/release-manifest.go
-          test -f deploy/bootstrap.sh
-          test -f deploy/bootstrap-container.sh
-          test -f deploy/openresty-1panel.conf
-          test -f deploy/docker-entrypoint.sh
-          test -f Dockerfile
-          test -f compose.yaml
+          set -euo pipefail
+          for input in \
+            scripts/release-manifest.go \
+            deploy/bootstrap.sh \
+            deploy/bootstrap-container.sh \
+            deploy/openresty-1panel.conf \
+            deploy/docker-entrypoint.sh \
+            desktop/main.go \
+            desktop/assets/index.html \
+            desktop/build/darwin/Info.plist \
+            desktop/build/darwin/entitlements.plist \
+            Dockerfile \
+            compose.yaml; do
+            test -f "$input"
+            git ls-files --error-unmatch "$input" >/dev/null
+          done
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
-          version: 10.32.1
+          version: ${{ env.PNPM_VERSION }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+          cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.1'
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Build Web assets
@@ -55,23 +65,17 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
 
-      - name: Resolve build metadata
-        id: build-metadata
-        run: echo "build_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
-      - name: Build four product artifacts
+      - name: Build Linux artifacts
         env:
-          GOPROXY: https://goproxy.cn
-          GOSUMDB: sum.golang.org
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_COMMIT: ${{ github.sha }}
-          BUILD_TIME: ${{ steps.build-metadata.outputs.build_time }}
         run: |
           set -euo pipefail
+          BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           mkdir -p dist stage
           for arch in amd64 arm64; do
-            rm -rf stage/control stage/server stage/deployhost stage/runtime
-            mkdir -p stage/control stage/server stage/deployhost stage/runtime
+            rm -rf stage/control stage/server stage/deployhost
+            mkdir -p stage/control stage/server stage/deployhost
             CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build \
               -ldflags "-s -w -X main.version=${RELEASE_TAG} -X main.commit=${RELEASE_COMMIT} -X main.buildTime=${BUILD_TIME}" \
               -o stage/control/cc-connect-control ./cmd/cc-connect-control
@@ -81,46 +85,219 @@ jobs:
             CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build \
               -ldflags "-s -w -X main.version=${RELEASE_TAG} -X main.commit=${RELEASE_COMMIT} -X main.buildTime=${BUILD_TIME}" \
               -o stage/deployhost/cc-connect-deploy-host ./cmd/cc-connect-deploy-host
-            CGO_ENABLED=0 GOOS=darwin GOARCH="$arch" go build \
-              -ldflags "-s -w -X main.version=${RELEASE_TAG}" \
-              -o stage/runtime/cc-connect-runtime ./cmd/cc-connect-runtime
+            install -m 0644 compose.yaml stage/deployhost/compose.yaml
             tar -C stage/control -czf "dist/cc-connect-control-linux-${arch}.tar.gz" cc-connect-control
             tar -C stage/server -czf "dist/cc-connect-server-linux-${arch}.tar.gz" cc-connect-server
-            install -m 0644 compose.yaml stage/deployhost/compose.yaml
             tar -C stage/deployhost -czf "dist/cc-connect-deployhost-linux-${arch}.tar.gz" cc-connect-deploy-host compose.yaml
-            tar -C stage/runtime -czf "dist/cc-connect-runtime-darwin-${arch}.tar.gz" cc-connect-runtime
           done
-          RELEASE_DIST=dist go run ./scripts/release-manifest.go
-          install -m 0755 deploy/bootstrap.sh dist/bootstrap.sh
-          install -m 0755 deploy/bootstrap-container.sh dist/bootstrap-container.sh
-          install -m 0644 deploy/openresty-1panel.conf dist/openresty-1panel.conf
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3.8.2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-artifacts
+          path: dist/*.tar.gz
+          if-no-files-found: error
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+  macos-artifacts:
+    runs-on: macos-14
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Verify Apple release secret presence
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          for name in \
+            APPLE_CERTIFICATE \
+            APPLE_CERTIFICATE_PASSWORD \
+            KEYCHAIN_PASSWORD \
+            APPLE_ID \
+            APPLE_PASSWORD \
+            APPLE_TEAM_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing release Environment secret: $name"
+              exit 1
+            fi
+          done
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/cc-connect-signing.keychain-db"
+          ORIGINAL_DEFAULT_KEYCHAIN_PATH="$RUNNER_TEMP/original-default-keychain.txt"
+          ORIGINAL_KEYCHAINS_PATH="$RUNNER_TEMP/original-keychains.txt"
+          security default-keychain -d user > "$ORIGINAL_DEFAULT_KEYCHAIN_PATH"
+          security list-keychains -d user > "$ORIGINAL_KEYCHAINS_PATH"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "ORIGINAL_DEFAULT_KEYCHAIN_PATH=$ORIGINAL_DEFAULT_KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "ORIGINAL_KEYCHAINS_PATH=$ORIGINAL_KEYCHAINS_PATH" >> "$GITHUB_ENV"
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)"
+          test -n "$SIGNING_IDENTITY"
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Build universal Runtime and Desktop App
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_BUILD: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist stage/runtime-amd64 stage/runtime-arm64 stage/desktop
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=darwin GOARCH="$arch" go build \
+              -ldflags "-s -w -X main.version=${RELEASE_TAG}" \
+              -o "stage/runtime-${arch}/cc-connect-runtime" ./cmd/cc-connect-runtime
+            cgo_arch=x86_64
+            test "$arch" != arm64 || cgo_arch=arm64
+            CGO_ENABLED=1 GOOS=darwin GOARCH="$arch" \
+              MACOSX_DEPLOYMENT_TARGET=13.0 \
+              CGO_CFLAGS="-arch ${cgo_arch} -mmacosx-version-min=13.0" \
+              CGO_LDFLAGS="-arch ${cgo_arch} -mmacosx-version-min=13.0" \
+              go build -tags production -ldflags "-s -w -X main.version=${RELEASE_TAG}" \
+              -o "stage/desktop/CC-Connect-${arch}" ./desktop
+            tar -C "stage/runtime-${arch}" -czf "dist/cc-connect-runtime-darwin-${arch}.tar.gz" cc-connect-runtime
+          done
+          APP="stage/CC-Connect.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          lipo -create stage/desktop/CC-Connect-amd64 stage/desktop/CC-Connect-arm64 -output "$APP/Contents/MacOS/CC-Connect"
+          cp desktop/build/darwin/Info.plist "$APP/Contents/Info.plist"
+          VERSION="${RELEASE_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $RELEASE_BUILD" "$APP/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+          lipo -info "$APP/Contents/MacOS/CC-Connect" | grep -q 'x86_64 arm64\|arm64 x86_64'
+          codesign --force --options runtime --timestamp \
+            --entitlements desktop/build/darwin/entitlements.plist \
+            --sign "$SIGNING_IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      - name: Notarize, staple, and package Desktop App
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          APP="stage/CC-Connect.app"
+          NOTARY_ZIP="$RUNNER_TEMP/CC-Connect-notary.zip"
+          submit_notarization() {
+            local artifact="$1"
+            local attempt
+            for attempt in 1 2; do
+              if xcrun notarytool submit "$artifact" \
+                --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" \
+                --wait --timeout 20m; then
+                return 0
+              fi
+              if [[ "$attempt" -eq 2 ]]; then
+                return 1
+              fi
+              sleep 15
+            done
+          }
+          ditto -c -k --keepParent "$APP" "$NOTARY_ZIP"
+          submit_notarization "$NOTARY_ZIP"
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" dist/cc-connect-desktop-darwin-universal-app.zip
+          mkdir -p stage/dmg
+          cp -R "$APP" stage/dmg/
+          ln -s /Applications stage/dmg/Applications
+          hdiutil create -volname CC-Connect -srcfolder stage/dmg -ov -format UDZO dist/cc-connect-desktop-darwin-universal.dmg
+          codesign --force --timestamp --sign "$SIGNING_IDENTITY" dist/cc-connect-desktop-darwin-universal.dmg
+          submit_notarization dist/cc-connect-desktop-darwin-universal.dmg
+          xcrun stapler staple dist/cc-connect-desktop-darwin-universal.dmg
+          xcrun stapler validate dist/cc-connect-desktop-darwin-universal.dmg
+          codesign --verify --strict --verbose=2 dist/cc-connect-desktop-darwin-universal.dmg
+          spctl --assess --type open --context context:primary-signature --verbose=2 dist/cc-connect-desktop-darwin-universal.dmg
+
+      - name: Remove temporary signing keychain
+        if: always()
+        run: |
+          set -u
+          cleanup_status=0
+          if [[ -f "${ORIGINAL_DEFAULT_KEYCHAIN_PATH:-}" ]]; then
+            ORIGINAL_DEFAULT_KEYCHAIN="$(tr -d '"' < "$ORIGINAL_DEFAULT_KEYCHAIN_PATH" | xargs)"
+            if [[ -n "$ORIGINAL_DEFAULT_KEYCHAIN" ]]; then
+              security default-keychain -d user -s "$ORIGINAL_DEFAULT_KEYCHAIN" || cleanup_status=$?
+            fi
+          fi
+          if [[ -f "${ORIGINAL_KEYCHAINS_PATH:-}" ]]; then
+            ORIGINAL_KEYCHAINS=()
+            while IFS= read -r keychain; do
+              keychain="${keychain//\"/}"
+              keychain="$(printf '%s' "$keychain" | xargs)"
+              [[ -z "$keychain" ]] || ORIGINAL_KEYCHAINS+=("$keychain")
+            done < "$ORIGINAL_KEYCHAINS_PATH"
+            if [[ "${#ORIGINAL_KEYCHAINS[@]}" -gt 0 ]]; then
+              security list-keychains -d user -s "${ORIGINAL_KEYCHAINS[@]}" || cleanup_status=$?
+            fi
+          fi
+          if [[ -n "${KEYCHAIN_PATH:-}" && -f "$KEYCHAIN_PATH" ]]; then
+            security delete-keychain "$KEYCHAIN_PATH" || cleanup_status=$?
+          fi
+          exit "$cleanup_status"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-release-artifacts
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.dmg
+          if-no-files-found: error
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: build-metadata
+        name: Resolve container build time
+        run: echo "build_time=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve container image tags
-        id: image-metadata
+      - id: image-metadata
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/shusfun/cc-connect
-          tags: |
-            type=raw,value=${{ github.ref_name }}
+          tags: type=raw,value=${{ github.ref_name }}
 
-      - name: Build and publish multi-platform container image
-        id: container
+      - id: container
         timeout-minutes: 45
         uses: docker/build-push-action@v6
         with:
@@ -140,37 +317,84 @@ jobs:
           cache-to: type=gha,mode=max,scope=cc-connect-container
           provenance: mode=max
 
+      - uses: sigstore/cosign-installer@v3.8.2
+
       - name: Sign container image with GitHub OIDC
         env:
           COSIGN_EXPERIMENTAL: '1'
           IMAGE_DIGEST: ${{ steps.container.outputs.digest }}
         run: cosign sign --yes "ghcr.io/shusfun/cc-connect@${IMAGE_DIGEST}"
 
-      - name: Sign manifest with GitHub OIDC
+  publish:
+    needs: [linux-artifacts, macos-artifacts, container]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-release-artifacts'
+          path: dist
+          merge-multiple: true
+
+      - name: Verify artifacts and write the bounded manifest version
+        env:
+          RELEASE_DIST: dist
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l | tr -d ' ')" = 8
+          test -f dist/cc-connect-desktop-darwin-universal-app.zip
+          test -f dist/cc-connect-desktop-darwin-universal.dmg
+          go run ./scripts/release-manifest.go
+          install -m 0755 deploy/bootstrap.sh dist/bootstrap.sh
+          install -m 0755 deploy/bootstrap-container.sh dist/bootstrap-container.sh
+          install -m 0644 deploy/openresty-1panel.conf dist/openresty-1panel.conf
+
+      - uses: sigstore/cosign-installer@v3.8.2
+
+      - name: Sign manifest and every product artifact
         env:
           COSIGN_EXPERIMENTAL: '1'
-        run: cosign sign-blob --yes --bundle dist/manifest.bundle dist/manifest.json
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes --bundle dist/manifest.bundle dist/manifest.json
+          find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.dmg' \) -print0 | while IFS= read -r -d '' artifact; do
+            cosign sign-blob --yes --bundle "${artifact}.bundle" "$artifact"
+          done
 
-      - name: Attest release artifacts
-        uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
             dist/*.tar.gz
+            dist/*.zip
+            dist/*.dmg
             dist/manifest.json
             dist/bootstrap.sh
             dist/bootstrap-container.sh
             dist/openresty-1panel.conf
             compose.yaml
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ contains(github.ref_name, '-') && 'false' || 'true' }}
           files: |
             dist/*.tar.gz
+            dist/*.zip
+            dist/*.dmg
+            dist/*.bundle
             dist/manifest.json
-            dist/manifest.bundle
             dist/bootstrap.sh
             dist/bootstrap-container.sh
             dist/openresty-1panel.conf

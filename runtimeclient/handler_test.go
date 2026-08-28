@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/shusfun/cc-connect/core"
@@ -24,6 +25,12 @@ func (*capabilityAgent) ListProjects(context.Context) ([]core.AgentProjectInfo, 
 }
 func (*capabilityAgent) ReadSession(context.Context, string, string, string, int) (core.AgentSessionSnapshot, error) {
 	return core.AgentSessionSnapshot{}, nil
+}
+func (*capabilityAgent) ListSessionPage(context.Context, core.AgentSessionListRequest) (core.AgentSessionPage, error) {
+	return core.AgentSessionPage{}, nil
+}
+func (*capabilityAgent) ReadTask(context.Context, string, string, string, int) (core.AgentTaskSnapshot, error) {
+	return core.AgentTaskSnapshot{}, nil
 }
 func (*capabilityAgent) SessionCapabilities(context.Context, string) (core.AgentSessionCapabilities, error) {
 	return core.AgentSessionCapabilities{
@@ -54,6 +61,45 @@ func (*hostTargetSession) Close() error                                         
 type hostTargetAgent struct {
 	capabilityAgent
 	session *hostTargetSession
+}
+
+type productFeatureAgent struct {
+	capabilityAgent
+	automation core.AgentAutomation
+	plugin     core.AgentPlugin
+}
+
+func (a *productFeatureAgent) SearchTasks(_ context.Context, request core.AgentTaskSearchRequest) ([]core.AgentTaskSearchResult, error) {
+	return []core.AgentTaskSearchResult{{Task: core.AgentSessionInfo{ID: "task-1", ProjectID: "project-1", Summary: request.Query}}}, nil
+}
+func (*productFeatureAgent) ListArchivedTasks(context.Context, int) (core.AgentSessionPage, error) {
+	return core.AgentSessionPage{Sessions: []core.AgentSessionInfo{{ID: "archived-1", Archived: true}}}, nil
+}
+func (a *productFeatureAgent) ListAutomations(context.Context) ([]core.AgentAutomation, error) {
+	return []core.AgentAutomation{a.automation}, nil
+}
+func (a *productFeatureAgent) CreateAutomation(_ context.Context, mutation core.AgentAutomationMutation) (core.AgentAutomation, error) {
+	a.automation = core.AgentAutomation{ID: "automation-1", Name: mutation.Name, Status: mutation.Status}
+	return a.automation, nil
+}
+func (a *productFeatureAgent) UpdateAutomation(_ context.Context, mutation core.AgentAutomationMutation) (core.AgentAutomation, error) {
+	a.automation.Name, a.automation.Status = mutation.Name, mutation.Status
+	return a.automation, nil
+}
+func (a *productFeatureAgent) DeleteAutomation(context.Context, string) error {
+	a.automation = core.AgentAutomation{}
+	return nil
+}
+func (a *productFeatureAgent) ListPlugins(context.Context, bool) ([]core.AgentPlugin, error) {
+	return []core.AgentPlugin{a.plugin}, nil
+}
+func (a *productFeatureAgent) InstallPlugin(_ context.Context, id string) (core.AgentPlugin, error) {
+	a.plugin = core.AgentPlugin{ID: id, Name: "Demo", Marketplace: "Official", Installed: true}
+	return a.plugin, nil
+}
+func (a *productFeatureAgent) RemovePlugin(context.Context, string) error {
+	a.plugin.Installed = false
+	return nil
 }
 
 func (a *hostTargetAgent) StartSession(context.Context, string) (core.AgentSession, error) {
@@ -96,5 +142,33 @@ func TestHandlerSendSetsNativeTaskHostBeforeSending(t *testing.T) {
 	}
 	if session.hostAtSend != "local" {
 		t.Fatalf("host at Send = %q, want local", session.hostAtSend)
+	}
+}
+
+func TestHandlerRoutesCodexProductFeaturesThroughTypedInterfaces(t *testing.T) {
+	agent := &productFeatureAgent{plugin: core.AgentPlugin{ID: "demo@official", Name: "Demo", Marketplace: "Official"}}
+	handler, err := NewHandler(Dependencies{Agent: agent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		method  runtimeprotocol.Method
+		payload any
+		want    string
+	}{
+		{runtimeprotocol.MethodTaskSearch, runtimeprotocol.TaskSearchRequest{Query: "needle", Limit: 10}, `"summary":"needle"`},
+		{runtimeprotocol.MethodTaskArchived, runtimeprotocol.TaskListRequest{Limit: 10}, `"archived":true`},
+		{runtimeprotocol.MethodAutomationCreate, core.AgentAutomationMutation{Name: "Daily", Kind: "cron", Status: "ACTIVE"}, `"id":"automation-1"`},
+		{runtimeprotocol.MethodPluginInstall, runtimeprotocol.PluginMutationRequest{ID: "demo@official"}, `"installed":true`},
+	}
+	for _, test := range tests {
+		raw, marshalErr := json.Marshal(test.payload)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		result, handleErr := handler.Handle(context.Background(), test.method, runtimeprotocol.Resource{}, raw)
+		if handleErr != nil || !strings.Contains(string(result), test.want) {
+			t.Fatalf("Handle(%s) = %s, %v", test.method, result, handleErr)
+		}
 	}
 }

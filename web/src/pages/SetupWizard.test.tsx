@@ -37,11 +37,11 @@ describe('SetupWizard', () => {
 
   it('生成指向 control 内置安装器且锁定当前 Release 的配对命令', async () => {
     const view = render(<MemoryRouter><SetupWizard /></MemoryRouter>);
-    fireEvent.click(await view.findByRole('button', { name: 'Create pairing code' }));
+    fireEvent.click(await view.findByRole('button', { name: '生成配对码' }));
     await waitFor(() => expect(mocks.pairing).toHaveBeenCalled());
     const command = await view.findByText(/runtime\/v1\/install\.sh/);
     expect(command.textContent).toContain("--tag 'v0.1.0'");
-    expect(view.getByText('Validate Codex and project catalog')).toBeTruthy();
-    expect(view.getAllByText('Generate configuration and start').length).toBeGreaterThan(0);
+    expect(view.getByText('校验 Codex 与项目目录')).toBeTruthy();
+    expect(view.getAllByText('生成配置并启动').length).toBeGreaterThan(0);
   });
 });

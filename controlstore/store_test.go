@@ -210,6 +210,46 @@ func TestStoreRejectsSchemaMismatchWithoutReadingOldAdministrator(t *testing.T) 
 	}
 }
 
+func TestStoreMigratesSchemaFiveAndPersistsNotificationCursor(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "control.db")
+	store, err := Open(path, "setup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, "DROP TABLE notification_reads"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, "PRAGMA user_version = 5"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(path, "setup")
+	if err != nil {
+		t.Fatalf("Open(schema 5) error = %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	if err := store.RecordAudit(ctx, "runtime:device", "task_completed", "task:one", "succeeded", []byte(`{"task_id":"one"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordAudit(ctx, "admin", "settings_updated", "config", "succeeded", nil); err != nil {
+		t.Fatal(err)
+	}
+	page, err := store.Notifications(ctx, 0, 30)
+	if err != nil || len(page.Events) != 1 || page.Unread != 1 {
+		t.Fatalf("Notifications() = %#v, %v", page, err)
+	}
+	if err := store.MarkNotificationsRead(ctx, page.Events[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err = store.Notifications(ctx, 0, 30)
+	if err != nil || page.Unread != 0 || page.ReadCursor != page.Events[0].ID {
+		t.Fatalf("read notification page = %#v, %v", page, err)
+	}
+}
+
 func TestStoreRejectsCorruptDatabaseWithoutDeletingIt(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "control.db")
 	if err := os.WriteFile(path, []byte("not sqlite"), 0o600); err != nil {
@@ -327,5 +367,23 @@ func TestStoreListsPersistentAuditEventsByDeviceCursor(t *testing.T) {
 	next, err := store.AuditEvents(ctx, "device:device-1", events[1].ID, 10)
 	if err != nil || len(next) != 1 || next[0].Action != "runtime_disconnected" {
 		t.Fatalf("cursor AuditEvents() = %#v, err=%v", next, err)
+	}
+}
+
+func TestStoreDashboardCollectionsAreEmptyArrays(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(filepath.Join(t.TempDir(), "control.db"), "setup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+
+	runs, err := store.ListDeployRuns(ctx, 10)
+	if err != nil || runs == nil || len(runs) != 0 {
+		t.Fatalf("ListDeployRuns() = %#v, %v; want non-nil empty collection", runs, err)
+	}
+	updates, err := store.RuntimeUpdates(ctx)
+	if err != nil || updates == nil || len(updates) != 0 {
+		t.Fatalf("RuntimeUpdates() = %#v, %v; want non-nil empty collection", updates, err)
 	}
 }

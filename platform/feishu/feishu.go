@@ -101,9 +101,6 @@ func init() {
 	core.RegisterPlatform("feishu", func(opts map[string]any) (core.Platform, error) {
 		return newPlatform("feishu", lark.FeishuBaseUrl, opts)
 	})
-	core.RegisterPlatform("lark", func(opts map[string]any) (core.Platform, error) {
-		return newPlatform("lark", lark.LarkBaseUrl, opts)
-	})
 }
 
 type replyContext struct {

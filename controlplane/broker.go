@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/shusfun/cc-connect/controlstore"
 	"github.com/shusfun/cc-connect/runtimeprotocol"
-	"github.com/gorilla/websocket"
 )
 
 type Broker struct {
@@ -97,6 +97,9 @@ type CatalogWorkspace struct {
 	DeviceName  string    `json:"device_name"`
 	ProjectID   string    `json:"project_id"`
 	ProjectName string    `json:"project_name"`
+	HostID      string    `json:"host_id,omitempty"`
+	Kind        string    `json:"kind,omitempty"`
+	Git         bool      `json:"is_git_repository"`
 	RootIndex   int       `json:"root_index"`
 	RootName    string    `json:"root_name"`
 	Available   bool      `json:"available"`
@@ -522,6 +525,7 @@ func (b *Broker) Catalog(ctx context.Context) ([]CatalogWorkspace, error) {
 		result = append(result, CatalogWorkspace{
 			Ref: entry.GlobalRef, DeviceID: entry.DeviceID, DeviceName: device.Name,
 			ProjectID: project.ProjectID, ProjectName: project.ProjectName,
+			HostID: project.HostID, Kind: project.Kind, Git: project.Git,
 			RootName: project.ProjectName, Available: project.Available && device.Online,
 			Reason: offlineReason(project, device.Online), Order: project.Order, Online: device.Online, UpdatedAt: entry.UpdatedAt,
 		})

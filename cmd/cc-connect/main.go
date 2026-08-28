@@ -195,44 +195,21 @@ func resolveMaxAttachmentSize(cfg *config.Config) int64 {
 	return core.DefaultMaxAttachmentSize
 }
 
-type initialModelRefreshStarter interface {
-	StartInitialModelRefresh()
-}
-
-type providerWiringResult struct {
-	explicitProviderRequested bool
-	activeProviderApplied     bool
-	canStartInitialRefresh    bool
-}
-
 var topLevelCommandHandlers = map[string]func([]string){
 	"config-example": func(_ []string) {
 		fmt.Print(ccconnect.ConfigExampleTOML)
 	},
-	"config":    runConfig,
-	"provider":  runProviderCommand,
-	"send":      runSend,
-	"cron":      runCron,
-	"timer":     runTimer,
-	"at":        runTimer,
-	"relay":     runRelay,
-	"sessions":  runSessions,
-	"agent-sid": runAgentSID,
-	"feishu":    runFeishu,
-	"tuitui":    runTuiTui,
-	"weixin":    runWeixin,
-	"yuanbao":   runYuanbao,
-	"doctor":    runDoctor,
+}
+
+var codexRequiredDisabledCommands = []string{
+	"provider",
+	"cron",
+	"timer",
+	"heartbeat",
+	"bind",
 }
 
 func main() {
-	// Agy hooks require stdout to contain only the final JSON decision. Handle
-	// this internal command before update checks, logging, or normal CLI setup.
-	if len(os.Args) > 1 && os.Args[1] == "_agy-permission-hook" {
-		runAntigravityPermissionHook()
-		return
-	}
-
 	// When started as a daemon (CC_LOG_FILE set), redirect logs to a rotating file.
 	// Log file setup happens before flag.Parse() so the rotating writer is in
 	// place before any slog output. To still honour --log-max-size, we
@@ -327,6 +304,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error loading config (%s): %v\n", configPath, err)
 		os.Exit(1)
 	}
+	if err := validateCodexProductConfig(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config (%s): %v\n", configPath, err)
+		os.Exit(1)
+	}
 
 	config.ConfigPath = configPath
 	slog.Info("config loaded", "path", configPath)
@@ -344,17 +325,7 @@ func main() {
 
 	setupLogger(cfg.Log.Level, logWriter)
 
-	// run_as_user preflight + isolation audit. MUST run before any engine
-	// or agent is constructed. If any project fails, abort startup
-	// entirely — never half-spawn. See core/runas_check.go and
-	// core/runas_audit.go for the checks themselves.
-	if err := runRunAsUserStartupChecks(context.Background(), cfg); err != nil {
-		slog.Error("run_as_user: startup checks failed, refusing to start", "error", err)
-		os.Exit(1)
-	}
-
 	engines := make([]*core.Engine, 0, len(cfg.Projects))
-	effectiveWorkDirs := make([]string, 0, len(cfg.Projects))
 
 	for _, proj := range cfg.Projects {
 		// Inject project-level run_as_user / run_as_env into the agent's
@@ -381,8 +352,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		providerWiring := wireAgentProviders(agent, proj.Agent)
-
 		var platforms []core.Platform
 		for _, pc := range proj.Platforms {
 			opts := make(map[string]any, len(pc.Options)+2)
@@ -408,7 +377,6 @@ func main() {
 		workDir, _ := proj.Agent.Options["work_dir"].(string)
 		projectState := core.NewProjectStateStore(projectStatePath(cfg.DataDir, proj.Name))
 		effectiveWorkDir := applyProjectStateOverride(proj.Name, agent, workDir, projectState)
-		startInitialRefreshIfReady(agent, providerWiring)
 		sessionFile := sessionStorePath(cfg.DataDir, proj.Name, effectiveWorkDir)
 
 		// Parse language setting
@@ -429,6 +397,7 @@ func main() {
 		}
 
 		engine := core.NewEngine(proj.Name, agent, platforms, sessionFile, lang)
+		engine.SetRequiredDisabledCommands(codexRequiredDisabledCommands)
 		// Wire display settings including show_context_indicator and reply_footer
 		// Global [display] config can be overridden by project-level settings
 		_, _, _, _, _, showCtx, showFooter, _ := config.EffectiveDisplay(cfg, &proj)
@@ -479,42 +448,6 @@ func main() {
 				engine.SetSkipGit(*proj.SkipGit)
 			}
 			slog.Info("multi-workspace mode enabled", "project", proj.Name, "base_dir", baseDir)
-		}
-
-		// Wire terminal observation (--observe / [projects.observe])
-		observeEnabled := rootOpts.observe
-		obsChan := rootOpts.observeChannel
-		if proj.Observe != nil {
-			if !observeEnabled && proj.Observe.Enabled {
-				observeEnabled = true
-			}
-			if obsChan == "" && proj.Observe.Channel != "" {
-				obsChan = proj.Observe.Channel
-			}
-		}
-		if observeEnabled {
-			if obsChan == "" {
-				slog.Error("observe: channel is required (use --observe-channel or set channel in [projects.observe])")
-				os.Exit(1)
-			}
-			hasSlack := false
-			for _, p := range platforms {
-				if p.Name() == "slack" {
-					hasSlack = true
-					break
-				}
-			}
-			if !hasSlack {
-				slog.Warn("observe requires a Slack platform; ignoring")
-			} else {
-				projectDir := resolveClaudeProjectDir(workDir)
-				if projectDir == "" {
-					slog.Warn("observe: could not find Claude Code project directory", "workDir", workDir)
-				} else {
-					sessionKey := fmt.Sprintf("slack:%s", obsChan)
-					engine.SetObserveConfig(projectDir, sessionKey)
-				}
-			}
 		}
 
 		// Wire global custom commands
@@ -899,109 +832,14 @@ func main() {
 			})
 		}
 
-		// Set up save callbacks for provider management
-		projName := proj.Name
-		engine.SetProviderSaveFunc(func(providerName string) error {
-			return config.SaveActiveProvider(projName, providerName)
-		})
-		engine.SetProviderAddSaveFunc(func(p core.ProviderConfig) error {
-			cp := config.ProviderConfig{
-				Name: p.Name, APIKey: p.APIKey, BaseURL: p.BaseURL,
-				Model: p.Model, Models: convertCoreModels(p.Models), Thinking: p.Thinking, Env: p.Env,
-			}
-			if p.CodexWireAPI != "" || len(p.CodexHTTPHeaders) > 0 {
-				cp.Codex = &config.CodexProviderConfig{
-					WireAPI: p.CodexWireAPI, HTTPHeaders: p.CodexHTTPHeaders,
-				}
-			}
-			return config.AddProviderToConfig(projName, cp)
-		})
-		engine.SetProviderRemoveSaveFunc(func(name string) error {
-			return config.RemoveProviderFromConfig(projName, name)
-		})
-		engine.SetProviderModelSaveFunc(func(providerName, model string) error {
-			return config.SaveProviderModel(projName, providerName, model)
-		})
-		engine.SetProviderRefsSaveFunc(func(refs []string) error {
-			return config.SaveProviderRefs(projName, refs)
-		})
-		engine.SetListGlobalProvidersFunc(func(agentType string) ([]core.ProviderConfig, error) {
-			globals, err := config.ListGlobalProviders()
-			if err != nil {
-				return nil, err
-			}
-			var result []core.ProviderConfig
-			for _, g := range globals {
-				if len(g.AgentTypes) > 0 && !containsString(g.AgentTypes, agentType) {
-					continue
-				}
-				result = append(result, configProviderToCore(g.ResolveForAgent(agentType)))
-			}
-			return result, nil
-		})
-		engine.SetModelSaveFunc(func(model string) error {
-			return config.SaveAgentModel(projName, model)
-		})
-
 		// Wire config reload
 		capturedEngine := engine
-		capturedProjName := projName
+		capturedProjName := proj.Name
 		engine.SetConfigReloadFunc(func() (*core.ConfigReloadResult, error) {
 			return reloadConfig(configPath, capturedProjName, capturedEngine)
 		})
 
 		engines = append(engines, engine)
-		effectiveWorkDirs = append(effectiveWorkDirs, effectiveWorkDir)
-	}
-
-	// Start cron scheduler
-	cronStore, err := core.NewCronStore(cfg.DataDir)
-	if err != nil {
-		slog.Warn("cron store unavailable", "error", err)
-	}
-	var cronSched *core.CronScheduler
-	if cronStore != nil {
-		cronSched = core.NewCronScheduler(cronStore)
-		if cfg.Cron.Silent != nil && *cfg.Cron.Silent {
-			cronSched.SetDefaultSilent(true)
-		}
-		if cfg.Cron.SessionMode != "" {
-			cronSched.SetDefaultSessionMode(cfg.Cron.SessionMode)
-		}
-		for i, e := range engines {
-			cronSched.RegisterEngine(cfg.Projects[i].Name, e)
-			e.SetCronScheduler(cronSched)
-		}
-	}
-
-	// Start timer scheduler
-	timerStore, err := core.NewTimerStore(cfg.DataDir)
-	if err != nil {
-		slog.Warn("timer store unavailable", "error", err)
-	}
-	var timerSched *core.TimerScheduler
-	if timerStore != nil {
-		timerSched = core.NewTimerScheduler(timerStore)
-		if cfg.Cron.Silent != nil && *cfg.Cron.Silent {
-			timerSched.SetDefaultSilent(true)
-		}
-		if cfg.Cron.SessionMode != "" {
-			timerSched.SetDefaultSessionMode(cfg.Cron.SessionMode)
-		}
-		for i, e := range engines {
-			timerSched.RegisterEngine(cfg.Projects[i].Name, e)
-			e.SetTimerScheduler(timerSched)
-		}
-	}
-
-	// Start heartbeat scheduler
-	heartbeatSched := core.NewHeartbeatScheduler(cfg.DataDir)
-	for i, proj := range cfg.Projects {
-		hbCfg := buildHeartbeatConfig(proj.Heartbeat)
-		if hbCfg.Enabled {
-			heartbeatSched.Register(proj.Name, hbCfg, engines[i], effectiveWorkDirs[i])
-		}
-		engines[i].SetHeartbeatScheduler(heartbeatSched)
 	}
 
 	var startErrors []error
@@ -1017,68 +855,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cronSched != nil {
-		if err := cronSched.Start(); err != nil {
-			slog.Error("cron scheduler start failed", "error", err)
-		}
-	}
-
-	if timerSched != nil {
-		if err := timerSched.Start(); err != nil {
-			slog.Error("timer scheduler start failed", "error", err)
-		}
-	}
-
-	heartbeatSched.Start()
-
-	// Start bridge server if enabled
-	var bridgeSrv *core.BridgeServer
-	if cfg.Bridge.Enabled != nil && *cfg.Bridge.Enabled {
-		port := cfg.Bridge.Port
-		if port <= 0 {
-			port = 9810
-		}
-		path := cfg.Bridge.Path
-		if path == "" {
-			path = "/bridge/ws"
-		}
-		// Check insecure flag for local development mode
-		insecure := cfg.Bridge.Insecure != nil && *cfg.Bridge.Insecure
-		if insecure {
-			bridgeSrv = core.NewBridgeServerInsecure(port, cfg.Bridge.Token, path, cfg.Bridge.CORSOrigins)
-		} else {
-			bridgeSrv = core.NewBridgeServer(port, cfg.Bridge.Token, path, cfg.Bridge.CORSOrigins)
-		}
-		if bridgeSrv == nil {
-			slog.Error("bridge: failed to create server - token is required (or set insecure=true for local dev)")
-			os.Exit(1)
-		}
-		for i, e := range engines {
-			bp := bridgeSrv.NewPlatform(cfg.Projects[i].Name)
-			bridgeSrv.RegisterEngine(cfg.Projects[i].Name, e, bp)
-			e.AddPlatform(bp)
-		}
-		bridgeSrv.Start()
-	}
-
-	// Start webhook server if enabled
-	var webhookSrv *core.WebhookServer
-	if cfg.Webhook.Enabled != nil && *cfg.Webhook.Enabled {
-		port := cfg.Webhook.Port
-		if port <= 0 {
-			port = 9111
-		}
-		path := cfg.Webhook.Path
-		if path == "" {
-			path = "/hook"
-		}
-		webhookSrv = core.NewWebhookServer(port, cfg.Webhook.Token, path)
-		for i, e := range engines {
-			webhookSrv.RegisterEngine(cfg.Projects[i].Name, e)
-		}
-		webhookSrv.Start()
-	}
-
 	// 业务 HTTP 只在 control 指定的私有 Unix Socket 上提供。
 	var mgmtSrv *core.ManagementServer
 	var mgmtListener net.Listener
@@ -1091,211 +867,16 @@ func main() {
 		for i, e := range engines {
 			mgmtSrv.RegisterEngine(cfg.Projects[i].Name, e)
 		}
-		if cronSched != nil {
-			mgmtSrv.SetCronScheduler(cronSched)
-		}
-		if timerSched != nil {
-			mgmtSrv.SetTimerScheduler(timerSched)
-		}
-		mgmtSrv.SetHeartbeatScheduler(heartbeatSched)
-		if bridgeSrv != nil {
-			mgmtSrv.SetBridgeServer(bridgeSrv)
-		}
-		mgmtSrv.SetSetupFeishuSave(func(req core.FeishuSetupSaveRequest) error {
-			platType := req.PlatformType
-			if platType == "" {
-				platType = "feishu"
-			}
-			_, err := config.EnsureProjectWithFeishuPlatform(config.EnsureProjectWithFeishuOptions{
-				ProjectName:  req.ProjectName,
-				PlatformType: platType,
-				WorkDir:      req.WorkDir,
-				AgentType:    req.AgentType,
-			})
-			if err != nil {
-				return fmt.Errorf("ensure project: %w", err)
-			}
-			_, err = config.SaveFeishuPlatformCredentials(config.FeishuCredentialUpdateOptions{
-				ProjectName:       req.ProjectName,
-				PlatformType:      platType,
-				AppID:             req.AppID,
-				AppSecret:         req.AppSecret,
-				OwnerOpenID:       req.OwnerOpenID,
-				SetAllowFromEmpty: true,
-			})
-			return err
-		})
-		mgmtSrv.SetSetupWeixinSave(func(req core.WeixinSetupSaveRequest) error {
-			_, err := config.EnsureProjectWithWeixinPlatform(config.EnsureProjectWithWeixinOptions{
-				ProjectName: req.ProjectName,
-				WorkDir:     req.WorkDir,
-				AgentType:   req.AgentType,
-			})
-			if err != nil {
-				return fmt.Errorf("ensure project: %w", err)
-			}
-			_, err = config.SaveWeixinPlatformCredentials(config.WeixinCredentialUpdateOptions{
-				ProjectName:       req.ProjectName,
-				Token:             req.Token,
-				BaseURL:           req.BaseURL,
-				AccountID:         req.IlinkBotID,
-				ScannedUserID:     req.IlinkUserID,
-				SetAllowFromEmpty: true,
-			})
-			return err
-		})
-		mgmtSrv.SetAddPlatformToProject(func(projectName, platType string, opts map[string]any, workDir, agentType string) error {
-			if opts == nil {
-				opts = map[string]any{}
-			}
-			return config.AddPlatformToProject(projectName, config.PlatformConfig{Type: platType, Options: opts}, workDir, agentType)
-		})
-		mgmtSrv.SetRemoveProject(config.RemoveProject)
-		mgmtSrv.SetSaveProjectSettings(func(name string, u core.ProjectSettingsUpdate) error {
-			return config.SaveProjectSettings(name, config.ProjectSettingsUpdate{
-				Language:             u.Language,
-				AdminFrom:            u.AdminFrom,
-				DisabledCommands:     u.DisabledCommands,
-				WorkDir:              u.WorkDir,
-				Mode:                 u.Mode,
-				AgentType:            u.AgentType,
-				ShowContextIndicator: u.ShowContextIndicator,
-				ShowWorkdirIndicator: u.ShowWorkdirIndicator,
-				ReplyFooter:          u.ReplyFooter,
-				InjectSender:         u.InjectSender,
-				PlatformAllowFrom:    u.PlatformAllowFrom,
-			})
-		})
-		mgmtSrv.SetGetProjectConfig(config.GetProjectConfigDetails)
-		mgmtSrv.SetSaveProviderRefs(config.SaveProviderRefs)
-		mgmtSrv.SetConfigFilePath(configPath)
-		mgmtSrv.SetGetGlobalSettings(config.GetGlobalSettings)
-		mgmtSrv.SetSaveGlobalSettings(func(updates map[string]any) error {
-			u := config.GlobalSettingsUpdate{}
-			if v, ok := updates["language"].(string); ok {
-				u.Language = &v
-			}
-			if v, ok := updates["attachment_send"].(string); ok {
-				u.AttachmentSend = &v
-			}
-			if v, ok := updates["log_level"].(string); ok {
-				u.LogLevel = &v
-			}
-			if v, ok := updates["idle_timeout_mins"].(float64); ok {
-				iv := int(v)
-				u.IdleTimeoutMins = &iv
-			}
-			if v, ok := updates["thinking_messages"].(bool); ok {
-				u.ThinkingMessages = &v
-			}
-			if v, ok := updates["thinking_max_len"].(float64); ok {
-				iv := int(v)
-				u.ThinkingMaxLen = &iv
-			}
-			if v, ok := updates["tool_messages"].(bool); ok {
-				u.ToolMessages = &v
-			}
-			if v, ok := updates["tool_max_len"].(float64); ok {
-				iv := int(v)
-				u.ToolMaxLen = &iv
-			}
-			if v, ok := updates["stream_preview_enabled"].(bool); ok {
-				u.StreamPreviewOn = &v
-			}
-			if v, ok := updates["stream_preview_interval_ms"].(float64); ok {
-				iv := int(v)
-				u.StreamPreviewIntMs = &iv
-			}
-			if v, ok := updates["rate_limit_max_messages"].(float64); ok {
-				iv := int(v)
-				u.RateLimitMax = &iv
-			}
-			if v, ok := updates["rate_limit_window_secs"].(float64); ok {
-				iv := int(v)
-				u.RateLimitWindow = &iv
-			}
-			return config.SaveGlobalSettings(u)
-		})
-		mgmtSrv.SetListGlobalProviders(func() ([]core.GlobalProviderInfo, error) {
-			providers, err := config.ListGlobalProviders()
-			if err != nil {
-				return nil, err
-			}
-			out := make([]core.GlobalProviderInfo, len(providers))
-			for i, p := range providers {
-				out[i] = configProviderToGlobal(p)
-			}
-			return out, nil
-		})
-		mgmtSrv.SetAddGlobalProvider(func(info core.GlobalProviderInfo) error {
-			return config.AddGlobalProvider(globalProviderToConfig(info))
-		})
-		mgmtSrv.SetUpdateGlobalProvider(func(name string, info core.GlobalProviderInfo) error {
-			return config.UpdateGlobalProvider(name, globalProviderToConfig(info))
-		})
-		mgmtSrv.SetRemoveGlobalProvider(func(name string) error {
-			return config.RemoveGlobalProvider(name)
-		})
-		mgmtSrv.SetFetchPresets(core.FetchProviderPresets)
-		mgmtSrv.SetFetchSkillPresets(core.FetchSkillPresets)
-		if cfg.ProviderPresetsURL != "" {
-			core.SetPresetsURL(cfg.ProviderPresetsURL)
-		}
-		mgmtSrv.SetListCCSwitchProviders(listCCSwitchProvidersForWeb)
 		mgmtListener, err = listenPrivateUnixSocket(serverSocket)
 		if err != nil {
 			slog.Error("private business socket unavailable", "error", err)
 			os.Exit(1)
 		}
 		go func() {
-			if err := mgmtSrv.Serve(mgmtListener); err != nil {
-				slog.Error("private business server stopped", "error", err)
+			if err := mgmtSrv.ServeControl(mgmtListener); err != nil {
+				slog.Error("private control server stopped", "error", err)
 			}
 		}()
-	}
-
-	// Start internal API server for CLI send
-	apiSrv, err := core.NewAPIServer(cfg.DataDir)
-	if err != nil {
-		slog.Warn("api server unavailable", "error", err)
-	} else {
-		globalAPIServer = apiSrv
-		apiSrv.SetMaxAttachmentSize(resolveMaxAttachmentSize(cfg))
-
-		relayMgr := core.NewRelayManager(cfg.DataDir)
-		if cfg.Relay.TimeoutSecs != nil {
-			secs := *cfg.Relay.TimeoutSecs
-			if secs <= 0 {
-				relayMgr.SetTimeout(0)
-			} else {
-				relayMgr.SetTimeout(time.Duration(secs) * time.Second)
-			}
-		}
-		relayMgr.SetVisibility(cfg.Relay.Visibility)
-		apiSrv.SetRelayManager(relayMgr)
-
-		// Create shared DirHistory for all engines
-		dirHistory := core.NewDirHistory(cfg.DataDir)
-
-		for i, e := range engines {
-			apiSrv.RegisterEngine(cfg.Projects[i].Name, e)
-			e.SetRelayManager(relayMgr)
-			e.SetDirHistory(dirHistory)
-
-			// Ensure initial work_dir is in history
-			if initWorkDir := effectiveWorkDirs[i]; initWorkDir != "" {
-				if !dirHistory.Contains(cfg.Projects[i].Name, initWorkDir) {
-					dirHistory.Add(cfg.Projects[i].Name, initWorkDir)
-				}
-			}
-		}
-		if cronSched != nil {
-			apiSrv.SetCronScheduler(cronSched)
-		}
-		if timerSched != nil {
-			apiSrv.SetTimerScheduler(timerSched)
-		}
-		apiSrv.Start()
 	}
 
 	slog.Info("cc-connect is running", "projects", len(engines))
@@ -1330,22 +911,6 @@ func main() {
 	if mgmtListener != nil {
 		_ = mgmtListener.Close()
 		_ = os.Remove(serverSocket)
-	}
-	if bridgeSrv != nil {
-		bridgeSrv.Stop()
-	}
-	if webhookSrv != nil {
-		webhookSrv.Stop()
-	}
-	heartbeatSched.Stop()
-	if timerSched != nil {
-		timerSched.Stop()
-	}
-	if cronSched != nil {
-		cronSched.Stop()
-	}
-	if apiSrv != nil {
-		apiSrv.Stop()
 	}
 	for _, e := range engines {
 		if err := e.Stop(); err != nil {
@@ -1393,16 +958,14 @@ func runTopLevelCommand(args []string) bool {
 }
 
 type rootCLIOptions struct {
-	configPath     string
-	force          bool
-	observe        bool
-	observeChannel string
-	logMaxSize     string
-	logMaxBackups  int
-	showVersion    bool
-	runtimeSocket  string
-	serverSocket   string
-	args           []string
+	configPath    string
+	force         bool
+	logMaxSize    string
+	logMaxBackups int
+	showVersion   bool
+	runtimeSocket string
+	serverSocket  string
+	args          []string
 }
 
 func parseRootCLIOptions(args []string) (rootCLIOptions, error) {
@@ -1412,8 +975,6 @@ func parseRootCLIOptions(args []string) (rootCLIOptions, error) {
 
 	configPath := fs.String("config", "", "path to config file (default: ./config.toml or ~/.cc-connect/config.toml)")
 	force := fs.Bool("force", false, "kill any existing instance with the same config before starting")
-	observe := fs.Bool("observe", false, "observe native terminal Claude Code sessions and forward to Slack")
-	observeChannel := fs.String("observe-channel", "", "Slack channel ID to forward terminal observations to (requires --observe)")
 	logMaxSize := fs.String("log-max-size", "", "max bytes for the rotating log file (e.g. 10MB, 512K, 10485760); overrides CC_LOG_MAX_SIZE env var (default: 10MB)")
 	logMaxBackups := fs.Int("log-max-backups", 0, "number of rotated log files to retain (.log.1 .. .log.N); overrides CC_LOG_MAX_BACKUPS env var (default: 3)")
 	showVersion := fs.Bool("version", false, "print version and exit")
@@ -1425,16 +986,14 @@ func parseRootCLIOptions(args []string) (rootCLIOptions, error) {
 	}
 
 	return rootCLIOptions{
-		configPath:     *configPath,
-		force:          *force,
-		observe:        *observe,
-		observeChannel: *observeChannel,
-		logMaxSize:     *logMaxSize,
-		logMaxBackups:  *logMaxBackups,
-		showVersion:    *showVersion,
-		runtimeSocket:  *runtimeSocket,
-		serverSocket:   *serverSocket,
-		args:           fs.Args(),
+		configPath:    *configPath,
+		force:         *force,
+		logMaxSize:    *logMaxSize,
+		logMaxBackups: *logMaxBackups,
+		showVersion:   *showVersion,
+		runtimeSocket: *runtimeSocket,
+		serverSocket:  *serverSocket,
+		args:          fs.Args(),
 	}, nil
 }
 
@@ -1443,6 +1002,59 @@ func validateNoExtraTopLevelArgs(args []string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown top-level command: %s", args[0])
+}
+
+func validateCodexProductConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return errors.New("Codex 专用版配置不能为空")
+	}
+	if len(cfg.Projects) != 1 {
+		return fmt.Errorf("Codex 专用版只允许一个内部 Runtime 项目，当前为 %d 个；Codex 项目由 Desktop App 的 list_projects 提供", len(cfg.Projects))
+	}
+	if len(cfg.Providers) > 0 || strings.TrimSpace(cfg.ProviderPresetsURL) != "" {
+		return errors.New("Codex 专用版不支持 Provider 配置；模型与凭据由 Codex Desktop App 管理，请删除 [[providers]] 和 provider_presets_url")
+	}
+	if len(cfg.Commands) > 0 || len(cfg.Aliases) > 0 || len(cfg.Hooks) > 0 {
+		return errors.New("Codex 专用版不支持自定义 commands、aliases 或 hooks，请从配置中删除")
+	}
+	if cfg.Cron.Silent != nil || strings.TrimSpace(cfg.Cron.SessionMode) != "" {
+		return errors.New("Codex 专用版不支持 [cron]，请从配置中删除")
+	}
+	if cfg.Webhook.Enabled != nil || cfg.Webhook.Port != 0 || cfg.Webhook.Token != "" || cfg.Webhook.Path != "" {
+		return errors.New("Codex 专用版不支持 [webhook]，请从配置中删除")
+	}
+	if cfg.Bridge.Enabled != nil || cfg.Bridge.Port != 0 || cfg.Bridge.Token != "" || cfg.Bridge.Path != "" || len(cfg.Bridge.CORSOrigins) > 0 || cfg.Bridge.Insecure != nil {
+		return errors.New("Codex 专用版不支持 [bridge]，Web 仅作为内部管理传输，请从配置中删除")
+	}
+	if cfg.Speech.Enabled || cfg.TTS.Enabled {
+		return errors.New("Codex 专用版不支持 speech 或 tts 配置，请从配置中删除")
+	}
+	if cfg.Relay.TimeoutSecs != nil || strings.TrimSpace(cfg.Relay.Visibility) != "" {
+		return errors.New("Codex 专用版不支持 [relay]，请从配置中删除")
+	}
+
+	project := cfg.Projects[0]
+	if !strings.EqualFold(strings.TrimSpace(project.Agent.Type), "codexapp") {
+		return fmt.Errorf("Codex 专用版只支持 agent.type = %q，当前为 %q；不提供 CLI 或 App Server fallback", "codexapp", project.Agent.Type)
+	}
+	if len(project.Agent.Providers) > 0 || len(project.Agent.ProviderRefs) > 0 {
+		return errors.New("Codex 专用版不支持项目 Provider 配置，请删除 projects.agent.providers 和 provider_refs")
+	}
+	for index, platform := range project.Platforms {
+		if strings.TrimSpace(platform.Type) != "feishu" {
+			return fmt.Errorf("Codex 专用版只支持飞书平台 type = %q，projects[0].platforms[%d] 当前为 %q；Lark 与其他平台不兼容", "feishu", index, platform.Type)
+		}
+	}
+	if project.Heartbeat.Enabled != nil || project.Heartbeat.IntervalMins != nil || project.Heartbeat.OnlyWhenIdle != nil || project.Heartbeat.SessionKey != "" || project.Heartbeat.Prompt != "" || project.Heartbeat.Silent != nil || project.Heartbeat.TimeoutMins != nil {
+		return errors.New("Codex 专用版不支持 projects.heartbeat，请从配置中删除")
+	}
+	if project.Observe != nil {
+		return errors.New("Codex 专用版不支持 projects.observe，请从配置中删除")
+	}
+	if project.RunAsUser != "" || len(project.RunAsEnv) > 0 {
+		return errors.New("Codex 专用版不启动本地 Agent 子进程，不支持 run_as_user 或 run_as_env，请从配置中删除")
+	}
+	return nil
 }
 
 func configuredLanguage(value string) core.Language {
@@ -1610,7 +1222,7 @@ func bootstrapConfig(path string) error {
 		return err
 	}
 
-	const tmpl = `# cc-connect configuration
+	const tmpl = `# CC-Connect Codex Desktop App configuration
 # Docs: https://github.com/shusfun/cc-connect
 
 [log]
@@ -1620,25 +1232,17 @@ level = "info"
 name = "my-project"
 
 [projects.agent]
-type = "claudecode"   # "claudecode", "codex", "cursor", "gemini", "qoder", "opencode", or "iflow"
+type = "codexapp"
 
 [projects.agent.options]
 work_dir = "/path/to/your/project"
-mode = "default"
-# model = "claude-sonnet-4-20250514"
-
-# --- Choose at least one platform below ---
-
-# Feishu / Lark (WebSocket, no public IP needed)
+# Feishu (WebSocket, no public IP needed)
 [[projects.platforms]]
 type = "feishu"
 
 [projects.platforms.options]
 app_id = "your-feishu-app-id"
 app_secret = "your-feishu-app-secret"
-
-# For more platforms (DingTalk, Telegram, Slack, Discord, LINE, WeChat Work)
-# see: https://github.com/shusfun/cc-connect/blob/main/config.example.toml
 `
 	return os.WriteFile(path, []byte(tmpl), 0o644)
 }
@@ -1656,9 +1260,8 @@ func printUsage() {
 | (_| (_|_____|  (_| (_) | | | | | | |  __/ (__| |_
  \___\__|      \___\___/|_| |_|_| |_|\___|\___|\__|  %s
 
-  Bridge your messaging platforms to local AI coding agents.
-  Supports: Claude Code, Codex, Cursor, Gemini CLI, Qoder CLI, OpenCode
-  Platforms: Feishu, TuiTui, Telegram, Slack, DingTalk, Discord, LINE, WeChat Work, Weixin, QQ, QQ Bot
+  Codex Desktop App remote companion for Web and Feishu.
+  Codex Desktop App remains the only owner of projects, tasks, turns and writes.
 
   GitHub:  https://github.com/shusfun/cc-connect
   Docs:    https://github.com/shusfun/cc-connect/blob/main/INSTALL.md
@@ -1674,63 +1277,12 @@ Flags:
   --help             Show this help message
 
 Commands:
-  send               Send a message to an active session via internal API
-                     (-m <text> | --stdin, -p <project>, -s <session>)
-
-  cron               Manage scheduled tasks
-    add              Create a scheduled task (-c <expr> --prompt <text>)
-    list             List scheduled tasks
-    exec             Trigger a scheduled task immediately
-    del              Delete a scheduled task by ID
-
-  sessions           Browse session history
-    list             List all sessions (pipe-friendly)
-    show <id>        Show session messages (-n N for last N)
-
-  agent-sid          Print the agent session ID for the current session
-
-  relay              Cross-project message relay
-    send             Send a message to another project and get the response
-
-  provider           Manage API providers for projects
-    add              Add a provider (--project, --name, --api-key, ...)
-    list             List providers (--project)
-    remove           Remove a provider (--project, --name)
-    import           Import providers from cc-switch
-
-  feishu             Setup Feishu/Lark bot credentials
-    setup            Smart setup (QR create or bind when --app is provided)
-    new              Force QR onboarding to create a new bot
-    bind             Bind existing app_id/app_secret
-
-  tuitui             Access TuiTui history, posts, and attachments
-    messages         Read chat history
-    search           Search chat history
-    post             Post a channel message
-    download         Download a message attachment
-
-  weixin             Setup Weixin personal (ilink) via QR or token
-    setup            QR login, or bind when --token is provided
-    new              Force QR login
-    bind             Bind existing ilink bot token
-
-  config             Manage configuration
-    example          Print a complete annotated config.toml example
-    format           Format the config file (alias: fmt)
-    path             Print the resolved config file path
-
-  config-example     (deprecated: use 'config example' instead)
+  config-example     Print the embedded configuration reference
 
 Examples:
   cc-connect                          Start with default config
   cc-connect --config /path/to.toml   Start with a specific config file
-  cc-connect send -m "hello"          Send a message to the active session
-  cc-connect cron list                List all scheduled tasks
-  cc-connect feishu setup             Setup Feishu/Lark bot credentials
-  cc-connect weixin setup             Setup Weixin (ilink) with QR or --token
-  cc-connect yuanbao setup            Setup Yuanbao bot with --token app_key:app_secret
-  cc-connect config format            Format the config file
-  cc-connect config example > c.toml  Save example config to a file
+  cc-connect config-example           Print the configuration reference
 
 `, v)
 }
@@ -1787,6 +1339,9 @@ func setupLogger(level string, w io.Writer) {
 func reloadConfig(configPath, projName string, engine *core.Engine) (*core.ConfigReloadResult, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
+		return nil, fmt.Errorf("reload config: %w", err)
+	}
+	if err := validateCodexProductConfig(cfg); err != nil {
 		return nil, fmt.Errorf("reload config: %w", err)
 	}
 
@@ -1997,108 +1552,6 @@ func buildAgentOptions(dataDir string, proj config.ProjectConfig) map[string]any
 	opts["cc_data_dir"] = dataDir
 	opts["cc_project"] = proj.Name
 	return opts
-}
-
-func wireAgentProviders(agent core.Agent, agentCfg config.AgentConfig) providerWiringResult {
-	result := providerWiringResult{canStartInitialRefresh: true}
-	active, _ := agentCfg.Options["provider"].(string)
-	result.explicitProviderRequested = active != ""
-
-	ps, ok := agent.(core.ProviderSwitcher)
-	if !ok || len(agentCfg.Providers) == 0 {
-		return result
-	}
-
-	providers := make([]core.ProviderConfig, len(agentCfg.Providers))
-	for i, p := range agentCfg.Providers {
-		providers[i] = configProviderToCore(p)
-	}
-	ps.SetProviders(providers)
-	if result.explicitProviderRequested {
-		result.activeProviderApplied = ps.SetActiveProvider(active)
-		result.canStartInitialRefresh = result.activeProviderApplied
-	}
-	return result
-}
-
-func startInitialRefreshIfReady(agent core.Agent, result providerWiringResult) {
-	if !result.canStartInitialRefresh {
-		return
-	}
-	if starter, ok := agent.(initialModelRefreshStarter); ok {
-		starter.StartInitialModelRefresh()
-	}
-}
-
-func configProviderToGlobal(p config.ProviderConfig) core.GlobalProviderInfo {
-	info := core.GlobalProviderInfo{
-		Name:        p.Name,
-		APIKey:      p.APIKey,
-		BaseURL:     p.BaseURL,
-		Model:       p.Model,
-		Thinking:    p.Thinking,
-		Env:         p.Env,
-		AgentTypes:  p.AgentTypes,
-		Endpoints:   p.Endpoints,
-		AgentModels: p.AgentModels,
-	}
-	for _, m := range p.Models {
-		info.Models = append(info.Models, struct {
-			Model string `json:"model"`
-			Alias string `json:"alias,omitempty"`
-		}{Model: m.Model, Alias: m.Alias})
-	}
-	if len(p.AgentModelLists) > 0 {
-		info.AgentModelLists = make(map[string][]core.GlobalModelEntry, len(p.AgentModelLists))
-		for at, ml := range p.AgentModelLists {
-			entries := make([]core.GlobalModelEntry, len(ml))
-			for i, m := range ml {
-				entries[i] = core.GlobalModelEntry{Model: m.Model, Alias: m.Alias}
-			}
-			info.AgentModelLists[at] = entries
-		}
-	}
-	if p.Codex != nil {
-		info.Codex = &core.GlobalCodexConfig{
-			WireAPI:     p.Codex.WireAPI,
-			HTTPHeaders: p.Codex.HTTPHeaders,
-		}
-	}
-	return info
-}
-
-func globalProviderToConfig(info core.GlobalProviderInfo) config.ProviderConfig {
-	p := config.ProviderConfig{
-		Name:        info.Name,
-		APIKey:      info.APIKey,
-		BaseURL:     info.BaseURL,
-		Model:       info.Model,
-		Thinking:    info.Thinking,
-		Env:         info.Env,
-		AgentTypes:  info.AgentTypes,
-		Endpoints:   info.Endpoints,
-		AgentModels: info.AgentModels,
-	}
-	for _, m := range info.Models {
-		p.Models = append(p.Models, config.ProviderModelConfig{Model: m.Model, Alias: m.Alias})
-	}
-	if len(info.AgentModelLists) > 0 {
-		p.AgentModelLists = make(map[string][]config.ProviderModelConfig, len(info.AgentModelLists))
-		for at, ml := range info.AgentModelLists {
-			entries := make([]config.ProviderModelConfig, len(ml))
-			for i, m := range ml {
-				entries[i] = config.ProviderModelConfig{Model: m.Model, Alias: m.Alias}
-			}
-			p.AgentModelLists[at] = entries
-		}
-	}
-	if info.Codex != nil {
-		p.Codex = &config.CodexProviderConfig{
-			WireAPI:     info.Codex.WireAPI,
-			HTTPHeaders: info.Codex.HTTPHeaders,
-		}
-	}
-	return p
 }
 
 func convertCoreModels(ms []core.ModelOption) []config.ProviderModelConfig {

@@ -21,7 +21,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = 5
+const SchemaVersion = 6
 
 const (
 	defaultSessionTTL = 24 * time.Hour
@@ -98,6 +98,12 @@ type AuditEvent struct {
 	Details    json.RawMessage `json:"details"`
 }
 
+type NotificationPage struct {
+	Events     []AuditEvent `json:"events"`
+	ReadCursor int64        `json:"read_cursor"`
+	Unread     int          `json:"unread"`
+}
+
 type AdministratorProfile struct {
 	Username  string    `json:"username"`
 	CreatedAt time.Time `json:"created_at"`
@@ -139,6 +145,12 @@ func (s *Store) initialize(ctx context.Context, setupToken string) error {
 	var version int
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("control store: read schema version: %w", err)
+	}
+	if version == 5 {
+		if err := s.migrateV5ToV6(ctx); err != nil {
+			return err
+		}
+		version = SchemaVersion
 	}
 	if version != 0 && version != SchemaVersion {
 		return fmt.Errorf("control store: schema version %d does not match required version %d", version, SchemaVersion)
@@ -207,6 +219,7 @@ func (s *Store) createSchema(ctx context.Context) error {
 		`CREATE TABLE control_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at_ms INTEGER NOT NULL)`,
 		`CREATE TABLE release_slots (tag TEXT PRIMARY KEY, commit_sha TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, manifest_json BLOB NOT NULL, status TEXT NOT NULL, activated_at_ms INTEGER NOT NULL, created_at_ms INTEGER NOT NULL)`,
 		`CREATE TABLE runtime_updates (device_id TEXT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE, target_tag TEXT NOT NULL, status TEXT NOT NULL, updated_at_ms INTEGER NOT NULL)`,
+		`CREATE TABLE notification_reads (administrator_id INTEGER PRIMARY KEY CHECK(administrator_id = 1), last_read_event_id INTEGER NOT NULL DEFAULT 0)`,
 	}
 	for _, statement := range statements {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
@@ -220,6 +233,21 @@ func (s *Store) createSchema(ctx context.Context) error {
 		return fmt.Errorf("control store: commit schema creation: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) migrateV5ToV6(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("control store: begin schema 5 to 6 migration: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE notification_reads (administrator_id INTEGER PRIMARY KEY CHECK(administrator_id = 1), last_read_event_id INTEGER NOT NULL DEFAULT 0)`); err != nil {
+		return fmt.Errorf("control store: migrate notification reads: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)); err != nil {
+		return fmt.Errorf("control store: complete schema 5 to 6 migration: %w", err)
+	}
+	return tx.Commit()
 }
 
 func (s *Store) integrityCheck(ctx context.Context) error {
@@ -302,6 +330,63 @@ func (s *Store) AuditEvents(ctx context.Context, resource string, after int64, l
 		events = append(events, event)
 	}
 	return events, rows.Err()
+}
+
+func (s *Store) Notifications(ctx context.Context, after int64, limit int) (NotificationPage, error) {
+	if after < 0 || limit < 1 || limit > 100 {
+		return NotificationPage{}, errors.New("control store: invalid notification cursor or limit")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, occurred_at_ms, actor, action, resource, outcome, details_json
+		FROM audit_events WHERE id > ? AND action IN (
+			'runtime_connected','runtime_disconnected','device_paired','device_revoked',
+			'task_completed','task_failed','deploy_completed','deploy_failed','runtime_update_completed','runtime_update_failed'
+		) ORDER BY id DESC LIMIT ?`, after, limit)
+	if err != nil {
+		return NotificationPage{}, fmt.Errorf("control store: list notifications: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	page := NotificationPage{Events: make([]AuditEvent, 0, limit)}
+	for rows.Next() {
+		var event AuditEvent
+		var occurredAt int64
+		if err := rows.Scan(&event.ID, &occurredAt, &event.Actor, &event.Action, &event.Resource, &event.Outcome, &event.Details); err != nil {
+			return NotificationPage{}, fmt.Errorf("control store: scan notification: %w", err)
+		}
+		event.OccurredAt = time.UnixMilli(occurredAt)
+		page.Events = append(page.Events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return NotificationPage{}, err
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE((SELECT last_read_event_id FROM notification_reads WHERE administrator_id = 1), 0)`).Scan(&page.ReadCursor); err != nil {
+		return NotificationPage{}, fmt.Errorf("control store: read notification cursor: %w", err)
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM audit_events WHERE id > ? AND action IN (
+		'runtime_connected','runtime_disconnected','device_paired','device_revoked',
+		'task_completed','task_failed','deploy_completed','deploy_failed','runtime_update_completed','runtime_update_failed'
+	)`, page.ReadCursor).Scan(&page.Unread); err != nil {
+		return NotificationPage{}, fmt.Errorf("control store: count unread notifications: %w", err)
+	}
+	return page, nil
+}
+
+func (s *Store) MarkNotificationsRead(ctx context.Context, through int64) error {
+	if through < 0 {
+		return errors.New("control store: notification cursor must not be negative")
+	}
+	var maximum int64
+	if err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(id), 0) FROM audit_events").Scan(&maximum); err != nil {
+		return fmt.Errorf("control store: inspect notification maximum: %w", err)
+	}
+	if through > maximum {
+		return errors.New("control store: notification cursor exceeds current events")
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO notification_reads(administrator_id, last_read_event_id) VALUES(1, ?)
+		ON CONFLICT(administrator_id) DO UPDATE SET last_read_event_id = MAX(last_read_event_id, excluded.last_read_event_id)`, through)
+	if err != nil {
+		return fmt.Errorf("control store: mark notifications read: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) SetupRequired(ctx context.Context) (bool, error) {
@@ -793,7 +878,7 @@ func (s *Store) ListDeployRuns(ctx context.Context, limit int) ([]DeployRun, err
 		return nil, fmt.Errorf("control store: list deployment runs: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	var runs []DeployRun
+	runs := make([]DeployRun, 0)
 	for rows.Next() {
 		var run DeployRun
 		var started int64
@@ -940,7 +1025,7 @@ func (s *Store) RuntimeUpdates(ctx context.Context) ([]RuntimeUpdate, error) {
 		return nil, fmt.Errorf("control store: list runtime update states: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	var result []RuntimeUpdate
+	result := make([]RuntimeUpdate, 0)
 	for rows.Next() {
 		var update RuntimeUpdate
 		var updated int64

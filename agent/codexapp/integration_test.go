@@ -3,7 +3,6 @@ package codexapp
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
@@ -25,7 +24,7 @@ func TestDesktopAppReadOnlyIntegration(t *testing.T) {
 		if socketPath == "" {
 			t.Fatal("CODEX_APP_TOOLS_PIPE_PATH is required")
 		}
-		if err := BootstrapRuntime(socketPath, "", filepath.Join(t.TempDir(), "runtime.log"), os.Args[1:]); err != nil {
+		if err := BootstrapRuntime(socketPath, "", t.TempDir(), "test", os.Args[1:]); err != nil {
 			t.Fatal(err)
 		}
 		return

@@ -7,7 +7,7 @@ import {
 } from '@/api/control';
 import { useClipboard } from '@/hooks/useClipboard';
 
-export default function Operations() {
+export default function Operations({ view = 'all' }: { view?: 'all' | 'devices' | 'updates' }) {
   const { t } = useTranslation();
   const copy = useClipboard();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
@@ -92,15 +92,15 @@ export default function Operations() {
     <div className="mx-auto w-full max-w-6xl space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{t('control.operations')}</h1>
-          <p className="mt-1 text-sm text-gray-500">{t('control.operationsSubtitle')}</p>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{view === 'devices' ? '设备' : view === 'updates' ? '更新' : t('control.operations')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{view === 'devices' ? '配对并管理连接到 Control 的 Codex Runtime' : view === 'updates' ? '检查版本、更新 Control 并查看发布运行' : t('control.operationsSubtitle')}</p>
         </div>
         <button type="button" title={t('common.refresh')} onClick={refresh} className="rounded-md border border-gray-300 p-2 text-gray-600 dark:border-gray-700 dark:text-gray-300"><RefreshCw size={16} /></button>
       </div>
 
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
 
-      <section className="border-t border-gray-200 pt-5 dark:border-gray-800">
+      {(view === 'all' || view === 'devices') && <section className="border-t border-gray-200 pt-5 dark:border-gray-800">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white"><Laptop size={16} />{t('control.devices')}</h2>
           <button type="button" disabled={controlsBusy} onClick={() => act('pair', async () => setPairing(await createPairingCode()))}
@@ -152,9 +152,9 @@ export default function Operations() {
           {!dashboard?.devices?.length && <p className="text-sm text-gray-500">{t('control.noDevices')}</p>}
         </div>
         {selectedDevice && <pre className="mt-4 h-40 overflow-auto rounded-md bg-[#111114] p-3 text-xs leading-5 text-gray-300">{deviceLogs.map((line) => `${new Date(line.occurred_at).toLocaleString()} ${line.action} ${line.outcome}`).join('\n') || t('control.noLogs')}</pre>}
-      </section>
+      </section>}
 
-      <section className="border-t border-gray-200 pt-5 dark:border-gray-800">
+      {(view === 'all' || view === 'updates') && <section className="border-t border-gray-200 pt-5 dark:border-gray-800">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white"><Server size={16} />{t('control.service')}</h2>
           <div className="flex gap-2">
@@ -173,9 +173,9 @@ export default function Operations() {
           {dashboard?.current_release_tag && <code className="ml-auto text-xs text-gray-500">{t('control.currentRelease')}: {dashboard.current_release_tag}</code>}
         </div>
         <pre className="h-56 overflow-auto rounded-md bg-[#111114] p-3 text-xs leading-5 text-gray-300">{logs.map((line) => `[${line.stream}] ${line.line}`).join('\n') || t('control.noLogs')}</pre>
-      </section>
+      </section>}
 
-      <section className="border-t border-gray-200 pt-5 dark:border-gray-800">
+      {(view === 'all' || view === 'updates') && <section className="border-t border-gray-200 pt-5 dark:border-gray-800">
         <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{t('control.deployRuns')}</h2>
         <div className="divide-y divide-gray-200 border-y border-gray-200 text-sm dark:divide-gray-800 dark:border-gray-800">
           {(dashboard?.runs || []).map((run) => (
@@ -197,7 +197,7 @@ export default function Operations() {
 				<pre className="h-48 overflow-auto rounded-md bg-[#111114] p-3 text-xs leading-5 text-gray-300">{runLogs.map((line) => `[${line.stream}] ${line.line}`).join('\n') || t('control.noLogs')}</pre>
 			</div>
 		)}
-      </section>
+      </section>}
     </div>
   );
 }

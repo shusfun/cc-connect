@@ -22,11 +22,29 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 });
 
-await import('@/i18n');
+const i18n = (await import('@/i18n')).default;
+await i18n.changeLanguage('zh');
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+	sessionStorage.clear();
+});
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+	configurable: true,
+	value: class ResizeObserver {
+		constructor(private readonly callback: ResizeObserverCallback) {}
+		observe(target: Element) {
+			this.callback([{
+				target,
+				contentRect: { x: 0, y: 0, top: 0, right: 800, bottom: 600, left: 0, width: 800, height: 600, toJSON: () => ({}) },
+				borderBoxSize: [], contentBoxSize: [], devicePixelContentBoxSize: [],
+			} as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+		}
+		unobserve() {}
+		disconnect() {}
+	},
 });
 
 Object.defineProperty(window, 'matchMedia', {
@@ -46,4 +64,13 @@ Object.defineProperty(window, 'matchMedia', {
 Object.defineProperty(Element.prototype, 'scrollIntoView', {
   configurable: true,
   value: vi.fn(),
+});
+
+Object.defineProperty(Element.prototype, 'scrollTo', {
+	configurable: true,
+	value: vi.fn(function (this: Element, options?: ScrollToOptions | number) {
+		if (typeof options === 'object' && 'top' in options && typeof options.top === 'number') {
+			Object.defineProperty(this, 'scrollTop', { configurable: true, writable: true, value: options.top });
+		}
+	}),
 });

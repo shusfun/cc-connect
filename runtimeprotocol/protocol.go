@@ -18,26 +18,37 @@ const Version = "runtime-v1"
 type Method string
 
 const (
-	MethodProjectList    Method = "project/list"
-	MethodTaskList       Method = "task/list"
-	MethodTaskRead       Method = "task/read"
-	MethodTaskWait       Method = "task/wait"
-	MethodTaskSend       Method = "task/send"
-	MethodTaskCreate     Method = "task/create"
-	MethodTaskMetadata   Method = "task/metadata"
-	MethodCapabilityList Method = "capability/list"
-	MethodProjectChanged Method = "project/changed"
-	MethodHeartbeat      Method = "runtime/heartbeat"
-	MethodAcknowledge    Method = "runtime/ack"
-	MethodUpdateRequired Method = "runtime/update_required"
-	MethodUpdateStage    Method = "runtime/update/stage"
-	MethodUpdateActivate Method = "runtime/update/activate"
-	MethodUpdateConfirm  Method = "runtime/update/confirm"
+	MethodProjectList      Method = "project/list"
+	MethodTaskList         Method = "task/list"
+	MethodTaskRead         Method = "task/read"
+	MethodTaskWait         Method = "task/wait"
+	MethodTaskSend         Method = "task/send"
+	MethodTaskCreate       Method = "task/create"
+	MethodTaskMetadata     Method = "task/metadata"
+	MethodCapabilityList   Method = "capability/list"
+	MethodTaskSearch       Method = "task/search"
+	MethodTaskArchived     Method = "task/archived"
+	MethodAutomationList   Method = "automation/list"
+	MethodAutomationCreate Method = "automation/create"
+	MethodAutomationUpdate Method = "automation/update"
+	MethodAutomationDelete Method = "automation/delete"
+	MethodPluginList       Method = "plugin/list"
+	MethodPluginInstall    Method = "plugin/install"
+	MethodPluginRemove     Method = "plugin/remove"
+	MethodProjectChanged   Method = "project/changed"
+	MethodHeartbeat        Method = "runtime/heartbeat"
+	MethodAcknowledge      Method = "runtime/ack"
+	MethodUpdateRequired   Method = "runtime/update_required"
+	MethodUpdateStage      Method = "runtime/update/stage"
+	MethodUpdateActivate   Method = "runtime/update/activate"
+	MethodUpdateConfirm    Method = "runtime/update/confirm"
 )
 
 var methods = map[Method]struct{}{
 	MethodProjectList: {}, MethodTaskList: {}, MethodTaskRead: {}, MethodTaskWait: {},
 	MethodTaskSend: {}, MethodTaskCreate: {}, MethodTaskMetadata: {}, MethodCapabilityList: {},
+	MethodTaskSearch: {}, MethodTaskArchived: {}, MethodAutomationList: {}, MethodAutomationCreate: {},
+	MethodAutomationUpdate: {}, MethodAutomationDelete: {}, MethodPluginList: {}, MethodPluginInstall: {}, MethodPluginRemove: {},
 	MethodProjectChanged: {}, MethodHeartbeat: {}, MethodAcknowledge: {}, MethodUpdateRequired: {},
 	MethodUpdateStage: {}, MethodUpdateActivate: {}, MethodUpdateConfirm: {},
 }
@@ -45,6 +56,33 @@ var methods = map[Method]struct{}{
 type TaskRef struct {
 	TaskID string `json:"task_id"`
 	HostID string `json:"host_id,omitempty"`
+}
+
+type TaskListRequest struct {
+	ProjectID string `json:"project_id,omitempty"`
+	Cursor    string `json:"cursor,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+type TaskSearchRequest struct {
+	Query string `json:"query"`
+	Limit int    `json:"limit,omitempty"`
+}
+
+type AutomationMutationRequest struct {
+	Mutation json.RawMessage `json:"mutation"`
+}
+
+type AutomationDeleteRequest struct {
+	ID string `json:"id"`
+}
+
+type PluginListRequest struct {
+	Available bool `json:"available"`
+}
+
+type PluginMutationRequest struct {
+	ID string `json:"id"`
 }
 
 type TaskReadRequest struct {
@@ -93,7 +131,7 @@ func contractHash() string {
 	}
 	sort.Strings(names)
 	canonical := Version + "|contract_hash,device_id,connection_generation,sequence,request_id,method,resource,payload,error|" + strings.Join(names, ",") +
-		"|project:local_ref,project_id,project_name,available,reason,order|task:task_id,host_id,cursor,limit,timeout_ms,prompt,message_id|capability:create,rename,pin,archive,fork,handoff,interactive_response|runtime_update:tag"
+		"|project:local_ref,project_id,project_name,host_id,kind,is_git_repository,available,reason,order|task:project_id,task_id,host_id,cursor,limit,timeout_ms,prompt,message_id,typed_turns,raw_plan_content,search,archived|automation:list,create,update,delete|plugin:list,install,remove|capability:create,rename,pin,archive,fork,handoff,interactive_response,automation_mutation|runtime_update:tag"
 	sum := sha256.Sum256([]byte(canonical))
 	return hex.EncodeToString(sum[:])
 }
@@ -109,6 +147,9 @@ type Project struct {
 	LocalRef    string `json:"local_ref"`
 	ProjectID   string `json:"project_id"`
 	ProjectName string `json:"project_name"`
+	HostID      string `json:"host_id,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Git         bool   `json:"is_git_repository"`
 	Available   bool   `json:"available"`
 	Reason      string `json:"reason,omitempty"`
 	Order       int    `json:"order"`

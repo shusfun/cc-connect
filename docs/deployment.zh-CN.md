@@ -4,7 +4,7 @@
 
 Release workflow 及其签名 manifest 是构建契约，选定的 GitHub Release 是制品来源，服务和部署的实时状态是运行事实。仓库示例与历史日志仅用于指引。安装、更新、回滚或诊断前，必须核验 `<tag>`、commit、目标架构、manifest identity 和当前服务状态。
 
-正式 Release 包含 Linux amd64/arm64 的 control、server、deploy-host，以及 macOS amd64/arm64 的 Runtime。安装与更新验证 GitHub OIDC/Sigstore identity 和每个 SHA-256，拒绝未签名制品。
+正式 manifest v2 Release 包含 Linux amd64/arm64 的 control、server、deploy-host，macOS amd64/arm64 的 Runtime，以及同时提供 App ZIP 和 DMG 的已公证 universal macOS Desktop App。安装与更新验证 GitHub OIDC/Sigstore identity 和每个 SHA-256，拒绝未签名制品。
 
 Linux 有两条相互独立的通道：原生安装由 systemd 管理 control；容器安装由 systemd 只管理 deploy-host，deploy-host 管理 control 容器，control 仍是 server 的唯一生命周期所有者。两条通道不得共用持久目录。macOS Runtime 不容器化，也不通过 launchd 直连 App 私有 Socket。
 
@@ -30,7 +30,7 @@ bootstrap 创建 `/opt/cc-connect/releases` 版本槽、`/var/lib/cc-connect/con
 
 ## 初始化与 Runtime 配对
 
-首次启动只监听 `127.0.0.1:9820`，一次性设置 Token 出现在对应通道的服务日志中。通过 SSH 转发完成 Web 初始化：创建管理员、保存公开 HTTPS 地址、配对 Runtime、验证 Codex 与至少一个项目、按需配置企业微信，再原子生成配置并启动 server。公开 HTTPS 使用 Release 内的 `openresty-1panel.conf`。
+首次启动只监听 `127.0.0.1:9820`，一次性设置 Token 出现在对应通道的服务日志中。通过 SSH 转发完成 Web 初始化：创建管理员、保存公开 HTTPS 地址、配对 Runtime、验证 Codex 与至少一个项目、按需配置飞书，再原子生成配置并启动 server。公开 HTTPS 使用 Release 内的 `openresty-1panel.conf`。
 
 在当前 Codex Desktop App 的交互终端运行设置页生成的 Runtime 安装命令，等价于：
 
@@ -47,6 +47,12 @@ sh cc-connect-runtime-install.sh --server https://cc.example.com --code <pairing
 
 Runtime 私钥只保存在 macOS Keychain。launcher re-exec 为 App 内置 Node supervisor，再将已校验的 App Socket 通过继承 FD 交给 Go worker。supervisor 不随启动终端挂断或单个 worker 退出而结束；更新、worker 异常或 App Socket 断开时，它会清理旧代并从 `current` Release 重新启动 worker、扫描新 Socket。Runtime 通过出站 TLS/WebSocket 连接 control；catalog 同步只传不透明项目元数据，不上传对话正文。Runtime 不启动第二个 Codex App Server。
 
+## macOS 伴生 App
+
+从同一个签名 Release 安装 `cc-connect-desktop-darwin-universal.dmg`。已公证的 `CC-Connect.app` 使用 accessory 激活策略，提供菜单栏托盘、紧凑 attached 状态窗口、单实例和可选登录启动。它可以完成设备配对，显示 supervisor/worker 代际与 Runtime 连接，打开 Web 控制台和日志，请求重连，并验签、下载 Desktop DMG 更新。
+
+伴生 App 不启动 Node supervisor 或 Runtime worker；登录启动只启动伴生 UI。supervisor 离线时，必须在 Codex Desktop App 终端运行上面的 launcher。伴生 App 只通过 `~/Library/Application Support/cc-connect-runtime/status.sock` 读取状态并请求受限的 `reconnect` 操作；该当前用户 Unix Socket 权限为 `0600`，与 Codex tools Socket 完全分离。Runtime 替换仍由现有 control/activation 生命周期负责，伴生 App 只把已验证 DMG 交给用户安装。
+
 ## 更新、回滚与诊断
 
 更新与回滚从 Web 发起。control 检查活动操作、备份 `control.db`、协调 Runtime 激活，并与重启共用一个执行槽。原生通道切换签名 Release 槽并由 systemd 恢复；容器通道请求 deploy-host 切换已验证 digest，并使用独立持久化 activation 状态。不得手工修改 release 链接、activation、deployer 状态或数据库备份。
@@ -55,6 +61,6 @@ Runtime 私钥只保存在 macOS Keychain。launcher re-exec 为 App 内置 Node
 
 - 原生通道：Web 运维状态、`systemctl status cc-connect-control.service`、`journalctl -u cc-connect-control.service`。
 - 容器通道：Web 运维状态、`systemctl status cc-connect-deploy-host.service`、deploy-host journal，以及与目标镜像 digest 对应的只读容器状态和日志。
-- Runtime：设备连接历史、`~/Library/Application Support/cc-connect-runtime/logs/runtime.log`，以及 control 侧关联的 run/request ID。
+- Runtime/桌面伴生 App：设备连接历史、伴生状态窗口、`~/Library/Application Support/cc-connect-runtime/status.sock`、`~/Library/Application Support/cc-connect-runtime/logs/runtime.log`，以及 control 侧关联的 run/request ID。
 
 取消或重试前，重新读取当前 run 状态，并取得日志新鲜度、健康状态、执行槽或候选 revision 中的一项独立信号。自动恢复失败时保留 activation 和 backup 现场。

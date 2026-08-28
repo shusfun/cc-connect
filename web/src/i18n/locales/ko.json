@@ -203,49 +203,6 @@
     "openNavigation": "탐색 열기",
     "theme": "테마"
   },
-  "setup": {
-    "addPlatform": "플랫폼 추가",
-    "choosePlatform": "연결할 플랫폼을 선택하세요:",
-    "scanToConnect": "QR 코드를 스캔하여 연결",
-    "feishuLabel": "Feishu / Lark",
-    "weixinLabel": "WeChat (ilink)",
-    "qrDescription": "휴대폰으로 QR 코드를 스캔하여 {{platform}}에 빠르게 연결하세요.",
-    "startQR": "QR 설정 시작",
-    "generating": "QR 코드 생성 중...",
-    "scanFeishu": "Feishu / Lark 앱을 열고 QR 코드를 스캔하세요",
-    "scanWeixin": "WeChat을 열고 QR 코드를 스캔하세요",
-    "waitingScan": "스캔 대기 중...",
-    "scannedConfirm": "스캔 완료! 휴대폰에서 확인해 주세요...",
-    "waitingConfirm": "확인 대기 중...",
-    "savingConfig": "설정 저장 중...",
-    "completed": "플랫폼이 성공적으로 연결되었습니다!",
-    "restartHint": "새 플랫폼을 적용하려면 서비스를 다시 시작하세요.",
-    "restartRequired": "재시작 필요",
-    "restartNow": "지금 재시작",
-    "restarting": "서비스 재시작 중...",
-    "restartAfterDelete": "프로젝트가 삭제되었습니다. 서비스를 재시작하여 적용하시겠습니까?",
-    "later": "나중에",
-    "expired": "QR 코드가 만료되었습니다.",
-    "denied": "인증이 거부되었습니다.",
-    "retry": "다시 시도",
-    "addProject": "프로젝트 추가",
-    "projectName": "프로젝트 이름",
-    "workDir": "작업 디렉터리",
-    "agentType": "에이전트 유형",
-    "next": "다음",
-    "manualSetup": "수동 설정",
-    "manualHint": "{{platform}}의 경우 config.toml에서 자격 증명을 설정하고 서비스를 재시작하세요.",
-    "advancedOptions": "고급 옵션",
-    "unsupportedPlatform": "지원하지 않는 플랫폼 유형입니다: {{type}}",
-    "cloudWeb": {
-      "urlRequiredWebsocket": "WebSocket 전송에는 API 기본 URL 또는 WebSocket URL이 필요합니다 (하나 이상)",
-      "urlRequiredLongPoll": "롱 폴 전송에는 API 기본 URL이 필요합니다",
-      "urlRequiredGateway": "게이트웨이 전송에는 API 기본 URL 또는 등록 URL이 필요합니다 (하나 이상)",
-      "invalidHttpUrl": "{{field}}은(는) 유효한 http(s) URL 또는 host[:port] 형식이어야 합니다",
-      "invalidWsUrl": "WebSocket URL은 ws:// 또는 wss://로 시작해야 합니다",
-      "publicUrlRequiredGateway": "등록 URL을 설정한 경우 공개 웹훅 URL이 필요합니다"
-    }
-  },
   "fields": {
     "botToken": "봇 토큰",
     "appToken": "앱 토큰",
@@ -524,7 +481,7 @@
     "service": "비즈니스 서비스", "currentRelease": "현재 릴리스", "update": "확인 및 업데이트", "rollback": "롤백", "restart": "재시작", "running": "실행 중", "stopped": "중지됨", "noLogs": "서비스 로그 없음", "deployRuns": "배포 실행", "containerHostUnavailable": "호스트 배포 실행기를 사용할 수 없습니다",
     "setupWizard": "배포 초기 설정", "setupWizardSubtitle": "공개 엔드포인트, macOS Runtime 및 서비스 연결", "publicURL": "공개 HTTPS URL", "openrestyConfig": "1Panel / OpenResty 리버스 프록시 설정",
     "runtimePairing": "macOS Runtime 페어링", "createPairingCode": "페어링 코드 생성", "runtimeTerminalRequired": "현재 Codex Desktop App의 대화형 터미널에서 다음 명령을 실행하세요. 터미널을 닫으면 Runtime이 오프라인 상태가 됩니다.", "runtimeReady": "Runtime 온라인, 프로젝트 루트 {{count}}개", "runtimeWaiting": "유효한 Codex 프로젝트가 있는 Runtime 대기 중", "codexValidation": "Codex 및 프로젝트 카탈로그 확인",
-    "wecomOptional": "WeCom WebSocket(선택 사항)", "enableWeCom": "WeCom 채팅 활성화", "wecomBotID": "WeCom Bot ID", "wecomBotSecret": "WeCom Bot Secret", "wecomAllowFrom": "허용 사용자 ID(선택 사항)", "startService": "설정 생성 및 시작"
+    "feishuOptional": "Feishu WebSocket(선택 사항)", "enableFeishu": "Feishu 작업 채널 활성화", "feishuAppID": "Feishu App ID", "feishuAppSecret": "Feishu App Secret", "feishuAllowFrom": "허용 사용자 ID(선택 사항)", "startService": "설정 생성 및 시작"
   },
   "theme": {
     "light": "라이트",

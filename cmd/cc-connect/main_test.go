@@ -148,48 +148,6 @@ func TestApplyProjectStateOverride(t *testing.T) {
 	}
 }
 
-type stubProviderRefreshAgent struct {
-	stubMainAgent
-	providers  []core.ProviderConfig
-	activeName string
-	calls      []string
-	activateOK bool
-}
-
-func (a *stubProviderRefreshAgent) SetProviders(providers []core.ProviderConfig) {
-	a.providers = append([]core.ProviderConfig(nil), providers...)
-	a.calls = append(a.calls, "set_providers")
-}
-
-func (a *stubProviderRefreshAgent) SetActiveProvider(name string) bool {
-	if !a.activateOK {
-		a.calls = append(a.calls, "set_active_provider_failed")
-		return false
-	}
-	a.activeName = name
-	a.calls = append(a.calls, "set_active_provider")
-	return true
-}
-
-func (a *stubProviderRefreshAgent) GetActiveProvider() *core.ProviderConfig {
-	for i := range a.providers {
-		if a.providers[i].Name == a.activeName {
-			return &a.providers[i]
-		}
-	}
-	return nil
-}
-
-func (a *stubProviderRefreshAgent) ListProviders() []core.ProviderConfig {
-	providers := make([]core.ProviderConfig, len(a.providers))
-	copy(providers, a.providers)
-	return providers
-}
-
-func (a *stubProviderRefreshAgent) StartInitialModelRefresh() {
-	a.calls = append(a.calls, "start_initial_model_refresh")
-}
-
 func TestBuildAgentOptionsInjectsProjectScope(t *testing.T) {
 	proj := config.ProjectConfig{
 		Name: "demo-project",
@@ -214,110 +172,6 @@ func TestBuildAgentOptionsInjectsProjectScope(t *testing.T) {
 	}
 	if _, exists := proj.Agent.Options["cc_data_dir"]; exists {
 		t.Fatalf("project agent options mutated: %v", proj.Agent.Options)
-	}
-}
-
-func TestWireAgentProvidersStartsRefreshAfterProviderWiring(t *testing.T) {
-	agent := &stubProviderRefreshAgent{activateOK: true}
-	proj := config.ProjectConfig{
-		Agent: config.AgentConfig{
-			Options: map[string]any{"provider": "provider-b"},
-			Providers: []config.ProviderConfig{
-				{Name: "provider-a", APIKey: "key-a"},
-				{Name: "provider-b", APIKey: "key-b", Model: "model-b"},
-			},
-		},
-	}
-
-	result := wireAgentProviders(agent, proj.Agent)
-	startInitialRefreshIfReady(agent, result)
-
-	wantCalls := []string{"set_providers", "set_active_provider", "start_initial_model_refresh"}
-	if !reflect.DeepEqual(agent.calls, wantCalls) {
-		t.Fatalf("call order = %v, want %v", agent.calls, wantCalls)
-	}
-	if len(agent.providers) != 2 {
-		t.Fatalf("provider count = %d, want 2", len(agent.providers))
-	}
-	if agent.activeName != "provider-b" {
-		t.Fatalf("active provider = %q, want %q", agent.activeName, "provider-b")
-	}
-}
-
-func TestWireAgentProviders_SkipsRefreshWhenExplicitProviderActivationFails(t *testing.T) {
-	agent := &stubProviderRefreshAgent{}
-	agent.activateOK = false
-	agent.workDir = "/tmp/original"
-	proj := config.ProjectConfig{
-		Agent: config.AgentConfig{
-			Options:   map[string]any{"provider": "missing-provider"},
-			Providers: []config.ProviderConfig{{Name: "provider-a", APIKey: "key-a"}},
-		},
-	}
-
-	result := wireAgentProviders(agent, proj.Agent)
-
-	if result.canStartInitialRefresh {
-		t.Fatal("canStartInitialRefresh = true, want false")
-	}
-	if !result.explicitProviderRequested {
-		t.Fatal("explicitProviderRequested = false, want true")
-	}
-	if result.activeProviderApplied {
-		t.Fatal("activeProviderApplied = true, want false")
-	}
-	wantCalls := []string{"set_providers", "set_active_provider_failed"}
-	if !reflect.DeepEqual(agent.calls, wantCalls) {
-		t.Fatalf("call order = %v, want %v", agent.calls, wantCalls)
-	}
-}
-
-func TestWireAgentProviders_AllowsRefreshWithoutProviders(t *testing.T) {
-	agent := &stubProviderRefreshAgent{stubMainAgent: stubMainAgent{workDir: "/tmp/original"}}
-	proj := config.ProjectConfig{Agent: config.AgentConfig{Options: map[string]any{}}}
-
-	result := wireAgentProviders(agent, proj.Agent)
-
-	if !result.canStartInitialRefresh {
-		t.Fatal("canStartInitialRefresh = false, want true")
-	}
-	if result.explicitProviderRequested {
-		t.Fatal("explicitProviderRequested = true, want false")
-	}
-	if result.activeProviderApplied {
-		t.Fatal("activeProviderApplied = true, want false")
-	}
-	if len(agent.calls) != 0 {
-		t.Fatalf("calls = %v, want no provider wiring calls", agent.calls)
-	}
-}
-
-func TestStartInitialRefresh_AfterProjectStateOverride(t *testing.T) {
-	agent := &stubProviderRefreshAgent{activateOK: true, stubMainAgent: stubMainAgent{workDir: "/tmp/original"}}
-	overrideDir := filepath.Join(t.TempDir(), "override")
-	if err := os.Mkdir(overrideDir, 0o755); err != nil {
-		t.Fatalf("mkdir override dir: %v", err)
-	}
-	store := core.NewProjectStateStore(filepath.Join(t.TempDir(), "projects", "demo.state.json"))
-	store.SetWorkDirOverride(overrideDir)
-	proj := config.ProjectConfig{
-		Name: "demo",
-		Agent: config.AgentConfig{
-			Options:   map[string]any{"provider": "provider-b", "work_dir": "/tmp/original"},
-			Providers: []config.ProviderConfig{{Name: "provider-a"}, {Name: "provider-b"}},
-		},
-	}
-
-	result := wireAgentProviders(agent, proj.Agent)
-	applyProjectStateOverride(proj.Name, agent, "/tmp/original", store)
-	startInitialRefreshIfReady(agent, result)
-
-	wantCalls := []string{"set_providers", "set_active_provider", "start_initial_model_refresh"}
-	if !reflect.DeepEqual(agent.calls, wantCalls) {
-		t.Fatalf("call order = %v, want %v", agent.calls, wantCalls)
-	}
-	if agent.workDir != overrideDir {
-		t.Fatalf("agent workDir at refresh = %q, want %q", agent.workDir, overrideDir)
 	}
 }
 
@@ -348,21 +202,15 @@ func captureStderr(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-func TestPrintUsage_ListsCronExecCommand(t *testing.T) {
+func TestPrintUsageOnlyListsCodexCompanionCommands(t *testing.T) {
 	out := captureStderr(t, printUsage)
 
-	if !strings.Contains(out, "Manage scheduled tasks") {
-		t.Fatalf("printUsage() output missing cron section:\n%s", out)
+	if !strings.Contains(out, "Codex Desktop App remote companion") || !strings.Contains(out, "config-example") {
+		t.Fatalf("printUsage() output missing Codex companion commands:\n%s", out)
 	}
-	if !strings.Contains(out, "exec             Trigger a scheduled task immediately") {
-		t.Fatalf("printUsage() output missing cron exec command:\n%s", out)
-	}
-}
-
-func TestCanonicalCronSubcommand_ManualTriggerAliases(t *testing.T) {
-	for _, sub := range []string{"exec", "run", "trigger"} {
-		if got := canonicalCronSubcommand(sub); got != "exec" {
-			t.Fatalf("canonicalCronSubcommand(%q) = %q, want exec", sub, got)
+	for _, legacy := range []string{"Manage scheduled tasks", "Feishu/Lark", "Claude Code", "Cursor", "Weixin"} {
+		if strings.Contains(out, legacy) {
+			t.Fatalf("printUsage() output still contains legacy product entry %q:\n%s", legacy, out)
 		}
 	}
 }
@@ -403,6 +251,44 @@ func TestValidateNoExtraTopLevelArgs(t *testing.T) {
 	}
 }
 
+func TestValidateCodexProductConfig(t *testing.T) {
+	base := func() *config.Config {
+		return &config.Config{Projects: []config.ProjectConfig{{
+			Name: "codex-runtime", Agent: config.AgentConfig{Type: "codexapp"},
+			Platforms: []config.PlatformConfig{{Type: "feishu"}},
+		}}}
+	}
+	if err := validateCodexProductConfig(base()); err != nil {
+		t.Fatalf("valid Codex config rejected: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*config.Config)
+		wantErr string
+	}{
+		{name: "multiple internal projects", mutate: func(cfg *config.Config) { cfg.Projects = append(cfg.Projects, cfg.Projects[0]) }, wantErr: "只允许一个内部 Runtime 项目"},
+		{name: "legacy agent", mutate: func(cfg *config.Config) { cfg.Projects[0].Agent.Type = "codex" }, wantErr: "只支持 agent.type"},
+		{name: "lark", mutate: func(cfg *config.Config) { cfg.Projects[0].Platforms[0].Type = "lark" }, wantErr: "只支持飞书平台"},
+		{name: "provider", mutate: func(cfg *config.Config) { cfg.Providers = []config.ProviderConfig{{Name: "legacy"}} }, wantErr: "不支持 Provider"},
+		{name: "cron", mutate: func(cfg *config.Config) { value := true; cfg.Cron.Silent = &value }, wantErr: "不支持 [cron]"},
+		{name: "bridge", mutate: func(cfg *config.Config) { value := false; cfg.Bridge.Enabled = &value }, wantErr: "不支持 [bridge]"},
+		{name: "webhook", mutate: func(cfg *config.Config) { cfg.Webhook.Path = "/hook" }, wantErr: "不支持 [webhook]"},
+		{name: "heartbeat", mutate: func(cfg *config.Config) { value := false; cfg.Projects[0].Heartbeat.Enabled = &value }, wantErr: "不支持 projects.heartbeat"},
+		{name: "run as user", mutate: func(cfg *config.Config) { cfg.Projects[0].RunAsUser = "agent" }, wantErr: "不支持 run_as_user"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := base()
+			test.mutate(cfg)
+			err := validateCodexProductConfig(cfg)
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("validateCodexProductConfig() error = %v, want %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestParseRootCLIOptionsGlobalFlagsBeforeSubcommand(t *testing.T) {
 	opts, err := parseRootCLIOptions([]string{"--config", "/tmp/test-config.toml", "--log-max-size", "12MB", "--log-max-backups", "7", "sessions", "list"})
 	if err != nil {
@@ -426,10 +312,25 @@ func TestParseRootCLIOptionsGlobalFlagsBeforeSubcommand(t *testing.T) {
 	}
 }
 
-func TestTopLevelCommandHandlersIncludeTimerAliases(t *testing.T) {
-	for _, command := range []string{"timer", "at"} {
-		if topLevelCommandHandlers[command] == nil {
-			t.Fatalf("topLevelCommandHandlers[%q] is nil", command)
+func TestTopLevelCommandHandlersOnlyExposeConfigExample(t *testing.T) {
+	if len(topLevelCommandHandlers) != 1 || topLevelCommandHandlers["config-example"] == nil {
+		t.Fatalf("topLevelCommandHandlers = %v, want only config-example", topLevelCommandHandlers)
+	}
+	for _, command := range []string{"timer", "at", "cron", "sessions", "provider", "feishu", "weixin"} {
+		if topLevelCommandHandlers[command] != nil {
+			t.Fatalf("legacy top-level command %q is still registered", command)
+		}
+	}
+}
+
+func TestCodexRequiredDisabledCommands(t *testing.T) {
+	got := make(map[string]bool, len(codexRequiredDisabledCommands))
+	for _, command := range codexRequiredDisabledCommands {
+		got[command] = true
+	}
+	for _, command := range []string{"provider", "cron", "timer", "heartbeat", "bind"} {
+		if !got[command] {
+			t.Errorf("Codex production command restrictions missing %q", command)
 		}
 	}
 }

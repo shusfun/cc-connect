@@ -392,10 +392,11 @@ type Engine struct {
 	bannedWords []string
 	bannedMu    sync.RWMutex
 
-	disabledCmds map[string]bool
-	adminFrom    string           // comma-separated user IDs for privileged commands; "*" = all allowed users; "" = deny
-	userRoles    *UserRoleManager // nil = legacy mode (no per-user policies)
-	userRolesMu  sync.RWMutex     // protects userRoles, disabledCmds, and adminFrom
+	disabledCmds         map[string]bool
+	requiredDisabledCmds map[string]bool  // product-level restrictions that roles cannot override
+	adminFrom            string           // comma-separated user IDs for privileged commands; "*" = all allowed users; "" = deny
+	userRoles            *UserRoleManager // nil = legacy mode (no per-user policies)
+	userRolesMu          sync.RWMutex     // protects userRoles, command restrictions, and adminFrom
 
 	rateLimiter      *RateLimiter
 	outgoingRL       *OutgoingRateLimiter
@@ -1178,9 +1179,16 @@ func resolveDisabledCmds(cmds []string) map[string]bool {
 func (e *Engine) GetDisabledCommands() []string {
 	e.userRolesMu.RLock()
 	defer e.userRolesMu.RUnlock()
-	out := make([]string, 0, len(e.disabledCmds))
+	out := make([]string, 0, len(e.disabledCmds)+len(e.requiredDisabledCmds))
+	seen := make(map[string]bool, cap(out))
 	for k := range e.disabledCmds {
 		out = append(out, k)
+		seen[k] = true
+	}
+	for k := range e.requiredDisabledCmds {
+		if !seen[k] {
+			out = append(out, k)
+		}
 	}
 	sort.Strings(out)
 	return out
@@ -1191,6 +1199,32 @@ func (e *Engine) SetDisabledCommands(cmds []string) {
 	e.userRolesMu.Lock()
 	defer e.userRolesMu.Unlock()
 	e.disabledCmds = resolveDisabledCmds(cmds)
+}
+
+// SetRequiredDisabledCommands sets product-level restrictions that cannot be
+// removed by project configuration, hot reload, or per-user roles.
+func (e *Engine) SetRequiredDisabledCommands(cmds []string) {
+	e.userRolesMu.Lock()
+	defer e.userRolesMu.Unlock()
+	e.requiredDisabledCmds = resolveDisabledCmds(cmds)
+}
+
+func (e *Engine) commandDisabledForUser(command, userID string) bool {
+	e.userRolesMu.RLock()
+	if e.requiredDisabledCmds[command] {
+		e.userRolesMu.RUnlock()
+		return true
+	}
+	disabled := e.disabledCmds[command]
+	roles := e.userRoles
+	e.userRolesMu.RUnlock()
+
+	if roles != nil {
+		if role := roles.ResolveRole(userID); role != nil {
+			return role.DisabledCmds[command]
+		}
+	}
+	return disabled
 }
 
 // SetUserRoles configures per-user role-based policies. Pass nil to disable.
@@ -1210,7 +1244,7 @@ func (e *Engine) SetAdminFrom(adminFrom string) {
 	e.userRolesMu.Lock()
 	e.adminFrom = strings.TrimSpace(adminFrom)
 	af := e.adminFrom
-	shellDisabled := e.disabledCmds["shell"]
+	shellDisabled := e.disabledCmds["shell"] || e.requiredDisabledCmds["shell"]
 	e.userRolesMu.Unlock()
 	if af == "" && !shellDisabled {
 		slog.Warn("admin_from is not set — privileged commands (/shell, /show, /dir, /restart, /upgrade) are blocked. "+
@@ -3037,16 +3071,7 @@ func (e *Engine) handleMessage(p Platform, msg *Message) {
 		shellCmd := strings.TrimSpace(content[1:])
 		if shellCmd != "" {
 			// Check disabled / admin just like handleCommand does for "shell"
-			e.userRolesMu.RLock()
-			disabledCmds := e.disabledCmds
-			urm := e.userRoles
-			e.userRolesMu.RUnlock()
-			if urm != nil {
-				if role := urm.ResolveRole(msg.UserID); role != nil {
-					disabledCmds = role.DisabledCmds
-				}
-			}
-			if disabledCmds["shell"] {
+			if e.commandDisabledForUser("shell", msg.UserID) {
 				e.reply(p, msg.ReplyCtx, fmt.Sprintf(e.i18n.T(MsgCommandDisabled), "!"))
 				return
 			}
@@ -6530,18 +6555,7 @@ func (e *Engine) handleCommand(p Platform, msg *Message, raw string) bool {
 
 	cmdID := matchPrefix(cmd, builtinCommands)
 
-	// Resolve effective disabled commands: role-based if available, else project-level
-	e.userRolesMu.RLock()
-	disabledCmds := e.disabledCmds
-	urm := e.userRoles
-	e.userRolesMu.RUnlock()
-	if urm != nil {
-		if role := urm.ResolveRole(msg.UserID); role != nil {
-			disabledCmds = role.DisabledCmds
-		}
-	}
-
-	if cmdID != "" && disabledCmds[cmdID] {
+	if cmdID != "" && e.commandDisabledForUser(cmdID, msg.UserID) {
 		slog.Info("audit: command_blocked",
 			"user_id", msg.UserID, "platform", msg.Platform,
 			"project", e.name, "command", cmdID, "reason", "disabled")
@@ -6657,7 +6671,7 @@ func (e *Engine) handleCommand(p Platform, msg *Message, raw string) bool {
 		e.cmdPs(p, msg, args)
 	default:
 		if custom, ok := e.commands.Resolve(cmd); ok {
-			if disabledCmds[strings.ToLower(custom.Name)] {
+			if e.commandDisabledForUser(strings.ToLower(custom.Name), msg.UserID) {
 				slog.Info("audit: command_blocked",
 					"user_id", msg.UserID, "platform", msg.Platform,
 					"project", e.name, "command", custom.Name, "reason", "disabled")
@@ -6671,7 +6685,7 @@ func (e *Engine) handleCommand(p Platform, msg *Message, raw string) bool {
 			return true
 		}
 		if skill := e.skills.Resolve(cmd); skill != nil {
-			if disabledCmds[strings.ToLower(skill.Name)] {
+			if e.commandDisabledForUser(strings.ToLower(skill.Name), msg.UserID) {
 				slog.Info("audit: command_blocked",
 					"user_id", msg.UserID, "platform", msg.Platform,
 					"project", e.name, "command", skill.Name, "reason", "disabled")
@@ -9516,6 +9530,7 @@ func (e *Engine) GetAllCommands() []BotCommandInfo {
 
 	e.userRolesMu.RLock()
 	disabledCmds := e.disabledCmds
+	requiredDisabledCmds := e.requiredDisabledCmds
 	e.userRolesMu.RUnlock()
 
 	// Collect built-in  commands (use primary name, first in names list)
@@ -9532,7 +9547,7 @@ func (e *Engine) GetAllCommands() []BotCommandInfo {
 		seenCmds[primaryName] = true
 
 		// Skip disabled commands
-		if disabledCmds[c.id] {
+		if disabledCmds[c.id] || requiredDisabledCmds[c.id] {
 			continue
 		}
 
@@ -9566,7 +9581,7 @@ func (e *Engine) GetAllCommands() []BotCommandInfo {
 		if seenCmds[lowerName] {
 			continue
 		}
-		if disabledCmds[lowerName] {
+		if disabledCmds[lowerName] || requiredDisabledCmds[lowerName] {
 			continue
 		}
 		seenCmds[lowerName] = true

@@ -33,7 +33,7 @@ func TestInheritedBridgeFDValidation(t *testing.T) {
 }
 
 func TestBootstrapRuntimeRequiresInteractiveCodexAppTerminal(t *testing.T) {
-	err := BootstrapRuntime("/tmp/not-inspected.sock", "", "/tmp/runtime.log", nil)
+	err := BootstrapRuntime("/tmp/not-inspected.sock", "", t.TempDir(), "test", nil)
 	if err == nil || !strings.Contains(err.Error(), "interactive Codex App terminal") {
 		t.Fatalf("BootstrapRuntime() error = %v", err)
 	}
@@ -44,7 +44,7 @@ func TestBootstrapRelayKeepsRuntimeOnlineAfterWorkerRestartAndTerminalDetach(t *
 		`process.on("SIGHUP", () => writeRuntimeLog`,
 		`worker.once("exit", (code, signal) => void finishGeneration(`,
 		`scheduleGeneration(restartDelay);`,
-		`stdio:["ignore",workerLogFD,workerLogFD,"pipe"]`,
+		`stdio:["ignore",workerLogFD,workerLogFD,"pipe","pipe"]`,
 		`socket.once("error", error => void finishGeneration(`,
 		`control.once("error", error => void finishGeneration(`,
 		`worker.once("error", error => void finishGeneration(`,
@@ -56,6 +56,23 @@ func TestBootstrapRelayKeepsRuntimeOnlineAfterWorkerRestartAndTerminalDetach(t *
 	}
 	if strings.Contains(bootstrapRelayScript, `if (!stoppingWorker && !stopped) process.exit`) {
 		t.Fatal("bootstrap relay still exits with the Runtime worker")
+	}
+}
+
+func TestBootstrapRelayOwnsPrivateCompanionStatusSocket(t *testing.T) {
+	for _, fragment := range []string{
+		`fs.chmodSync(statusSocketPath, 0o600)`,
+		`request.method === "status"`,
+		`request.method === "reconnect"`,
+		`CC_CONNECT_RUNTIME_STATUS_FD:"4"`,
+		`runtime_connected: runtimeConnected`,
+	} {
+		if !strings.Contains(bootstrapRelayScript, fragment) {
+			t.Errorf("bootstrap relay is missing status socket behavior %q", fragment)
+		}
+	}
+	if strings.Contains(bootstrapRelayScript, `spawn(workerExecutable`) && strings.Contains(bootstrapRelayScript, `request.method === "start"`) {
+		t.Fatal("companion status socket allows starting a supervisor or writer")
 	}
 }
 

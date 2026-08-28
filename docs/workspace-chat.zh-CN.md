@@ -7,7 +7,6 @@ Web 主聊天和消息平台通过 cc-connect 的标准 `Platform → Engine →
 - macOS 上的 Codex Desktop App 必须正在运行，并且至少有一个可路由任务。
 - `cc-connect-runtime` 必须从当前 Codex App 的交互终端完成首次启动。普通 Terminal、launchd 和其他后台进程不具备 App tools Socket 所需的执行上下文；启动后的 Node supervisor 不依赖该终端继续打开。
 - 本地运行时使用 `agent.type = "codexapp"`。Linux control/server 通过已配对的 `cc-connect-runtime` 访问用户 Mac；服务器不读取 `CODEX_HOME`。
-- `agent.type = "codex"` 仍表示用户显式配置的普通 Codex CLI 项目，不能作为 Desktop App 的 fallback。
 
 Runtime launcher 先 re-exec 为 App 内置 Node supervisor。supervisor 优先连接 App 明确传入的 `CODEX_APP_TOOLS_PIPE_PATH`，否则扫描 `/tmp/codex-browser-use/*.sock` 中当前 UID 所有的 Socket。候选必须通过 `tools/list` schema 校验和 `list_projects` 探测；没有候选或存在多个不同的活动候选都会明确失败。唯一候选通过探测后，supervisor 将同一连接通过双向 FD 3 转交 Go worker；worker 不自行扫描 Socket。
 
@@ -19,11 +18,11 @@ Socket 使用 4 字节 little-endian 长度帧，单帧上限 8 MiB。Bridge 负
 
 ## 项目、任务与历史
 
-Web `/chat` 展示当前 App 的全部项目和任务。项目主点击只展开任务；项目和任务行的 `…` 打开可聚焦的操作卡。新建页只在浏览器保存尚未提交的输入，首条消息通过 App 的 `create_thread` 一次创建真实任务，成功后 URL 切换到 `/chat/{projectId}/{taskId}`。
+Web 工作区展示当前 App 的全部项目和任务。项目主点击只展开任务；项目和任务行的 `…` 打开可聚焦的操作卡。新建页只在浏览器保存尚未提交的输入，首条消息通过 App 的 `create_thread` 一次创建真实任务，成功后 URL 切换到 `/tasks/{deviceID}/{projectID}/{taskID}`。
 
 消息平台的 `/new` 只创建“等待首条消息”的本地选择状态；下一条普通消息由同一个 `AgentSession` 创建真实 App 任务。已有任务的 follow-up 使用 `send_message_to_thread`，状态观察使用 `wait_threads` cursor，历史始终通过 `read_thread` 收敛。`Close` 只释放观察连接，不关闭 Desktop App，也不终止任务。
 
-Web 通过 Management Platform 把发送请求交给 `Engine.ReceiveMessage`。企业微信、飞书及其他平台使用同一 Engine 命令和 session 选择机制，不存在消息拦截器、专用 WeCom transport 或平行 WorkspaceChat actor。
+Web 通过 Management Platform 把发送请求交给 `Engine.ReceiveMessage`。飞书使用同一 Engine 命令和 session 选择机制，不存在消息拦截器或平行 WorkspaceChat actor。
 
 ## 能力与错误
 

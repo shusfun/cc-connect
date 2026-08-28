@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,6 +18,7 @@ const bridgeWorkerFDEnv = "CC_CONNECT_CODEXAPP_BRIDGE_FD"
 const bootstrapRelayScript = `
 const fs = require("fs");
 const net = require("net");
+const pathModule = require("path");
 const { randomUUID } = require("crypto");
 const { spawn } = require("child_process");
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
@@ -25,6 +27,10 @@ const explicitPath = process.argv[1];
 const workerExecutable = process.env.CC_CONNECT_RUNTIME_EXECUTABLE;
 const workerArgs = JSON.parse(process.env.CC_CONNECT_RUNTIME_ARGS || "[]");
 const runtimeLogPath = process.env.CC_CONNECT_RUNTIME_LOG_PATH;
+const statusSocketPath = process.env.CC_CONNECT_SUPERVISOR_SOCKET_PATH;
+const runtimeVersion = process.env.CC_CONNECT_RUNTIME_VERSION || "dev";
+const controlURL = process.env.CC_CONNECT_CONTROL_URL || "";
+const deviceID = process.env.CC_CONNECT_DEVICE_ID || "";
 const contextThreadId = process.env.CODEX_THREAD_ID;
 let stopped = false;
 let activeGeneration = null;
@@ -33,11 +39,15 @@ let restartTimer = null;
 let logFD = null;
 let lastRelayError = "";
 let lastRelayErrorAt = 0;
+let workerGeneration = 0;
+let connectionGeneration = 0;
+let runtimeConnected = false;
+let statusServer = null;
 
 function runtimeLogFD() {
   if (logFD != null) return logFD;
   if (!runtimeLogPath) throw new Error("CC_CONNECT_RUNTIME_LOG_PATH is unavailable");
-  fs.mkdirSync(require("path").dirname(runtimeLogPath), {recursive:true, mode:0o700});
+  fs.mkdirSync(pathModule.dirname(runtimeLogPath), {recursive:true, mode:0o700});
   logFD = fs.openSync(runtimeLogPath, "a", 0o600);
   return logFD;
 }
@@ -148,13 +158,89 @@ async function selectSocket() {
 }
 
 function reportRelayError(error) {
-  const message = error?.message || String(error);
+  const message = redact(error?.message || String(error));
   const now = Date.now();
   if (message !== lastRelayError || now - lastRelayErrorAt >= 30000) {
     writeRuntimeLog("ERROR", message);
     lastRelayError = message;
     lastRelayErrorAt = now;
   }
+}
+
+function redact(value) {
+  let result = String(value || "");
+  const home = process.env.HOME;
+  if (home) result = result.split(home).join("~");
+  result = result.replace(/((?:token|password|secret|cookie|authorization)[=: ]+)[^\s;,]+/ig, "$1[REDACTED]");
+  result = result.replace(/([?&](?:token|code|key|signature)=)[^&\s]+/ig, "$1[REDACTED]");
+  return result.slice(0, 1000);
+}
+
+function currentStatus() {
+  return {
+    protocol: 1,
+    supervisor_pid: process.pid,
+    worker_pid: activeGeneration?.worker?.pid || 0,
+    worker_generation: workerGeneration,
+    connection_generation: connectionGeneration,
+    worker_running: activeGeneration != null && activeGeneration.worker?.exitCode == null,
+    runtime_connected: runtimeConnected,
+    control_url: controlURL,
+    device_id: deviceID,
+    version: runtimeVersion,
+    last_error: lastRelayError,
+    last_error_at: lastRelayErrorAt ? new Date(lastRelayErrorAt).toISOString() : undefined,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function stopActiveGeneration(reason) {
+  const generation = activeGeneration;
+  if (generation == null || generation.finished) return false;
+  void generation.finish(reason, false, 0);
+  return true;
+}
+
+function startStatusServer() {
+  if (!statusSocketPath) throw new Error("CC_CONNECT_SUPERVISOR_SOCKET_PATH is unavailable");
+  fs.mkdirSync(pathModule.dirname(statusSocketPath), {recursive:true, mode:0o700});
+  try {
+    const stat = fs.lstatSync(statusSocketPath);
+    if (!stat.isSocket() || stat.uid !== process.getuid()) throw new Error("existing status socket is not owned by current user");
+    fs.unlinkSync(statusSocketPath);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  statusServer = net.createServer(client => {
+    let pending = "";
+    client.setEncoding("utf8");
+    client.setTimeout(3000, () => client.destroy());
+    client.on("data", chunk => {
+      pending += chunk;
+      if (pending.length > 4096) return client.destroy();
+      const newline = pending.indexOf("\n");
+      if (newline < 0) return;
+      let request;
+      try { request = JSON.parse(pending.slice(0, newline)); }
+      catch { client.end(JSON.stringify({ok:false,error:"请求不是有效 JSON"}) + "\n"); return; }
+      if (request?.protocol !== 1) {
+        client.end(JSON.stringify({ok:false,error:"状态协议版本不匹配"}) + "\n");
+      } else if (request.method === "status") {
+        client.end(JSON.stringify({ok:true,status:currentStatus()}) + "\n");
+      } else if (request.method === "reconnect") {
+        const restarted = stopActiveGeneration("requested by companion app");
+        if (!restarted) scheduleGeneration(0);
+        client.end(JSON.stringify({ok:true}) + "\n");
+      } else {
+        client.end(JSON.stringify({ok:false,error:"不支持的 supervisor 操作"}) + "\n");
+      }
+    });
+  });
+  statusServer.on("error", reportRelayError);
+  statusServer.listen(statusSocketPath, () => {
+    try { fs.chmodSync(statusSocketPath, 0o600); }
+    catch (error) { reportRelayError("设置状态 Socket 权限失败: " + (error?.message || error)); }
+  });
 }
 
 function terminateWorker(current) {
@@ -200,10 +286,32 @@ async function startGeneration() {
     lastRelayErrorAt = 0;
     const environment = {...process.env, CC_CONNECT_CODEXAPP_BRIDGE_FD:"3"};
     const workerLogFD = runtimeLogFD();
-    const worker = spawn(workerExecutable, workerArgs, {env:environment, stdio:["ignore",workerLogFD,workerLogFD,"pipe"]});
+    workerGeneration += 1;
+    runtimeConnected = false;
+    connectionGeneration = 0;
+    const worker = spawn(workerExecutable, workerArgs, {env:{...environment, CC_CONNECT_RUNTIME_STATUS_FD:"4"}, stdio:["ignore",workerLogFD,workerLogFD,"pipe","pipe"]});
     const control = worker.stdio[3];
-    const generation = {socket, worker, control, finished:false};
+    const statusPipe = worker.stdio[4];
+    const generation = {socket, worker, control, statusPipe, finished:false, finish:null};
     activeGeneration = generation;
+
+    let statusPending = "";
+    statusPipe.setEncoding("utf8");
+    statusPipe.on("data", chunk => {
+      statusPending += chunk;
+      if (statusPending.length > 65536) statusPending = "";
+      for (;;) {
+        const newline = statusPending.indexOf("\n");
+        if (newline < 0) break;
+        const line = statusPending.slice(0, newline);
+        statusPending = statusPending.slice(newline + 1);
+        try {
+          const state = JSON.parse(line);
+          runtimeConnected = state.connected === true;
+          connectionGeneration = runtimeConnected ? Number(state.connection_generation || 0) : 0;
+        } catch (error) { reportRelayError("Runtime 状态帧无效: " + (error?.message || error)); }
+      }
+    });
 
     async function finishGeneration(reason, workerExited, restartDelay) {
       if (generation.finished) return;
@@ -213,10 +321,16 @@ async function startGeneration() {
       control.unpipe(socket);
       socket.destroy();
       control.destroy();
+      statusPipe.destroy();
       if (!workerExited) await terminateWorker(worker);
-      if (activeGeneration === generation) activeGeneration = null;
+      if (activeGeneration === generation) {
+        activeGeneration = null;
+        runtimeConnected = false;
+        connectionGeneration = 0;
+      }
       scheduleGeneration(restartDelay);
     }
+    generation.finish = finishGeneration;
 
     control.pipe(socket);
     socket.pipe(control);
@@ -249,7 +363,15 @@ async function shutdown() {
     generation.finished = true;
     generation.socket.destroy();
     generation.control.destroy();
+    generation.statusPipe.destroy();
     await terminateWorker(generation.worker);
+  }
+  if (statusServer != null) {
+    await new Promise(resolve => statusServer.close(resolve));
+    statusServer = null;
+  }
+  if (statusSocketPath) {
+    try { fs.unlinkSync(statusSocketPath); } catch (error) { if (error?.code !== "ENOENT") writeRuntimeLog("ERROR", "remove status socket failed"); }
   }
   if (logFD != null) fs.closeSync(logFD);
   process.exit(0);
@@ -258,6 +380,7 @@ async function shutdown() {
 process.once("SIGINT", shutdown);
 process.once("SIGTERM", shutdown);
 process.on("SIGHUP", () => writeRuntimeLog("INFO", "launch terminal detached; supervisor remains active"));
+startStatusServer();
 void startGeneration();
 `
 
@@ -273,7 +396,7 @@ func InheritedBridgeFD() (int, error) {
 	return fd, nil
 }
 
-func BootstrapRuntime(socketPath, explicitNodePath, logPath string, args []string) error {
+func BootstrapRuntime(socketPath, explicitNodePath, stateDirectory, version string, args []string) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 		return errors.New("codex app bridge: cc-connect-runtime must be started from an interactive Codex App terminal")
 	}
@@ -297,14 +420,34 @@ func BootstrapRuntime(socketPath, explicitNodePath, logPath string, args []strin
 	if err != nil {
 		return fmt.Errorf("codex app bridge: encode Runtime arguments: %w", err)
 	}
+	identityServerURL, identityDeviceID := readIdentityMetadata(stateDirectory)
 	environment := replaceEnv(os.Environ(), "CODEX_APP_TOOLS_PIPE_PATH", socketPath)
 	environment = replaceEnv(environment, "CC_CONNECT_RUNTIME_EXECUTABLE", executable)
 	environment = replaceEnv(environment, "CC_CONNECT_RUNTIME_ARGS", string(encodedArgs))
-	environment = replaceEnv(environment, "CC_CONNECT_RUNTIME_LOG_PATH", logPath)
+	environment = replaceEnv(environment, "CC_CONNECT_RUNTIME_LOG_PATH", filepath.Join(stateDirectory, "logs", "runtime.log"))
+	environment = replaceEnv(environment, "CC_CONNECT_SUPERVISOR_SOCKET_PATH", filepath.Join(stateDirectory, "status.sock"))
+	environment = replaceEnv(environment, "CC_CONNECT_RUNTIME_VERSION", strings.TrimSpace(version))
+	environment = replaceEnv(environment, "CC_CONNECT_CONTROL_URL", identityServerURL)
+	environment = replaceEnv(environment, "CC_CONNECT_DEVICE_ID", identityDeviceID)
 	if err := syscall.Exec(nodePath, []string{nodePath, "-e", bootstrapRelayScript, socketPath}, environment); err != nil {
 		return fmt.Errorf("codex app bridge: exec Desktop relay: %w", err)
 	}
 	return nil
+}
+
+func readIdentityMetadata(stateDirectory string) (string, string) {
+	raw, err := os.ReadFile(filepath.Join(stateDirectory, "identity.json"))
+	if err != nil {
+		return "", ""
+	}
+	var value struct {
+		ServerURL string `json:"server_url"`
+		DeviceID  string `json:"device_id"`
+	}
+	if json.Unmarshal(raw, &value) != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(value.ServerURL), strings.TrimSpace(value.DeviceID)
 }
 
 func desktopNodePath(explicit string) (string, error) {

@@ -203,49 +203,6 @@
     "openNavigation": "Open navigation",
     "theme": "Theme"
   },
-  "setup": {
-    "addPlatform": "Add platform",
-    "choosePlatform": "Choose a platform to connect:",
-    "scanToConnect": "Scan QR code to connect",
-    "feishuLabel": "Feishu / Lark",
-    "weixinLabel": "WeChat (ilink)",
-    "qrDescription": "Scan a QR code with your phone to quickly connect {{platform}}.",
-    "startQR": "Start QR Setup",
-    "generating": "Generating QR code...",
-    "scanFeishu": "Open the Feishu / Lark app and scan the QR code",
-    "scanWeixin": "Open WeChat and scan the QR code",
-    "waitingScan": "Waiting for scan...",
-    "scannedConfirm": "Scanned! Please confirm on your phone...",
-    "waitingConfirm": "Waiting for confirmation...",
-    "savingConfig": "Saving configuration...",
-    "completed": "Platform connected successfully!",
-    "restartHint": "Restart the service for the new platform to take effect.",
-    "restartRequired": "Restart required",
-    "restartNow": "Restart now",
-    "restarting": "Restarting service...",
-    "restartAfterDelete": "Project removed. Restart service to take effect?",
-    "later": "Later",
-    "expired": "QR code expired.",
-    "denied": "Authorization was denied.",
-    "retry": "Retry",
-    "addProject": "Add project",
-    "projectName": "Project name",
-    "workDir": "Working directory",
-    "agentType": "Agent type",
-    "next": "Next",
-    "manualSetup": "Manual setup",
-    "manualHint": "For {{platform}}, please configure credentials in config.toml and restart the service.",
-    "advancedOptions": "Advanced options",
-    "unsupportedPlatform": "Unsupported platform type: {{type}}",
-    "cloudWeb": {
-      "urlRequiredWebsocket": "WebSocket transport requires API base URL or WebSocket URL (at least one)",
-      "urlRequiredLongPoll": "Long poll transport requires API base URL",
-      "urlRequiredGateway": "Gateway transport requires API base URL or Register URL (at least one)",
-      "invalidHttpUrl": "{{field}} must be a valid http(s) URL or host[:port]",
-      "invalidWsUrl": "WebSocket URL must start with ws:// or wss://",
-      "publicUrlRequiredGateway": "Public webhook URL is required when Register URL is set"
-    }
-  },
   "fields": {
     "botToken": "Bot Token",
     "appToken": "App Token",
@@ -529,7 +486,7 @@
     "service": "Business service", "currentRelease": "Current release", "update": "Check and update", "rollback": "Rollback", "restart": "Restart", "running": "Running", "stopped": "Stopped", "noLogs": "No service logs", "deployRuns": "Deployment runs", "containerHostUnavailable": "Container deployment host is unavailable",
     "setupWizard": "Deployment setup", "setupWizardSubtitle": "Connect the public endpoint, macOS Runtime, and business service", "publicURL": "Public HTTPS URL", "openrestyConfig": "1Panel / OpenResty reverse proxy configuration",
     "runtimePairing": "Pair macOS Runtime", "createPairingCode": "Create pairing code", "runtimeTerminalRequired": "Run this command in the current Codex Desktop App interactive terminal. Closing that terminal takes Runtime offline.", "runtimeReady": "Runtime online with {{count}} project roots", "runtimeWaiting": "Waiting for an online Runtime with a valid Codex project", "codexValidation": "Validate Codex and project catalog",
-    "wecomOptional": "WeCom WebSocket (optional)", "enableWeCom": "Enable WeCom workspace chat", "wecomBotID": "WeCom Bot ID", "wecomBotSecret": "WeCom Bot Secret", "wecomAllowFrom": "Allowed user IDs (optional)", "startService": "Generate configuration and start"
+    "feishuOptional": "Feishu WebSocket (optional)", "enableFeishu": "Enable the Feishu task channel", "feishuAppID": "Feishu App ID", "feishuAppSecret": "Feishu App Secret", "feishuAllowFrom": "Allowed user IDs (optional)", "startService": "Generate configuration and start"
   },
   "theme": {
     "light": "Light",

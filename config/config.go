@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -1513,7 +1514,11 @@ func loadLocked() (*Config, error) {
 }
 
 func saveConfig(cfg *Config) error {
-	dir := filepath.Dir(ConfigPath)
+	return saveConfigAt(ConfigPath, cfg)
+}
+
+func saveConfigAt(path string, cfg *Config) error {
+	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".config-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create temp config: %w", err)
@@ -1542,7 +1547,7 @@ func saveConfig(cfg *Config) error {
 		os.Remove(tmpPath)
 		return err
 	}
-	return os.Rename(tmpPath, ConfigPath)
+	return os.Rename(tmpPath, path)
 }
 
 // formatTOML post-processes raw TOML encoder output to improve readability:
@@ -3705,18 +3710,7 @@ func FormatConfigFile(path string) error {
 }
 
 // GetGlobalSettings reads global settings from config.toml.
-func GetGlobalSettings() map[string]any {
-	if ConfigPath == "" {
-		return nil
-	}
-	data, err := os.ReadFile(ConfigPath)
-	if err != nil {
-		return nil
-	}
-	cfg := &Config{}
-	if err := toml.Unmarshal(data, cfg); err != nil {
-		return nil
-	}
+func globalSettings(cfg *Config) map[string]any {
 	result := map[string]any{
 		"language":        cfg.Language,
 		"attachment_send": cfg.AttachmentSend,
@@ -3732,7 +3726,6 @@ func GetGlobalSettings() map[string]any {
 	} else {
 		result["max_turn_time_mins"] = 0
 	}
-	// Display
 	if cfg.Display.ThinkingMessages != nil {
 		result["thinking_messages"] = *cfg.Display.ThinkingMessages
 	} else {
@@ -3758,7 +3751,6 @@ func GetGlobalSettings() map[string]any {
 	} else {
 		result["history_max_len"] = 1000
 	}
-	// Stream preview
 	spEnabled := true
 	if cfg.StreamPreview.Enabled != nil {
 		spEnabled = *cfg.StreamPreview.Enabled
@@ -3769,7 +3761,6 @@ func GetGlobalSettings() map[string]any {
 		spInterval = *cfg.StreamPreview.IntervalMs
 	}
 	result["stream_preview_interval_ms"] = spInterval
-	// Rate limit
 	rlMax := 20
 	if cfg.RateLimit.MaxMessages != nil {
 		rlMax = *cfg.RateLimit.MaxMessages
@@ -3780,13 +3771,47 @@ func GetGlobalSettings() map[string]any {
 		rlWindow = *cfg.RateLimit.WindowSecs
 	}
 	result["rate_limit_window_secs"] = rlWindow
-	// Queue
 	queueMax := 5
 	if cfg.Queue.MaxDepth != nil {
 		queueMax = *cfg.Queue.MaxDepth
 	}
 	result["queue_max_depth"] = queueMax
 	return result
+}
+
+func readConfigFile(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+	cfg := &Config{}
+	if err := toml.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
+	return cfg, nil
+}
+
+// GetGlobalSettings reads global settings from ConfigPath.
+func GetGlobalSettings() map[string]any {
+	if ConfigPath == "" {
+		return nil
+	}
+	cfg, err := readConfigFile(ConfigPath)
+	if err != nil {
+		return nil
+	}
+	return globalSettings(cfg)
+}
+
+// ReadGlobalSettingsAt reads settings for a Control-owned server config.
+func ReadGlobalSettingsAt(path string) (map[string]any, error) {
+	configMu.Lock()
+	defer configMu.Unlock()
+	cfg, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return globalSettings(cfg), nil
 }
 
 // GlobalSettingsUpdate holds fields to update in global config.
@@ -3821,6 +3846,11 @@ func SaveGlobalSettings(u GlobalSettingsUpdate) error {
 	if err := toml.Unmarshal(data, cfg); err != nil {
 		return fmt.Errorf("parse config: %w", err)
 	}
+	applyGlobalSettings(cfg, u)
+	return saveConfig(cfg)
+}
+
+func applyGlobalSettings(cfg *Config, u GlobalSettingsUpdate) {
 	if u.Language != nil {
 		cfg.Language = *u.Language
 	}
@@ -3860,5 +3890,131 @@ func SaveGlobalSettings(u GlobalSettingsUpdate) error {
 	if u.QueueMaxDepth != nil {
 		cfg.Queue.MaxDepth = u.QueueMaxDepth
 	}
-	return saveConfig(cfg)
+}
+
+// SaveGlobalSettingsAt updates a Control-owned server config without relying on process globals.
+func SaveGlobalSettingsAt(path string, u GlobalSettingsUpdate) error {
+	configMu.Lock()
+	defer configMu.Unlock()
+	cfg, err := readConfigFile(path)
+	if err != nil {
+		return err
+	}
+	applyGlobalSettings(cfg, u)
+	if err := cfg.validate(); err != nil {
+		return err
+	}
+	return saveConfigAt(path, cfg)
+}
+
+// FeishuSettings is a secret-safe projection of the only production platform.
+type FeishuSettings struct {
+	Enabled      bool   `json:"enabled"`
+	AppID        string `json:"app_id"`
+	HasAppSecret bool   `json:"has_app_secret"`
+	AllowFrom    string `json:"allow_from"`
+}
+
+type FeishuSettingsUpdate struct {
+	Enabled   *bool   `json:"enabled"`
+	AppID     *string `json:"app_id"`
+	AppSecret *string `json:"app_secret"`
+	AllowFrom *string `json:"allow_from"`
+}
+
+func optionString(options map[string]any, key string) string {
+	if options == nil || options[key] == nil {
+		return ""
+	}
+	value, _ := options[key].(string)
+	return value
+}
+
+func feishuProject(cfg *Config) (*ProjectConfig, int) {
+	for index := range cfg.Projects {
+		if cfg.Projects[index].Agent.Type != "codexapp" {
+			continue
+		}
+		for platformIndex := range cfg.Projects[index].Platforms {
+			if cfg.Projects[index].Platforms[platformIndex].Type == "feishu" {
+				return &cfg.Projects[index], platformIndex
+			}
+		}
+		return &cfg.Projects[index], -1
+	}
+	return nil, -1
+}
+
+func feishuSettings(cfg *Config) (FeishuSettings, error) {
+	project, index := feishuProject(cfg)
+	if project == nil {
+		return FeishuSettings{}, errors.New("config: Codex Runtime project is missing")
+	}
+	if index < 0 {
+		return FeishuSettings{}, nil
+	}
+	options := project.Platforms[index].Options
+	secret := strings.TrimSpace(optionString(options, "app_secret"))
+	return FeishuSettings{Enabled: true, AppID: optionString(options, "app_id"), HasAppSecret: secret != "", AllowFrom: optionString(options, "allow_from")}, nil
+}
+
+func ReadFeishuSettingsAt(path string) (FeishuSettings, error) {
+	configMu.Lock()
+	defer configMu.Unlock()
+	cfg, err := readConfigFile(path)
+	if err != nil {
+		return FeishuSettings{}, err
+	}
+	return feishuSettings(cfg)
+}
+
+func SaveFeishuSettingsAt(path string, update FeishuSettingsUpdate) (FeishuSettings, error) {
+	configMu.Lock()
+	defer configMu.Unlock()
+	cfg, err := readConfigFile(path)
+	if err != nil {
+		return FeishuSettings{}, err
+	}
+	project, index := feishuProject(cfg)
+	if project == nil {
+		return FeishuSettings{}, errors.New("config: Codex Runtime project is missing")
+	}
+	enabled := index >= 0
+	if update.Enabled != nil {
+		enabled = *update.Enabled
+	}
+	if !enabled {
+		if index >= 0 {
+			project.Platforms = append(project.Platforms[:index], project.Platforms[index+1:]...)
+		}
+	} else {
+		if index < 0 {
+			project.Platforms = append(project.Platforms, PlatformConfig{Type: "feishu", Options: map[string]any{}})
+			index = len(project.Platforms) - 1
+		}
+		options := project.Platforms[index].Options
+		if options == nil {
+			options = map[string]any{}
+			project.Platforms[index].Options = options
+		}
+		if update.AppID != nil {
+			options["app_id"] = strings.TrimSpace(*update.AppID)
+		}
+		if update.AppSecret != nil && strings.TrimSpace(*update.AppSecret) != "" {
+			options["app_secret"] = strings.TrimSpace(*update.AppSecret)
+		}
+		if update.AllowFrom != nil {
+			options["allow_from"] = strings.TrimSpace(*update.AllowFrom)
+		}
+		if strings.TrimSpace(optionString(options, "app_id")) == "" || strings.TrimSpace(optionString(options, "app_secret")) == "" {
+			return FeishuSettings{}, errors.New("config: enabled Feishu requires app_id and app_secret")
+		}
+	}
+	if err := cfg.validate(); err != nil {
+		return FeishuSettings{}, err
+	}
+	if err := saveConfigAt(path, cfg); err != nil {
+		return FeishuSettings{}, err
+	}
+	return feishuSettings(cfg)
 }

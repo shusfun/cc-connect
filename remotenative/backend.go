@@ -68,50 +68,130 @@ func (b *Backend) ListSessions(ctx context.Context) ([]core.AgentSessionInfo, er
 	if err != nil {
 		return nil, err
 	}
-	devices := make(map[string]struct{})
+	result := make([]core.AgentSessionInfo, 0)
 	for _, workspace := range workspaces {
-		if workspace.Online && workspace.Available {
-			devices[workspace.DeviceID] = struct{}{}
+		if !workspace.Online || !workspace.Available {
+			continue
+		}
+		cursor := ""
+		for {
+			var page core.AgentSessionPage
+			request := runtimeprotocol.TaskListRequest{ProjectID: workspace.ProjectID, Cursor: cursor, Limit: 50}
+			if err := b.rpc(ctx, workspace.DeviceID, runtimeprotocol.MethodTaskList, request, &page); err != nil {
+				return nil, err
+			}
+			for index := range page.Sessions {
+				b.rememberTask(&page.Sessions[index], workspace.DeviceID)
+			}
+			result = append(result, page.Sessions...)
+			if !page.HasMore || page.Cursor == "" {
+				break
+			}
+			cursor = page.Cursor
 		}
 	}
-	result := make([]core.AgentSessionInfo, 0)
-	for deviceID := range devices {
-		var sessions []core.AgentSessionInfo
-		if err := b.rpc(ctx, deviceID, runtimeprotocol.MethodTaskList, nil, &sessions); err != nil {
-			return nil, err
+	return result, nil
+}
+
+func (b *Backend) ListSessionPage(ctx context.Context, request core.AgentSessionListRequest) (core.AgentSessionPage, error) {
+	workspaces, err := b.catalog(ctx)
+	if err != nil {
+		return core.AgentSessionPage{}, err
+	}
+	var selected *controlplane.CatalogWorkspace
+	for index := range workspaces {
+		workspace := &workspaces[index]
+		if workspace.ProjectID != request.ProjectID || !workspace.Online || !workspace.Available {
+			continue
 		}
-		for index := range sessions {
-			b.rememberTask(&sessions[index], deviceID)
+		if selected != nil && selected.DeviceID != workspace.DeviceID {
+			return core.AgentSessionPage{}, fmt.Errorf("remote codex app: project %s exists on multiple Runtime devices", request.ProjectID)
 		}
-		result = append(result, sessions...)
+		selected = workspace
+	}
+	if selected == nil {
+		return core.AgentSessionPage{}, fmt.Errorf("remote codex app: project not found: %s", request.ProjectID)
+	}
+	var result core.AgentSessionPage
+	err = b.rpc(ctx, selected.DeviceID, runtimeprotocol.MethodTaskList, runtimeprotocol.TaskListRequest{
+		ProjectID: request.ProjectID, Cursor: request.Cursor, Limit: request.Limit,
+	}, &result)
+	if err != nil {
+		return core.AgentSessionPage{}, err
+	}
+	for index := range result.Sessions {
+		b.rememberTask(&result.Sessions[index], selected.DeviceID)
 	}
 	return result, nil
 }
 
 func (b *Backend) ReadSession(ctx context.Context, sessionID, hostID, cursor string, limit int) (core.AgentSessionSnapshot, error) {
-	location, err := b.locationForTask(ctx, sessionID, hostID)
+	snapshot, err := b.ReadTask(ctx, sessionID, hostID, cursor, limit)
 	if err != nil {
 		return core.AgentSessionSnapshot{}, err
 	}
-	var result core.AgentSessionSnapshot
+	return flattenTaskSnapshot(snapshot), nil
+}
+
+func (b *Backend) ReadTask(ctx context.Context, sessionID, hostID, cursor string, limit int) (core.AgentTaskSnapshot, error) {
+	location, err := b.locationForTask(ctx, sessionID, hostID)
+	if err != nil {
+		return core.AgentTaskSnapshot{}, err
+	}
+	var result core.AgentTaskSnapshot
 	err = b.rpc(ctx, location.deviceID, runtimeprotocol.MethodTaskRead, runtimeprotocol.TaskReadRequest{TaskRef: runtimeprotocol.TaskRef{TaskID: sessionID, HostID: location.nativeHostID}, Cursor: cursor, Limit: limit}, &result)
 	if err == nil {
-		b.rememberTask(&result.Session, location.deviceID)
+		b.rememberTask(&result.Task, location.deviceID)
 	}
 	return result, err
 }
 
 func (b *Backend) WaitSession(ctx context.Context, sessionID, hostID, cursor string, timeout time.Duration) (core.AgentSessionSnapshot, error) {
-	location, err := b.locationForTask(ctx, sessionID, hostID)
+	snapshot, err := b.WaitTask(ctx, sessionID, hostID, cursor, timeout)
 	if err != nil {
 		return core.AgentSessionSnapshot{}, err
 	}
-	var result core.AgentSessionSnapshot
+	return flattenTaskSnapshot(snapshot), nil
+}
+
+func (b *Backend) WaitTask(ctx context.Context, sessionID, hostID, cursor string, timeout time.Duration) (core.AgentTaskSnapshot, error) {
+	location, err := b.locationForTask(ctx, sessionID, hostID)
+	if err != nil {
+		return core.AgentTaskSnapshot{}, err
+	}
+	var result core.AgentTaskSnapshot
 	err = b.rpc(ctx, location.deviceID, runtimeprotocol.MethodTaskWait, runtimeprotocol.TaskWaitRequest{TaskRef: runtimeprotocol.TaskRef{TaskID: sessionID, HostID: location.nativeHostID}, Cursor: cursor, TimeoutMS: timeout.Milliseconds()}, &result)
 	if err == nil {
-		b.rememberTask(&result.Session, location.deviceID)
+		b.rememberTask(&result.Task, location.deviceID)
 	}
 	return result, err
+}
+
+func flattenTaskSnapshot(snapshot core.AgentTaskSnapshot) core.AgentSessionSnapshot {
+	history := make([]core.HistoryEntry, 0)
+	for _, turn := range snapshot.Turns {
+		for _, item := range turn.Items {
+			switch item.Type {
+			case "user_message":
+				parts := make([]string, 0, len(item.Content))
+				for _, part := range item.Content {
+					if part.Type == "text" && strings.TrimSpace(part.Text) != "" {
+						parts = append(parts, part.Text)
+					}
+				}
+				if len(parts) > 0 {
+					history = append(history, core.HistoryEntry{Role: "user", Content: strings.Join(parts, "\n"), Timestamp: turn.StartedAt})
+				}
+			case "agent_message":
+				if strings.TrimSpace(item.Text) != "" {
+					history = append(history, core.HistoryEntry{Role: "assistant", Content: item.Text, Timestamp: turn.StartedAt})
+				}
+			}
+		}
+	}
+	task := snapshot.Task
+	task.MessageCount = len(history)
+	return core.AgentSessionSnapshot{Session: task, History: history, Cursor: snapshot.Page.Cursor, WaitCursor: snapshot.WaitCursor, HasMore: snapshot.Page.HasMore}
 }
 
 func (b *Backend) CreateSession(ctx context.Context, request core.AgentSessionCreateRequest) (core.AgentSessionInfo, error) {
@@ -304,6 +384,9 @@ func decodeControlResponse(response *http.Response, target any) error {
 
 var _ core.Agent = (*Backend)(nil)
 var _ core.AgentProjectCatalog = (*Backend)(nil)
+var _ core.AgentSessionPageLister = (*Backend)(nil)
+var _ core.AgentTaskReader = (*Backend)(nil)
+var _ core.AgentTaskWaiter = (*Backend)(nil)
 var _ core.AgentSessionReader = (*Backend)(nil)
 var _ core.AgentSessionWaiter = (*Backend)(nil)
 var _ core.AgentSessionCreator = (*Backend)(nil)

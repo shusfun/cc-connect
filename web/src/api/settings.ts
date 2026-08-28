@@ -17,3 +17,14 @@ export interface GlobalSettings {
 
 export const getGlobalSettings = () => api.get<GlobalSettings>('/settings');
 export const updateGlobalSettings = (body: Partial<GlobalSettings>) => api.patch<GlobalSettings>('/settings', body);
+
+export interface FeishuSettings {
+  enabled: boolean;
+  app_id: string;
+  has_app_secret: boolean;
+  allow_from: string;
+}
+
+export const getFeishuSettings = () => api.get<FeishuSettings>('/settings/feishu');
+export const updateFeishuSettings = (body: { enabled?: boolean; app_id?: string; app_secret?: string; allow_from?: string }) =>
+  api.patch<FeishuSettings>('/settings/feishu', body);

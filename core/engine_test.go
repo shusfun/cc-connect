@@ -2424,19 +2424,17 @@ func TestProcessInteractiveEvents_RichCard_ToolThenNoReply(t *testing.T) {
 	}
 }
 
-func TestAgentSystemPrompt_MentionsAttachmentSend(t *testing.T) {
+func TestAgentSystemPrompt_EnforcesCodexProductBoundary(t *testing.T) {
 	prompt := AgentSystemPrompt()
-	if !strings.Contains(prompt, "cc-connect send --image") {
-		t.Fatalf("prompt missing image send instructions: %q", prompt)
+	for _, expected := range []string{"Feishu", "Codex Desktop App", "NO_REPLY"} {
+		if !strings.Contains(prompt, expected) {
+			t.Fatalf("prompt missing %q: %q", expected, prompt)
+		}
 	}
-	if !strings.Contains(prompt, "cc-connect send --file") {
-		t.Fatalf("prompt missing file send instructions: %q", prompt)
-	}
-	if !strings.Contains(prompt, "cc-connect send --tts") {
-		t.Fatalf("prompt missing tts send instructions: %q", prompt)
-	}
-	if !strings.Contains(prompt, "NO_REPLY") {
-		t.Fatalf("prompt missing silent reply guidance for voice tool: %q", prompt)
+	for _, removed := range []string{"cc-connect send", "cc-connect cron", "cc-connect timer", "cc-connect relay"} {
+		if strings.Contains(prompt, removed) {
+			t.Fatalf("prompt still advertises removed command %q: %q", removed, prompt)
+		}
 	}
 }
 
@@ -2602,6 +2600,40 @@ func TestEngine_DisabledCommandsWithSlash(t *testing.T) {
 
 	if !e.disabledCmds["upgrade"] {
 		t.Error("upgrade should be disabled even when prefixed with /")
+	}
+}
+
+func TestEngine_RequiredDisabledCommandsCannotBeOverriddenByRole(t *testing.T) {
+	e := newTestEngine()
+	e.SetRequiredDisabledCommands([]string{"cron"})
+	e.SetDisabledCommands(nil)
+
+	roles := NewUserRoleManager()
+	roles.Configure("admin", []RoleInput{{
+		Name:             "admin",
+		UserIDs:          []string{"admin1"},
+		DisabledCommands: []string{},
+	}})
+	e.SetUserRoles(roles)
+
+	p := &stubPlatformEngine{n: "feishu"}
+	msg := &Message{SessionKey: "feishu:u1", UserID: "admin1", ReplyCtx: "ctx"}
+	e.handleCommand(p, msg, "/cron")
+
+	if len(p.sent) != 1 || (!strings.Contains(p.sent[0], "disabled") && !strings.Contains(p.sent[0], "禁用")) {
+		t.Fatalf("required disabled command was executable: %v", p.sent)
+	}
+}
+
+func TestEngine_RequiredDisabledCommandsAreExcludedFromMenu(t *testing.T) {
+	e := newTestEngine()
+	e.SetRequiredDisabledCommands([]string{"provider", "cron", "timer", "heartbeat", "bind"})
+
+	for _, command := range e.GetAllCommands() {
+		switch command.Command {
+		case "provider", "cron", "timer", "heartbeat", "bind":
+			t.Fatalf("required disabled command appears in menu: %q", command.Command)
+		}
 	}
 }
 
@@ -8098,8 +8130,11 @@ func TestSetupMemoryFile_WritesInstructions(t *testing.T) {
 	if !strings.Contains(string(content), ccConnectInstructionMarker) {
 		t.Error("expected instruction marker in file")
 	}
-	if !strings.Contains(string(content), "cc-connect cron add") {
-		t.Error("expected cron instructions in file")
+	if !strings.Contains(string(content), "Codex Desktop App remains the sole owner") {
+		t.Error("expected Codex ownership instructions in file")
+	}
+	if strings.Contains(string(content), "cc-connect cron") {
+		t.Error("legacy cron instructions must not be written")
 	}
 }
 
@@ -8143,8 +8178,8 @@ func TestSetupMemoryFile_RefreshesLegacyInstructions(t *testing.T) {
 	if strings.Contains(string(content), "legacy instructions") {
 		t.Fatalf("legacy instructions should be refreshed, got %q", string(content))
 	}
-	if !strings.Contains(string(content), "cc-connect send --image") {
-		t.Fatalf("expected refreshed attachment instructions, got %q", string(content))
+	if !strings.Contains(string(content), "do not invoke cc-connect CLI commands") {
+		t.Fatalf("expected refreshed Codex product instructions, got %q", string(content))
 	}
 }
 
@@ -16172,20 +16207,6 @@ func TestAudioFormatHint(t *testing.T) {
 				t.Errorf("audioFormatHint(%+v) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
-	}
-}
-
-func TestAgentSystemPrompt_DocumentsAudioVideoFlags(t *testing.T) {
-	prompt := AgentSystemPrompt()
-	for _, want := range []string{"send --audio", "send --video"} {
-		if !strings.Contains(prompt, want) {
-			t.Errorf("AgentSystemPrompt missing %q", want)
-		}
-	}
-	// Make sure the surrounding guidance is also present so the agent
-	// doesn't silently downgrade --audio/--video to --file.
-	if !strings.Contains(prompt, "Do NOT downgrade") {
-		t.Error("AgentSystemPrompt missing the 'Do NOT downgrade' anti-regression line")
 	}
 }
 

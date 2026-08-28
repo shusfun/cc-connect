@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -103,11 +105,15 @@ func (a *Agent) ListProjects(ctx context.Context) ([]core.AgentProjectInfo, erro
 }
 
 func (a *Agent) ListSessions(ctx context.Context) ([]core.AgentSessionInfo, error) {
+	return a.listSessions(ctx, 50)
+}
+
+func (a *Agent) listSessions(ctx context.Context, limit int) ([]core.AgentSessionInfo, error) {
 	projects, err := a.ListProjects(ctx)
 	if err != nil {
 		return nil, err
 	}
-	raw, err := a.callJSON(ctx, "list_threads", map[string]any{"limit": 50})
+	raw, err := a.callJSON(ctx, "list_threads", map[string]any{"limit": limit})
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +132,130 @@ func (a *Agent) ListSessions(ctx context.Context) ([]core.AgentSessionInfo, erro
 		result = append(result, item.info(false, projects))
 	}
 	return result, nil
+}
+
+func (a *Agent) ListSessionPage(ctx context.Context, request core.AgentSessionListRequest) (core.AgentSessionPage, error) {
+	limit := request.Limit
+	if limit == 0 {
+		limit = 5
+	}
+	if limit < 1 || limit > 50 {
+		return core.AgentSessionPage{}, errors.New("codex app: task page limit must be between 1 and 50")
+	}
+	offset := 0
+	if request.Cursor != "" {
+		var err error
+		offset, err = strconv.Atoi(strings.TrimPrefix(request.Cursor, "offset:"))
+		if err != nil || offset < 0 || request.Cursor != "offset:"+strconv.Itoa(offset) {
+			return core.AgentSessionPage{}, errors.New("codex app: invalid task page cursor")
+		}
+	}
+	const fetchLimit = 50
+	sessions, err := a.listSessions(ctx, fetchLimit)
+	if err != nil {
+		return core.AgentSessionPage{}, err
+	}
+	filtered := make([]core.AgentSessionInfo, 0, len(sessions))
+	seen := make(map[string]struct{}, len(sessions))
+	for _, session := range sessions {
+		if request.ProjectID != "" && session.ProjectID != request.ProjectID {
+			continue
+		}
+		key := session.HostID + "\x00" + session.ID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		filtered = append(filtered, session)
+	}
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if filtered[i].Pinned != filtered[j].Pinned {
+			return filtered[i].Pinned
+		}
+		return filtered[i].ModifiedAt.After(filtered[j].ModifiedAt)
+	})
+	if offset > len(filtered) {
+		offset = len(filtered)
+	}
+	end := offset + limit
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+	hasMore := end < len(filtered)
+	nextCursor := ""
+	if hasMore {
+		nextCursor = "offset:" + strconv.Itoa(end)
+	}
+	return core.AgentSessionPage{Sessions: filtered[offset:end], Cursor: nextCursor, HasMore: hasMore, TotalHint: len(filtered)}, nil
+}
+
+func (a *Agent) SearchTasks(ctx context.Context, request core.AgentTaskSearchRequest) ([]core.AgentTaskSearchResult, error) {
+	query := strings.ToLower(strings.TrimSpace(request.Query))
+	if query == "" {
+		return nil, errors.New("codex app: search query is required")
+	}
+	limit := request.Limit
+	if limit == 0 {
+		limit = 30
+	}
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("codex app: search limit must be between 1 and 100")
+	}
+	sessions, err := a.listSessions(ctx, 50)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]core.AgentTaskSearchResult, 0, limit)
+	for _, session := range sessions {
+		if session.Archived {
+			continue
+		}
+		haystack := strings.ToLower(strings.Join([]string{session.Summary, session.ProjectName, session.ID}, "\n"))
+		if !strings.Contains(haystack, query) {
+			continue
+		}
+		results = append(results, core.AgentTaskSearchResult{Task: session})
+		if len(results) == limit {
+			break
+		}
+	}
+	return results, nil
+}
+
+func (a *Agent) ListArchivedTasks(ctx context.Context, limit int) (core.AgentSessionPage, error) {
+	if limit == 0 {
+		limit = 50
+	}
+	if limit < 1 || limit > 50 {
+		return core.AgentSessionPage{}, errors.New("codex app: archived task limit must be between 1 and 50")
+	}
+	projects, err := a.ListProjects(ctx)
+	if err != nil {
+		return core.AgentSessionPage{}, err
+	}
+	raw, err := a.callJSON(ctx, "list_archived_threads", map[string]any{"limit": limit})
+	if err != nil {
+		return core.AgentSessionPage{}, err
+	}
+	var response struct {
+		Threads         []threadSummary `json:"threads"`
+		ArchivedThreads []threadSummary `json:"archivedThreads"`
+		NextCursor      string          `json:"nextCursor"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return core.AgentSessionPage{}, fmt.Errorf("codex app: decode archived tasks: %w", err)
+	}
+	items := response.ArchivedThreads
+	if len(items) == 0 {
+		items = response.Threads
+	}
+	sessions := make([]core.AgentSessionInfo, 0, len(items))
+	for _, item := range items {
+		info := item.info(false, projects)
+		info.Archived = true
+		sessions = append(sessions, info)
+	}
+	return core.AgentSessionPage{Sessions: sessions, Cursor: response.NextCursor, HasMore: response.NextCursor != ""}, nil
 }
 
 type threadSummary struct {
@@ -158,6 +288,14 @@ func (t threadSummary) info(pinned bool, projects []core.AgentProjectInfo) core.
 }
 
 func (a *Agent) ReadSession(ctx context.Context, sessionID, hostID, cursor string, limit int) (core.AgentSessionSnapshot, error) {
+	snapshot, err := a.ReadTask(ctx, sessionID, hostID, cursor, limit)
+	if err != nil {
+		return core.AgentSessionSnapshot{}, err
+	}
+	return legacySnapshot(snapshot), nil
+}
+
+func (a *Agent) ReadTask(ctx context.Context, sessionID, hostID, cursor string, limit int) (core.AgentTaskSnapshot, error) {
 	arguments := map[string]any{"threadId": sessionID, "includeOutputs": false, "maxOutputCharsPerItem": 20000}
 	if hostID != "" {
 		arguments["hostId"] = hostID
@@ -173,9 +311,9 @@ func (a *Agent) ReadSession(ctx context.Context, sessionID, hostID, cursor strin
 	}
 	raw, err := a.callJSON(ctx, "read_thread", arguments)
 	if err != nil {
-		return core.AgentSessionSnapshot{}, err
+		return core.AgentTaskSnapshot{}, err
 	}
-	return decodeSnapshot(raw)
+	return decodeTaskSnapshot(raw)
 }
 
 func (a *Agent) GetSessionHistory(ctx context.Context, sessionID string, limit int) ([]core.HistoryEntry, error) {
@@ -184,6 +322,14 @@ func (a *Agent) GetSessionHistory(ctx context.Context, sessionID string, limit i
 }
 
 func (a *Agent) WaitSession(ctx context.Context, sessionID, hostID, cursor string, timeout time.Duration) (core.AgentSessionSnapshot, error) {
+	snapshot, err := a.WaitTask(ctx, sessionID, hostID, cursor, timeout)
+	if err != nil {
+		return core.AgentSessionSnapshot{}, err
+	}
+	return legacySnapshot(snapshot), nil
+}
+
+func (a *Agent) WaitTask(ctx context.Context, sessionID, hostID, cursor string, timeout time.Duration) (core.AgentTaskSnapshot, error) {
 	timeoutMS := timeout.Milliseconds()
 	if timeoutMS < 0 {
 		timeoutMS = 0
@@ -200,7 +346,7 @@ func (a *Agent) WaitSession(ctx context.Context, sessionID, hostID, cursor strin
 	}
 	raw, err := a.callJSON(ctx, "wait_threads", map[string]any{"targets": []map[string]any{target}, "timeoutMs": timeoutMS})
 	if err != nil {
-		return core.AgentSessionSnapshot{}, err
+		return core.AgentTaskSnapshot{}, err
 	}
 	var waitResult struct {
 		Polls []struct {
@@ -215,11 +361,11 @@ func (a *Agent) WaitSession(ctx context.Context, sessionID, hostID, cursor strin
 		} `json:"polls"`
 	}
 	if err := json.Unmarshal(raw, &waitResult); err != nil {
-		return core.AgentSessionSnapshot{}, fmt.Errorf("codex app: decode task wait result: %w", err)
+		return core.AgentTaskSnapshot{}, fmt.Errorf("codex app: decode task wait result: %w", err)
 	}
-	snapshot, err := a.ReadSession(ctx, sessionID, hostID, "", 10)
+	snapshot, err := a.ReadTask(ctx, sessionID, hostID, "", 10)
 	if err != nil {
-		return core.AgentSessionSnapshot{}, err
+		return core.AgentTaskSnapshot{}, err
 	}
 	for _, poll := range waitResult.Polls {
 		if poll.Thread.ID != sessionID {
@@ -227,10 +373,10 @@ func (a *Agent) WaitSession(ctx context.Context, sessionID, hostID, cursor strin
 		}
 		snapshot.WaitCursor = poll.Cursor
 		if poll.Thread.HostID != "" {
-			snapshot.Session.HostID = poll.Thread.HostID
+			snapshot.Task.HostID = poll.Thread.HostID
 		}
 		if poll.Thread.Status.Type != "" {
-			snapshot.Session.Status = poll.Thread.Status.Type
+			snapshot.Task.Status = poll.Thread.Status.Type
 		}
 		break
 	}
@@ -334,6 +480,7 @@ func (a *Agent) SessionCapabilities(context.Context, string) (core.AgentSessionC
 		Fork:                capability("fork_thread", "当前 Codex App 不支持派生任务"),
 		Handoff:             capability("handoff_thread", "当前 Codex App 不支持移交任务"),
 		InteractiveResponse: core.AgentSessionCapability{Reason: "当前 Desktop Bridge 未审核交互响应工具"},
+		AutomationMutation:  capability("automation_update", "当前 Codex App 不支持修改已安排任务"),
 	}, nil
 }
 
@@ -393,6 +540,9 @@ func unixTime(value int64) time.Time {
 
 var _ core.Agent = (*Agent)(nil)
 var _ core.AgentProjectCatalog = (*Agent)(nil)
+var _ core.AgentSessionPageLister = (*Agent)(nil)
+var _ core.AgentTaskReader = (*Agent)(nil)
+var _ core.AgentTaskWaiter = (*Agent)(nil)
 var _ core.AgentSessionReader = (*Agent)(nil)
 var _ core.AgentSessionWaiter = (*Agent)(nil)
 var _ core.AgentSessionCreator = (*Agent)(nil)

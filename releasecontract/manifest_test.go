@@ -1,6 +1,7 @@
 package releasecontract
 
 import (
+	"encoding/json"
 	"os/exec"
 	"strings"
 	"testing"
@@ -9,22 +10,39 @@ import (
 
 func validManifest() Manifest {
 	manifest := Manifest{
-		Version: 1, Repository: Repository, Workflow: Workflow, Tag: "v0.1.0",
+		Version: CurrentVersion, Repository: Repository, Workflow: Workflow, Tag: "v0.1.0",
 		CommitSHA: strings.Repeat("a", 40), RuntimeContractHash: "contract", ControlSchema: 3,
 		GeneratedAt: time.Now(),
 	}
-	for _, target := range [][3]string{
-		{"control", "linux", "amd64"}, {"control", "linux", "arm64"},
-		{"server", "linux", "amd64"}, {"server", "linux", "arm64"},
-		{"deployhost", "linux", "amd64"}, {"deployhost", "linux", "arm64"},
-		{"runtime", "darwin", "amd64"}, {"runtime", "darwin", "arm64"},
+	for _, target := range [][4]string{
+		{"control", "linux", "amd64", ArchiveTarGzip}, {"control", "linux", "arm64", ArchiveTarGzip},
+		{"server", "linux", "amd64", ArchiveTarGzip}, {"server", "linux", "arm64", ArchiveTarGzip},
+		{"deployhost", "linux", "amd64", ArchiveTarGzip}, {"deployhost", "linux", "arm64", ArchiveTarGzip},
+		{"runtime", "darwin", "amd64", ArchiveTarGzip}, {"runtime", "darwin", "arm64", ArchiveTarGzip},
+		{"desktop", "darwin", "universal", DesktopAppZIP}, {"desktop", "darwin", "universal", DesktopDMG},
 	} {
 		manifest.Artifacts = append(manifest.Artifacts, Artifact{
-			Name:      "cc-connect-" + target[0] + "-" + target[1] + "-" + target[2] + ".tar.gz",
-			Component: target[0], OS: target[1], Arch: target[2], SHA256: strings.Repeat("b", 64), Size: 1,
+			Name:      "cc-connect-" + target[0] + "-" + target[1] + "-" + target[2] + "-" + target[3],
+			Component: target[0], OS: target[1], Arch: target[2], Format: target[3], SHA256: strings.Repeat("b", 64), Size: 1,
 		})
 	}
 	return manifest
+}
+
+func TestDecodeAcceptsTransitionV1WithoutFormat(t *testing.T) {
+	manifest := validManifest()
+	manifest.Version = TransitionV1
+	manifest.Artifacts = manifest.Artifacts[:8]
+	for index := range manifest.Artifacts {
+		manifest.Artifacts[index].Format = ""
+	}
+	raw, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Decode(raw); err != nil {
+		t.Fatalf("transition v1 manifest was rejected: %v", err)
+	}
 }
 
 func TestManifestValidateRequiresExactRepositoryWorkflowAndArtifacts(t *testing.T) {

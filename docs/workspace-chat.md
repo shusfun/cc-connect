@@ -7,7 +7,6 @@ The main Web chat and messaging platforms reach the currently running Codex Desk
 - Codex Desktop App must be running on macOS with at least one routable task.
 - `cc-connect-runtime` must be initially started from the current Codex App interactive terminal. A regular Terminal, launchd, or another background process does not have the execution context required by the App tools Socket. After startup, the Node supervisor does not depend on that terminal remaining open.
 - Local projects use `agent.type = "codexapp"`. Linux control/server reaches the Mac through a paired `cc-connect-runtime` and never reads server-side `CODEX_HOME` state.
-- `agent.type = "codex"` remains the explicit standalone Codex CLI adapter and is never a Desktop fallback.
 
 The Runtime launcher first re-execs into the App-bundled Node supervisor. The supervisor prefers `CODEX_APP_TOOLS_PIPE_PATH`; otherwise it scans current-UID sockets under `/tmp/codex-browser-use/*.sock`. A candidate must pass `tools/list` schema validation and a `list_projects` probe. No candidate or multiple distinct active candidates is an explicit error. After the unique candidate passes its probes, the supervisor passes that same duplex connection to the Go worker as fd 3. The worker never scans sockets itself.
 
@@ -19,11 +18,11 @@ The Socket transport uses four-byte little-endian length frames with an 8 MiB li
 
 ## Projects, tasks, and history
 
-Web `/chat` shows every project and task in the current App. Clicking a project expands tasks; explicit `…` buttons open accessible action menus. A new-task page keeps input only in browser state. Its first message calls App `create_thread` once and replaces the URL with `/chat/{projectId}/{taskId}` after receiving the real task ID.
+The Web workspace shows every project and task in the current App. Clicking a project expands tasks; explicit `…` buttons open accessible action menus. A new-task page keeps input only in browser state. Its first message calls App `create_thread` once and replaces the URL with `/tasks/{deviceID}/{projectID}/{taskID}` after receiving the real task ID.
 
-On messaging platforms, `/new` creates only a local “waiting for first message” selection. The next ordinary message creates the App task through the same `AgentSession`. Follow-ups use `send_message_to_thread`, observation uses `wait_threads` cursors, and history always converges through `read_thread`. `Close` releases observation only; it does not stop the App or task.
+On Feishu, `/new` creates only a local “waiting for first message” selection. The next ordinary message creates the App task through the same `AgentSession`. Follow-ups use `send_message_to_thread`, observation uses `wait_threads` cursors, and history always converges through `read_thread`. `Close` releases observation only; it does not stop the App or task.
 
-Web sends through an in-process Management Platform into `Engine.ReceiveMessage`. WeCom, Feishu, and other platforms use the same Engine commands and session selection. There is no message interceptor, dedicated WeCom workspace transport, or parallel WorkspaceChat actor.
+Web sends through an in-process Management Platform into `Engine.ReceiveMessage`. Feishu uses the same Engine commands and session selection. There is no message interceptor or parallel WorkspaceChat actor.
 
 ## Capabilities and failures
 

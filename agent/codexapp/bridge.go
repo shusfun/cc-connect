@@ -26,6 +26,7 @@ var auditedTools = map[string]struct{}{
 	"create_thread": {}, "list_projects": {}, "list_threads": {}, "read_thread": {},
 	"send_message_to_thread": {}, "wait_threads": {}, "set_thread_title": {},
 	"set_thread_pinned": {}, "set_thread_archived": {}, "fork_thread": {}, "handoff_thread": {},
+	"list_archived_threads": {}, "automation_update": {},
 }
 
 var requiredToolFields = map[string][]string{
@@ -40,11 +41,14 @@ var requiredToolFields = map[string][]string{
 	"set_thread_archived":    {"threadId", "archived"},
 	"fork_thread":            {},
 	"handoff_thread":         {"threadId"},
+	"list_archived_threads":  {},
+	"automation_update":      {"mode"},
 }
 
 var replaySafeTools = map[string]struct{}{
 	"list_projects": {}, "list_threads": {}, "read_thread": {}, "wait_threads": {},
-	"set_thread_title": {}, "set_thread_pinned": {}, "set_thread_archived": {},
+	"list_archived_threads": {},
+	"set_thread_title":      {}, "set_thread_pinned": {}, "set_thread_archived": {},
 }
 
 type ToolDefinition struct {

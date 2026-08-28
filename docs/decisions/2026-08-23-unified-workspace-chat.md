@@ -3,6 +3,7 @@
 - 状态：Accepted
 - 日期：2026-08-23
 - 最后核验：2026-08-28，当前 Codex Desktop App tools schema 与真实活动任务
+- 状态补充：已由 [Codex Desktop App 专用远程伴生产品](./2026-08-28-codex-desktop-companion.md) 取代通用 Agent/平台范围；本文仅保留仍适用的任务所有权与 Socket 事实。
 - 适用边界：Web 主聊天、消息平台、`codexapp` Agent、macOS Runtime 与 Desktop App 任务生命周期
 - 失效条件：Codex App 提供公开稳定且具有等价所有权语义的 Remote/Socket API，或新的 Accepted ADR 明确替换本文
 
@@ -16,9 +17,9 @@ Codex App 的第三方 tools Socket 没有公开稳定 API。当前 App 还会�
 
 ## 决定
 
-Codex Desktop App 是项目、任务、Turn、历史、状态和 writer 生命周期的唯一所有者。`agent/codexapp` 实现通用 `core.Agent` 与可选项目、任务、历史和元数据能力；cc-connect 只做代理和平台适配。`agent/codex` 仅服务用户显式配置的普通 CLI 项目，不能成为 Desktop 链路 fallback。
+Codex Desktop App 是项目、任务、Turn、历史、状态和 writer 生命周期的唯一所有者。`agent/codexapp` 实现通用 `core.Agent` 与可选项目、任务、历史和元数据能力；cc-connect 只做代理和平台适配。当前专用发行版不再注册或构建普通 Codex CLI Agent。
 
-Web、企业微信及其他平台统一进入 `Platform → Engine → AgentSession`。SessionManager 只保存平台用户当前选择的 App task ID 和“等待首条消息”状态，不复制权威历史、Turn 或交互状态。Web 发送同样经 Management Platform 进入 `Engine.ReceiveMessage`，不存在平行 WorkspaceChat actor、消息拦截器或平台专用聊天 transport。
+Web 与飞书统一进入 `Platform → Engine → AgentSession`。SessionManager 只保存平台用户当前选择的 App task ID 和“等待首条消息”状态，不复制权威历史、Turn 或交互状态。Web 发送同样经 Management Platform 进入 `Engine.ReceiveMessage`，不存在平行 WorkspaceChat actor、消息拦截器或平台专用聊天 transport。
 
 Runtime launcher 必须从当前 Codex App 交互终端启动。launcher 通过 `syscall.Exec` 替换为 App 内置 Node supervisor；supervisor 选择当前 UID 的唯一活动 tools Socket，完成 `tools/list` 与 `list_projects` 只读探测，再启动 Go Runtime worker，并通过双向 FD 3 转交连接。worker 不再次扫描 Socket。Socket 断开时 supervisor 终止旧 worker、重新扫描并建立新代际。
 

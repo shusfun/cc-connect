@@ -34,7 +34,13 @@ func NewHandler(dependencies Dependencies) (*Handler, error) {
 		return nil, errors.New("runtime handler: agent project catalog is required")
 	}
 	if _, ok := dependencies.Agent.(core.AgentSessionReader); !ok {
-		return nil, errors.New("runtime handler: authoritative task reader is required")
+		return nil, errors.New("runtime handler: legacy task reader is required")
+	}
+	if _, ok := dependencies.Agent.(core.AgentSessionPageLister); !ok {
+		return nil, errors.New("runtime handler: paged task catalog is required")
+	}
+	if _, ok := dependencies.Agent.(core.AgentTaskReader); !ok {
+		return nil, errors.New("runtime handler: typed task reader is required")
 	}
 	return &Handler{dependencies: dependencies}, nil
 }
@@ -44,23 +50,39 @@ func (h *Handler) SetEventEmitter(func(runtimeprotocol.Method, runtimeprotocol.R
 func (h *Handler) ReleaseConnection() {}
 func (h *Handler) Close()             {}
 
-func (h *Handler) Handle(ctx context.Context, method runtimeprotocol.Method, _ runtimeprotocol.Resource, payload json.RawMessage) (json.RawMessage, error) {
+func (h *Handler) Handle(ctx context.Context, method runtimeprotocol.Method, resource runtimeprotocol.Resource, payload json.RawMessage) (json.RawMessage, error) {
 	agent := h.dependencies.Agent
 	switch method {
 	case runtimeprotocol.MethodProjectList:
 		return h.CatalogSnapshot(ctx)
 	case runtimeprotocol.MethodTaskList:
-		result, err := agent.ListSessions(ctx)
+		request := runtimeprotocol.TaskListRequest{}
+		if len(payload) > 0 {
+			var err error
+			request, err = decodePayload[runtimeprotocol.TaskListRequest](payload)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if resource.ProjectRef != "" {
+			if request.ProjectID != "" && request.ProjectID != resource.ProjectRef {
+				return nil, errors.New("runtime handler: task project does not match the authorized resource")
+			}
+			request.ProjectID = resource.ProjectRef
+		}
+		result, err := agent.(core.AgentSessionPageLister).ListSessionPage(ctx, core.AgentSessionListRequest{
+			ProjectID: request.ProjectID, Cursor: request.Cursor, Limit: request.Limit,
+		})
 		return encodeResult(result, err)
 	case runtimeprotocol.MethodTaskRead:
 		request, err := decodePayload[runtimeprotocol.TaskReadRequest](payload)
 		if err != nil {
 			return nil, err
 		}
-		result, err := agent.(core.AgentSessionReader).ReadSession(ctx, request.TaskID, request.HostID, request.Cursor, request.Limit)
+		result, err := agent.(core.AgentTaskReader).ReadTask(ctx, request.TaskID, request.HostID, request.Cursor, request.Limit)
 		return encodeResult(result, err)
 	case runtimeprotocol.MethodTaskWait:
-		waiter, ok := agent.(core.AgentSessionWaiter)
+		waiter, ok := agent.(core.AgentTaskWaiter)
 		if !ok {
 			return nil, errors.New("runtime handler: authoritative task wait is unavailable")
 		}
@@ -68,7 +90,7 @@ func (h *Handler) Handle(ctx context.Context, method runtimeprotocol.Method, _ r
 		if err != nil {
 			return nil, err
 		}
-		result, err := waiter.WaitSession(ctx, request.TaskID, request.HostID, request.Cursor, time.Duration(request.TimeoutMS)*time.Millisecond)
+		result, err := waiter.WaitTask(ctx, request.TaskID, request.HostID, request.Cursor, time.Duration(request.TimeoutMS)*time.Millisecond)
 		return encodeResult(result, err)
 	case runtimeprotocol.MethodTaskCreate:
 		creator, ok := agent.(core.AgentSessionCreator)
@@ -78,6 +100,12 @@ func (h *Handler) Handle(ctx context.Context, method runtimeprotocol.Method, _ r
 		request, err := decodePayload[core.AgentSessionCreateRequest](payload)
 		if err != nil {
 			return nil, err
+		}
+		if resource.ProjectRef != "" {
+			if request.ProjectID != "" && request.ProjectID != resource.ProjectRef {
+				return nil, errors.New("runtime handler: task project does not match the authorized resource")
+			}
+			request.ProjectID = resource.ProjectRef
 		}
 		result, err := creator.CreateSession(ctx, request)
 		return encodeResult(result, err)
@@ -102,6 +130,89 @@ func (h *Handler) Handle(ctx context.Context, method runtimeprotocol.Method, _ r
 		}
 		result, err := catalog.SessionCapabilities(ctx, "")
 		return encodeResult(result, err)
+	case runtimeprotocol.MethodTaskSearch:
+		searcher, ok := agent.(core.AgentTaskSearcher)
+		if !ok {
+			return nil, errors.New("runtime handler: task search is unavailable")
+		}
+		request, err := decodePayload[runtimeprotocol.TaskSearchRequest](payload)
+		if err != nil {
+			return nil, err
+		}
+		result, err := searcher.SearchTasks(ctx, core.AgentTaskSearchRequest{Query: request.Query, Limit: request.Limit})
+		return encodeResult(result, err)
+	case runtimeprotocol.MethodTaskArchived:
+		lister, ok := agent.(core.AgentArchivedTaskLister)
+		if !ok {
+			return nil, errors.New("runtime handler: archived tasks are unavailable")
+		}
+		request := runtimeprotocol.TaskListRequest{}
+		if len(payload) > 0 {
+			var err error
+			request, err = decodePayload[runtimeprotocol.TaskListRequest](payload)
+			if err != nil {
+				return nil, err
+			}
+		}
+		result, err := lister.ListArchivedTasks(ctx, request.Limit)
+		return encodeResult(result, err)
+	case runtimeprotocol.MethodAutomationList:
+		controller, ok := agent.(core.AgentAutomationController)
+		if !ok {
+			return nil, errors.New("runtime handler: automations are unavailable")
+		}
+		result, err := controller.ListAutomations(ctx)
+		return encodeResult(result, err)
+	case runtimeprotocol.MethodAutomationCreate, runtimeprotocol.MethodAutomationUpdate:
+		controller, ok := agent.(core.AgentAutomationController)
+		if !ok {
+			return nil, errors.New("runtime handler: automations are unavailable")
+		}
+		request, err := decodePayload[core.AgentAutomationMutation](payload)
+		if err != nil {
+			return nil, err
+		}
+		if method == runtimeprotocol.MethodAutomationCreate {
+			result, err := controller.CreateAutomation(ctx, request)
+			return encodeResult(result, err)
+		}
+		result, err := controller.UpdateAutomation(ctx, request)
+		return encodeResult(result, err)
+	case runtimeprotocol.MethodAutomationDelete:
+		controller, ok := agent.(core.AgentAutomationController)
+		if !ok {
+			return nil, errors.New("runtime handler: automations are unavailable")
+		}
+		request, err := decodePayload[runtimeprotocol.AutomationDeleteRequest](payload)
+		if err != nil {
+			return nil, err
+		}
+		return encodeResult(struct{}{}, controller.DeleteAutomation(ctx, request.ID))
+	case runtimeprotocol.MethodPluginList:
+		controller, ok := agent.(core.AgentPluginController)
+		if !ok {
+			return nil, errors.New("runtime handler: plugins are unavailable")
+		}
+		request, err := decodePayload[runtimeprotocol.PluginListRequest](payload)
+		if err != nil {
+			return nil, err
+		}
+		result, err := controller.ListPlugins(ctx, request.Available)
+		return encodeResult(result, err)
+	case runtimeprotocol.MethodPluginInstall, runtimeprotocol.MethodPluginRemove:
+		controller, ok := agent.(core.AgentPluginController)
+		if !ok {
+			return nil, errors.New("runtime handler: plugins are unavailable")
+		}
+		request, err := decodePayload[runtimeprotocol.PluginMutationRequest](payload)
+		if err != nil {
+			return nil, err
+		}
+		if method == runtimeprotocol.MethodPluginInstall {
+			result, err := controller.InstallPlugin(ctx, request.ID)
+			return encodeResult(result, err)
+		}
+		return encodeResult(struct{}{}, controller.RemovePlugin(ctx, request.ID))
 	case runtimeprotocol.MethodTaskSend:
 		request, err := decodePayload[runtimeprotocol.TaskSendRequest](payload)
 		if err != nil {
@@ -175,7 +286,11 @@ func (h *Handler) CatalogSnapshot(ctx context.Context) (json.RawMessage, error) 
 	}
 	result := runtimeprotocol.ProjectCatalog{Projects: make([]runtimeprotocol.Project, 0, len(projects))}
 	for index, project := range projects {
-		result.Projects = append(result.Projects, runtimeprotocol.Project{LocalRef: project.ID, ProjectID: project.ID, ProjectName: project.Name, Available: true, Order: index})
+		result.Projects = append(result.Projects, runtimeprotocol.Project{
+			LocalRef: project.ID, ProjectID: project.ID, ProjectName: project.Name,
+			HostID: project.HostID, Kind: project.Kind, Git: project.IsGitRepository,
+			Available: true, Order: index,
+		})
 	}
 	return encodeResult(result, nil)
 }

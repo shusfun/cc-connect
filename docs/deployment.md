@@ -4,7 +4,7 @@
 
 Treat the Release workflow and signed manifest as the build contract, the selected GitHub Release as the artifact source, and live service/deployment state as runtime truth. Repository examples and prior logs are guidance only. Resolve `<tag>`, commit, architecture, manifest identity, and current service state before installation, update, rollback, or diagnosis.
 
-Signed Releases contain Linux amd64/arm64 control, server, and deploy-host artifacts plus macOS amd64/arm64 Runtime artifacts. Installation and updates verify the GitHub OIDC/Sigstore identity and every SHA-256; unsigned artifacts are rejected.
+Signed manifest v2 Releases contain Linux amd64/arm64 control, server, and deploy-host artifacts, macOS amd64/arm64 Runtime artifacts, and the notarized universal macOS Desktop App as both App ZIP and DMG. Installation and updates verify the GitHub OIDC/Sigstore identity and every SHA-256; unsigned artifacts are rejected.
 
 Linux supports two independent lanes. Native installation runs control under systemd. Container installation runs only deploy-host under systemd; deploy-host owns the control container while control remains the sole owner of server. The lanes must not share a state directory. The macOS Runtime is not containerized and does not use launchd to connect to the App's private Socket.
 
@@ -30,7 +30,7 @@ The bootstrap creates release slots under `/opt/cc-connect/releases`, control st
 
 ## Initial setup and Runtime pairing
 
-The first start listens only on `127.0.0.1:9820` and exposes a one-time setup token through the applicable service log. Use SSH forwarding to complete Web setup: create the administrator, save the public HTTPS origin, pair Runtime, validate Codex and at least one project, optionally configure WeCom, then atomically generate configuration and start server. Apply the Release's `openresty-1panel.conf` to the existing HTTPS site.
+The first start listens only on `127.0.0.1:9820` and exposes a one-time setup token through the applicable service log. Use SSH forwarding to complete Web setup: create the administrator, save the public HTTPS origin, pair Runtime, validate Codex and at least one project, optionally configure Feishu, then atomically generate configuration and start server. Apply the Release's `openresty-1panel.conf` to the existing HTTPS site.
 
 Run the setup page's Runtime command in the current Codex Desktop App interactive terminal, equivalent to:
 
@@ -47,6 +47,12 @@ After verification, installation, and pairing, the installer starts the Node sup
 
 The Ed25519 private key stays in macOS Keychain. The launcher re-execs into the App-bundled Node supervisor and passes the verified App Socket to the Go worker through an inherited fd. The supervisor survives launch-terminal detachment and individual worker exits; after an update, worker failure, or App Socket disconnect, it cleans up the old generation, starts the worker from the `current` Release, and scans for the new Socket. Runtime connects outbound over TLS/WebSocket; catalog sync sends opaque project metadata and never conversation bodies. Runtime never starts a second Codex App Server.
 
+## macOS companion App
+
+Install `cc-connect-desktop-darwin-universal.dmg` from the same signed Release. The notarized `CC-Connect.app` is an accessory app with a menu bar item, compact attached status window, single-instance handling, and optional login startup. It can pair the device, show supervisor/worker generations and Runtime connectivity, open the Web console and logs, request a reconnect, and verify/download a signed Desktop DMG update.
+
+The companion App never starts the Node supervisor or Runtime worker. Login startup starts only the companion UI. When the supervisor is offline, launch it from a Codex Desktop App terminal with the command above. The companion reads state and requests the bounded `reconnect` operation only through `~/Library/Application Support/cc-connect-runtime/status.sock`; this current-user Unix Socket is mode `0600` and is separate from the Codex tools Socket. Runtime replacement remains owned by the existing control/activation lifecycle; the companion only opens the verified DMG for user installation.
+
 ## Updates, rollback, and diagnosis
 
 Updates and rollback are initiated from Web. control checks active operations, backs up `control.db`, coordinates Runtime activation, and shares one execution slot with restart. The native lane switches signed release slots and uses systemd recovery. The container lane asks deploy-host to switch a verified digest and uses its persisted activation state. Do not manually edit release links, activation records, deployer state, or database backups.
@@ -55,6 +61,6 @@ Start diagnosis from the reported symptom, UTC window, target tag/commit, and li
 
 - Native lane: Web operations state, `systemctl status cc-connect-control.service`, and `journalctl -u cc-connect-control.service`.
 - Container lane: Web operations state, `systemctl status cc-connect-deploy-host.service`, deploy-host journal, and read-only container status/logs for the expected image digest.
-- Runtime: the paired device's connection history, `~/Library/Application Support/cc-connect-runtime/logs/runtime.log`, and the control-side run or request correlation ID.
+- Runtime/Desktop companion: the paired device's connection history, the companion status window, `~/Library/Application Support/cc-connect-runtime/status.sock`, `~/Library/Application Support/cc-connect-runtime/logs/runtime.log`, and the control-side run or request correlation ID.
 
 Before retrying or cancelling, reread the current run state and one independent signal such as log freshness, health, execution-slot state, or candidate revision. Preserve activation and backup evidence when automatic recovery fails.

@@ -10,6 +10,7 @@
     "test": "vitest run --maxWorkers=2 --minWorkers=1"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "3.14.10",
     "@tailwindcss/typography": "^0.5.19",
     "clsx": "^2.1.1",
     "highlight.js": "^11.11.1",

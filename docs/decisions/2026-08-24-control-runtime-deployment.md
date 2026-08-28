@@ -26,7 +26,7 @@ control 与 deploy-host 使用唯一容器宿主协议指纹；不匹配只返�
 
 Runtime 连接代际以 `control.db` 的最后 checkpoint 为下界。每次连接拥有独立 context；断线会取消并等待该代 RPC 和 task 观察，旧响应不得写入新连接。设备撤销会同步关闭活动连接。设备连接事件写入 `control.db.audit_events`，作为 Web 查询和实时日志的持久来源。
 
-Release manifest 固定仓库、workflow、tag、commit、八个目标制品及协议/数据库元数据。control、deploy-host 和 Runtime 均验证 GitHub OIDC/Sigstore identity、manifest 和 SHA-256；deploy-host 还验证固定 GHCR 镜像签名，不提供未签名 fallback。
+Release manifest 固定仓库、workflow、tag、commit、目标制品及协议/数据库元数据；制品集合和 v1/v2 迁移窗口由 [Codex Desktop App 专用远程伴生产品](./2026-08-28-codex-desktop-companion.md) 接管。control、deploy-host、Runtime 和 Desktop 均验证 GitHub OIDC/Sigstore identity、manifest 和 SHA-256；deploy-host 还验证固定 GHCR 镜像签名，不提供未签名 fallback。
 
 ## 被考虑的替代方案
 

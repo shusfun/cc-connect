@@ -49,7 +49,7 @@ describe('Operations', () => {
 
   it('启动更新后订阅持久化部署日志并展示实时行', async () => {
     const view = render(<Operations />);
-    fireEvent.click(await view.findByRole('button', { name: 'Check and update' }));
+    fireEvent.click(await view.findByRole('button', { name: '检查并更新' }));
     await waitFor(() => expect(mocks.startRun).toHaveBeenCalledWith('update'));
     await waitFor(() => expect(mocks.streamRun).toHaveBeenCalledWith('run-1', 0, expect.any(Function), expect.any(AbortSignal)));
     expect(await view.findByText(/签名检查通过/)).toBeTruthy();
@@ -57,15 +57,15 @@ describe('Operations', () => {
 
   it('为新增设备显示安装命令并提供重命名与连接日志', async () => {
     const view = render(<Operations />);
-    fireEvent.click(await view.findByRole('button', { name: 'Pair device' }));
+    fireEvent.click(await view.findByRole('button', { name: '配对设备' }));
     expect((await view.findByText(/runtime\/v1\/install\.sh/)).textContent).toContain("--tag 'v0.1.0'");
 
-    fireEvent.click(await view.findByRole('button', { name: 'Rename device' }));
+    fireEvent.click(await view.findByRole('button', { name: '重命名设备' }));
     fireEvent.change(view.getByRole('textbox'), { target: { value: 'Studio' } });
-    fireEvent.click(view.getByRole('button', { name: 'Save' }));
+    fireEvent.click(view.getByRole('button', { name: '保存' }));
     await waitFor(() => expect(mocks.rename).toHaveBeenCalledWith('device-1', 'Studio'));
 
-    fireEvent.click(view.getByRole('button', { name: 'Connection logs' }));
+    fireEvent.click(view.getByRole('button', { name: '连接日志' }));
     await waitFor(() => expect(mocks.streamDevice).toHaveBeenCalledWith('device-1', 0, expect.any(Function), expect.any(AbortSignal)));
     expect(await view.findByText(/runtime_connected/)).toBeTruthy();
   });
@@ -76,8 +76,8 @@ describe('Operations', () => {
       deployment: { owner: 'container', available: true, update: true, rollback: true, restart: true },
     });
     const view = render(<Operations />);
-    expect(await view.findByRole('button', { name: 'Check and update' })).toHaveProperty('disabled', false);
-    expect(view.getByRole('button', { name: 'Rollback' })).toHaveProperty('disabled', false);
+    expect(await view.findByRole('button', { name: '检查并更新' })).toHaveProperty('disabled', false);
+    expect(view.getByRole('button', { name: '回滚' })).toHaveProperty('disabled', false);
   });
 
 	it('页面恢复时根据持久化运行记录阻断冲突操作并恢复取消入口', async () => {
@@ -87,12 +87,12 @@ describe('Operations', () => {
 		});
 		const view = render(<Operations />);
 
-		expect(await view.findByRole('button', { name: 'Cancel' })).toBeTruthy();
-		expect(view.getByRole('button', { name: 'Pair device' })).toHaveProperty('disabled', true);
-		expect(view.getByRole('button', { name: 'Check and update' })).toHaveProperty('disabled', true);
-		expect(view.getByRole('button', { name: 'Rollback' })).toHaveProperty('disabled', true);
-		expect(view.getByRole('button', { name: 'Restart' })).toHaveProperty('disabled', true);
-		expect(mocks.streamRun).toHaveBeenCalledWith('run-active', 0, expect.any(Function), expect.any(AbortSignal));
+		expect(await view.findByRole('button', { name: '取消' })).toBeTruthy();
+		expect(view.getByRole('button', { name: '配对设备' })).toHaveProperty('disabled', true);
+		expect(view.getByRole('button', { name: '检查并更新' })).toHaveProperty('disabled', true);
+		expect(view.getByRole('button', { name: '回滚' })).toHaveProperty('disabled', true);
+		expect(view.getByRole('button', { name: '重启' })).toHaveProperty('disabled', true);
+		await waitFor(() => expect(mocks.streamRun).toHaveBeenCalledWith('run-active', 0, expect.any(Function), expect.any(AbortSignal)));
 	});
 
   it('容器宿主执行器离线时显示原因并禁用版本操作', async () => {
@@ -101,9 +101,9 @@ describe('Operations', () => {
       deployment: { owner: 'container', available: false, reason: 'container_host_unavailable', detail: 'connect: no such file', update: false, rollback: false, restart: true },
     });
     const view = render(<Operations />);
-    expect(await view.findByText(/Container deployment host is unavailable.*no such file/)).toBeTruthy();
-    expect(view.getByRole('button', { name: 'Check and update' })).toHaveProperty('disabled', true);
-    expect(view.getByRole('button', { name: 'Rollback' })).toHaveProperty('disabled', true);
-    expect(view.getByRole('button', { name: 'Restart' })).toHaveProperty('disabled', false);
+    expect(await view.findByText(/宿主部署执行器不可用.*no such file/)).toBeTruthy();
+    expect(view.getByRole('button', { name: '检查并更新' })).toHaveProperty('disabled', true);
+    expect(view.getByRole('button', { name: '回滚' })).toHaveProperty('disabled', true);
+    expect(view.getByRole('button', { name: '重启' })).toHaveProperty('disabled', false);
   });
 });

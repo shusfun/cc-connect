@@ -2,14 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/ed25519"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -17,6 +15,7 @@ import (
 	"github.com/shusfun/cc-connect/core"
 	"github.com/shusfun/cc-connect/releaseinstall"
 	"github.com/shusfun/cc-connect/runtimeclient"
+	"github.com/shusfun/cc-connect/runtimecompanion"
 	"github.com/shusfun/cc-connect/runtimeidentity"
 )
 
@@ -46,28 +45,21 @@ func run(args []string) error {
 	toolsSocket := flags.String("codex-app-tools-socket", "", "可选 Codex Desktop App tools Socket；默认自动发现")
 	appNode := flags.String("codex-app-node", "", "可选 Codex Desktop App 内置 Node 路径")
 	cosignBinary := flags.String("cosign", strings.TrimSpace(os.Getenv("COSIGN_BIN")), "用于 Release 验签的 cosign 路径")
+	allowInsecureLoopback := flags.Bool("allow-insecure-loopback", false, "仅开发环境允许 loopback HTTP Control")
 	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	store, err := runtimeidentity.New(*stateDir)
-	if err != nil {
 		return err
 	}
 	if pairing {
 		if strings.TrimSpace(*serverURL) == "" || strings.TrimSpace(*pairingCode) == "" {
 			return errors.New("pair requires --server and --code")
 		}
-		privateKey, err := store.LoadOrCreateKey()
-		if err != nil {
-			return err
-		}
 		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
-		deviceID, err := runtimeclient.Pair(ctx, *serverURL, *pairingCode, *deviceName, privateKey.Public().(ed25519.PublicKey), false)
+		deviceID, err := runtimecompanion.Pair(ctx, runtimecompanion.PairOptions{
+			StateDirectory: *stateDir, ServerURL: *serverURL, Code: *pairingCode, DeviceName: *deviceName,
+			AllowInsecureLoopback: *allowInsecureLoopback,
+		})
 		if err != nil {
-			return err
-		}
-		if err := store.SaveMetadata(*serverURL, deviceID); err != nil {
 			return err
 		}
 		fmt.Printf("Runtime 已配对：%s\n", deviceID)
@@ -82,9 +74,13 @@ func run(args []string) error {
 		if socketPath == "" {
 			socketPath = strings.TrimSpace(os.Getenv("CODEX_APP_TOOLS_PIPE_PATH"))
 		}
-		return codexapp.BootstrapRuntime(socketPath, strings.TrimSpace(*appNode), filepath.Join(*stateDir, "logs", "runtime.log"), args)
+		return codexapp.BootstrapRuntime(socketPath, strings.TrimSpace(*appNode), *stateDir, version, args)
 	}
 	signal.Ignore(syscall.SIGHUP)
+	store, err := runtimeidentity.New(*stateDir)
+	if err != nil {
+		return err
+	}
 	identity, err := store.Load()
 	if err != nil {
 		return fmt.Errorf("请先在 Web 生成配对码并运行 cc-connect-runtime pair: %w", err)
@@ -116,7 +112,22 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	client, err := runtimeclient.NewClient(runtimeclient.ClientConfig{ServerURL: identity.ServerURL, DeviceID: identity.DeviceID, PrivateKey: identity.PrivateKey, Handler: handler, Checkpoint: store})
+	reporter, err := runtimecompanion.ReporterFromEnvironment()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = reporter.Close() }()
+	client, err := runtimeclient.NewClient(runtimeclient.ClientConfig{
+		ServerURL: identity.ServerURL, DeviceID: identity.DeviceID, PrivateKey: identity.PrivateKey, Handler: handler, Checkpoint: store,
+		AllowInsecureLoopback: *allowInsecureLoopback,
+		OnConnectionState: func(state runtimeclient.ConnectionState) {
+			if reportErr := reporter.Report(runtimecompanion.WorkerConnectionState{
+				Connected: state.Connected, ConnectionGeneration: state.ConnectionGeneration,
+			}); reportErr != nil {
+				slog.Warn("上报 Runtime 连接状态失败", "error", reportErr)
+			}
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -159,11 +170,7 @@ func validateCodexRuntime(ctx context.Context, agent core.Agent) error {
 }
 
 func defaultStateDirectory() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ".cc-connect-runtime"
-	}
-	return filepath.Join(home, "Library", "Application Support", "cc-connect-runtime")
+	return runtimecompanion.DefaultStateDirectory()
 }
 
 func hostname() string {

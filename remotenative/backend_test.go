@@ -52,7 +52,9 @@ func TestListAndReadSessionsTranslateRuntimeAndNativeHosts(t *testing.T) {
 			}
 			switch request.Method {
 			case runtimeprotocol.MethodTaskList:
-				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": []core.AgentSessionInfo{{ID: "task-1", HostID: "local"}}})
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": core.AgentSessionPage{
+					Sessions: []core.AgentSessionInfo{{ID: "task-1", HostID: "local", ProjectID: "project-1"}},
+				}})
 			case runtimeprotocol.MethodTaskRead:
 				var taskRequest runtimeprotocol.TaskReadRequest
 				if err := json.NewDecoder(bytes.NewReader(request.Payload)).Decode(&taskRequest); err != nil {
@@ -61,7 +63,9 @@ func TestListAndReadSessionsTranslateRuntimeAndNativeHosts(t *testing.T) {
 				if request.DeviceID != "device-1" || taskRequest.HostID != "local" {
 					t.Errorf("task request = %#v, device = %q", taskRequest, request.DeviceID)
 				}
-				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": core.AgentSessionSnapshot{Session: core.AgentSessionInfo{ID: "task-1", HostID: "local"}}})
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": core.AgentTaskSnapshot{
+					Task: core.AgentSessionInfo{ID: "task-1", HostID: "local", ProjectID: "project-1"},
+				}})
 			default:
 				t.Fatalf("unexpected method: %s", request.Method)
 			}

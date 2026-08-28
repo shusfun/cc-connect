@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -49,7 +48,6 @@ type Server struct {
 	internalServer   *http.Server
 	publicListener   net.Listener
 	internalListener net.Listener
-	proxy            *httputil.ReverseProxy
 	loginLimiter     *loginLimiter
 	supervisor       *Supervisor
 	deployment       *DeploymentManager
@@ -66,16 +64,8 @@ func New(config Config, store *controlstore.Store, broker *Broker) (*Server, err
 	if strings.TrimSpace(config.ServerSocket) == "" || strings.TrimSpace(config.RuntimeSocket) == "" || strings.TrimSpace(config.AppDirectory) == "" {
 		return nil, errors.New("control plane: server and runtime socket paths and app directory are required")
 	}
-	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: "cc-connect-server"})
-	proxy.Transport = &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, "unix", config.ServerSocket)
-	}}
-	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
-		slog.Warn("control proxy failed", "error", err)
-		writeJSON(w, http.StatusBadGateway, false, nil, "业务进程当前不可用")
-	}
 	return &Server{
-		config: config, store: store, broker: broker, proxy: proxy, loginLimiter: newLoginLimiter(),
+		config: config, store: store, broker: broker, loginLimiter: newLoginLimiter(),
 	}, nil
 }
 
@@ -147,6 +137,13 @@ func (s *Server) publicHandler() http.Handler {
 	mux.HandleFunc("/api/v1/devices", s.requireSession(s.handleDevices))
 	mux.HandleFunc("/api/v1/devices/pairing-code", s.requireSession(s.handlePairingCode))
 	mux.HandleFunc("/api/v1/devices/", s.requireSession(s.handleDevice))
+	mux.HandleFunc("/api/v1/codex/projects", s.requireSession(s.handleCodexProjects))
+	mux.HandleFunc("/api/v1/codex/search", s.requireSession(s.handleCodexSearch))
+	mux.HandleFunc("/api/v1/codex/devices/", s.requireSession(s.handleCodexResource))
+	mux.HandleFunc("/api/v1/notifications", s.requireSession(s.handleNotifications))
+	mux.HandleFunc("/api/v1/notifications/read", s.requireSession(s.handleNotificationRead))
+	mux.HandleFunc("/api/v1/settings", s.requireSession(s.handleSettings))
+	mux.HandleFunc("/api/v1/settings/feishu", s.requireSession(s.handleFeishuSettings))
 	mux.HandleFunc("/api/v1/deploy/dashboard", s.requireSession(s.handleDeployDashboard))
 	mux.HandleFunc("/api/v1/deploy/preflight-operations", s.requireSession(s.handlePreflightOperations))
 	mux.HandleFunc("/api/v1/deploy/runs", s.requireSession(s.handleDeployRuns))
@@ -158,7 +155,6 @@ func (s *Server) publicHandler() http.Handler {
 	mux.HandleFunc("/runtime/v1/pair", s.handleRuntimePair)
 	mux.HandleFunc("/runtime/v1/install.sh", s.handleRuntimeInstaller)
 	mux.HandleFunc("/runtime/v1/connect", s.handleRuntimeConnect)
-	mux.HandleFunc("/api/", s.requireSession(func(w http.ResponseWriter, r *http.Request) { s.proxy.ServeHTTP(w, r) }))
 	return s.withStatic(mux)
 }
 
@@ -732,11 +728,11 @@ func (s *Server) handlePreflightOperations(w http.ResponseWriter, r *http.Reques
 }
 
 type serverConfigurationRequest struct {
-	Language    string `json:"language"`
-	EnableWeCom bool   `json:"enable_wecom"`
-	WeComBotID  string `json:"wecom_bot_id"`
-	WeComSecret string `json:"wecom_bot_secret"`
-	AllowFrom   string `json:"wecom_allow_from"`
+	Language        string `json:"language"`
+	EnableFeishu    bool   `json:"enable_feishu"`
+	FeishuAppID     string `json:"feishu_app_id"`
+	FeishuAppSecret string `json:"feishu_app_secret"`
+	AllowFrom       string `json:"feishu_allow_from"`
 }
 
 func (s *Server) handleConfigureServer(w http.ResponseWriter, r *http.Request) {
@@ -753,8 +749,8 @@ func (s *Server) handleConfigureServer(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, false, nil, err.Error())
 		return
 	}
-	if request.EnableWeCom && (strings.TrimSpace(request.WeComBotID) == "" || strings.TrimSpace(request.WeComSecret) == "") {
-		writeJSON(w, http.StatusBadRequest, false, nil, "启用企业微信时必须提供 Bot ID 和 Bot Secret")
+	if request.EnableFeishu && (strings.TrimSpace(request.FeishuAppID) == "" || strings.TrimSpace(request.FeishuAppSecret) == "") {
+		writeJSON(w, http.StatusBadRequest, false, nil, "启用飞书时必须提供 App ID 和 App Secret")
 		return
 	}
 	catalog, err := s.broker.Catalog(r.Context())
@@ -825,11 +821,11 @@ func writeInitialServerConfig(path, appDirectory string, request serverConfigura
 		Projects []appconfig.ProjectConfig `toml:"projects"`
 	}{
 		DataDir: appDirectory, Language: language,
-		Projects: []appconfig.ProjectConfig{{Name: "codex-app", Agent: appconfig.AgentConfig{Type: "codexapp"}}},
+		Projects: []appconfig.ProjectConfig{{Name: "codex-runtime", Agent: appconfig.AgentConfig{Type: "codexapp"}}},
 	}
-	if request.EnableWeCom {
-		value.Projects[0].Platforms = []appconfig.PlatformConfig{{Type: "wecom", Options: map[string]any{
-			"mode": "websocket", "bot_id": strings.TrimSpace(request.WeComBotID), "bot_secret": strings.TrimSpace(request.WeComSecret), "allow_from": strings.TrimSpace(request.AllowFrom),
+	if request.EnableFeishu {
+		value.Projects[0].Platforms = []appconfig.PlatformConfig{{Type: "feishu", Options: map[string]any{
+			"app_id": strings.TrimSpace(request.FeishuAppID), "app_secret": strings.TrimSpace(request.FeishuAppSecret), "allow_from": strings.TrimSpace(request.AllowFrom),
 		}}}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {

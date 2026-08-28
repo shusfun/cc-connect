@@ -226,11 +226,11 @@ func TestDecodeRequestRejectsUnknownTrailingAndOversizedBodies(t *testing.T) {
 	}
 }
 
-func TestWriteInitialServerConfigCreatesCodexAppProject(t *testing.T) {
+func TestWriteInitialServerConfigCreatesCodexRuntimeWithFeishu(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "config.toml")
 	err := writeInitialServerConfig(path, directory, serverConfigurationRequest{
-		Language: "zh", EnableWeCom: true, WeComBotID: "bot-id", WeComSecret: "bot-secret", AllowFrom: "user-1",
+		Language: "zh", EnableFeishu: true, FeishuAppID: "cli-app-id", FeishuAppSecret: "app-secret", AllowFrom: "ou-user-1",
 	})
 	if err != nil {
 		t.Fatalf("writeInitialServerConfig() error = %v", err)
@@ -246,10 +246,10 @@ func TestWriteInitialServerConfigCreatesCodexAppProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated config is invalid: %v", err)
 	}
-	if len(config.Projects) != 1 || config.Projects[0].Name != "codex-app" || config.Projects[0].Agent.Type != "codexapp" {
+	if len(config.Projects) != 1 || config.Projects[0].Name != "codex-runtime" || config.Projects[0].Agent.Type != "codexapp" {
 		t.Fatalf("generated config = %#v", config)
 	}
-	if len(config.Projects[0].Platforms) != 1 || config.Projects[0].Platforms[0].Type != "wecom" || config.Projects[0].Platforms[0].Options["bot_secret"] != "bot-secret" {
+	if len(config.Projects[0].Platforms) != 1 || config.Projects[0].Platforms[0].Type != "feishu" || config.Projects[0].Platforms[0].Options["app_secret"] != "app-secret" {
 		t.Fatalf("generated project platforms = %#v", config.Projects[0].Platforms)
 	}
 }
@@ -266,6 +266,52 @@ func TestWriteInitialServerConfigCreatesWebOnlyCodexAppProject(t *testing.T) {
 	}
 	if len(loaded.Projects) != 1 || loaded.Projects[0].Agent.Type != "codexapp" || len(loaded.Projects[0].Platforms) != 0 {
 		t.Fatalf("generated project = %#v", loaded.Projects)
+	}
+}
+
+func TestSettingsHandlersUseControlOwnedConfigAndNeverReturnFeishuSecret(t *testing.T) {
+	directory := t.TempDir()
+	appDirectory := filepath.Join(directory, "app")
+	if err := writeInitialServerConfig(filepath.Join(appDirectory, "config.toml"), appDirectory, serverConfigurationRequest{
+		Language: "zh", EnableFeishu: true, FeishuAppID: "cli_test", FeishuAppSecret: "private-secret", AllowFrom: "ou_1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	store, err := controlstore.Open(filepath.Join(directory, "control.db"), "setup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	broker, err := NewBroker(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := New(Config{ServerSocket: filepath.Join(directory, "server.sock"), RuntimeSocket: filepath.Join(directory, "runtime.sock"), AppDirectory: appDirectory}, store, broker)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response := httptest.NewRecorder()
+	server.handleFeishuSettings(response, httptest.NewRequest(http.MethodGet, "/api/v1/settings/feishu", nil))
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "private-secret") || !strings.Contains(response.Body.String(), `"has_app_secret":true`) {
+		t.Fatalf("Feishu GET = %d, %s", response.Code, response.Body.String())
+	}
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/settings/feishu", strings.NewReader(`{"app_id":"cli_updated","allow_from":"ou_2"}`))
+	response = httptest.NewRecorder()
+	server.handleFeishuSettings(response, request)
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "private-secret") {
+		t.Fatalf("Feishu PATCH = %d, %s", response.Code, response.Body.String())
+	}
+	raw, err := os.ReadFile(filepath.Join(appDirectory, "config.toml"))
+	if err != nil || !strings.Contains(string(raw), `app_secret = "private-secret"`) {
+		t.Fatalf("secret was not preserved: %v, %s", err, raw)
+	}
+
+	request = httptest.NewRequest(http.MethodPatch, "/api/v1/settings", strings.NewReader(`{"language":"en","idle_timeout_mins":30}`))
+	response = httptest.NewRecorder()
+	server.handleSettings(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"language":"en"`) || !strings.Contains(response.Body.String(), `"idle_timeout_mins":30`) {
+		t.Fatalf("settings PATCH = %d, %s", response.Code, response.Body.String())
 	}
 }
 

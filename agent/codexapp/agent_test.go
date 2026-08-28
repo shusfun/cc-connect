@@ -122,6 +122,76 @@ func TestReadSessionParsesAuthoritativeHistory(t *testing.T) {
 	}
 }
 
+func TestTaskCatalogNeverExceedsCodexListThreadsLimit(t *testing.T) {
+	caller := &fakeCaller{responses: map[string][]json.RawMessage{
+		"list_projects": {
+			toolResult(`{"projects":[{"projectId":"project-1","label":"项目","hostId":"local"}]}`),
+			toolResult(`{"projects":[{"projectId":"project-1","label":"项目","hostId":"local"}]}`),
+		},
+		"list_threads": {toolResult(`{"pinnedThreads":[],"threads":[]}`), toolResult(`{"pinnedThreads":[],"threads":[]}`)},
+	}}
+	agent := newAgentWithCaller(caller)
+	if _, err := agent.ListSessionPage(context.Background(), core.AgentSessionListRequest{ProjectID: "project-1", Limit: 50}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agent.SearchTasks(context.Background(), core.AgentTaskSearchRequest{Query: "needle", Limit: 100}); err != nil {
+		t.Fatal(err)
+	}
+	caller.mu.Lock()
+	defer caller.mu.Unlock()
+	for _, call := range caller.calls {
+		if call.tool != "list_threads" {
+			continue
+		}
+		arguments, ok := call.arguments.(map[string]any)
+		if !ok || arguments["limit"] != 50 {
+			t.Fatalf("list_threads arguments = %#v, want limit 50", call.arguments)
+		}
+	}
+}
+
+func TestReadTaskPreservesTypedItemsAndStableIDs(t *testing.T) {
+	caller := &fakeCaller{responses: map[string][]json.RawMessage{"read_thread": {toolResult(`{
+		"thread":{"id":"t1","hostId":"local","title":"标题","updatedAt":20,"status":{"type":"completed"}},
+		"page":{"order":"newest_first","nextCursor":"older","hasMore":true},
+		"turns":[{
+			"id":"turn-2","status":"completed","startedAt":20,"completedAt":21,
+			"items":[
+				{"id":"user-2","type":"userMessage","content":[{"type":"text","text":"继续"}]},
+				{"id":"plan-2","type":"plan","status":"in_progress","text":"检查契约","content":{"steps":[{"title":"读取 schema","status":"completed"}]}},
+				{"id":"tool-2","type":"toolCall","name":"rg"}
+			]
+		},{
+			"id":"turn-1","status":"completed","startedAt":10,
+			"items":[{"id":"agent-1","type":"agentMessage","text":"开始"}]
+		}]
+	}`)}}}
+	agent := newAgentWithCaller(caller)
+	snapshot, err := agent.ReadTask(context.Background(), "t1", "local", "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Page.Order != "oldest_first" || snapshot.Page.Cursor != "older" || !snapshot.Page.HasMore {
+		t.Fatalf("unexpected page: %#v", snapshot.Page)
+	}
+	if len(snapshot.Turns) != 2 || snapshot.Turns[0].ID != "turn-1" || snapshot.Turns[1].ID != "turn-2" {
+		t.Fatalf("unexpected turn order or IDs: %#v", snapshot.Turns)
+	}
+	items := snapshot.Turns[1].Items
+	if len(items) != 3 || items[0].ID != "user-2" || items[0].Type != "user_message" {
+		t.Fatalf("unexpected user item: %#v", items)
+	}
+	if items[1].ID != "plan-2" || items[1].Type != "plan" || items[1].Status != "in_progress" || items[1].Text != "检查契约" {
+		t.Fatalf("unexpected plan item: %#v", items[1])
+	}
+	if string(items[1].RawContent) != `{"steps":[{"title":"读取 schema","status":"completed"}]}` {
+		t.Fatalf("plan raw content was not preserved: %s", items[1].RawContent)
+	}
+	if items[2].ID != "tool-2" || items[2].Type != "unsupported" || items[2].SourceType != "toolCall" {
+		t.Fatalf("unexpected unsupported item: %#v", items[2])
+	}
+}
+
 func TestCreateSessionUsesDesktopAppAndNeverExecutesCodex(t *testing.T) {
 	caller := &fakeCaller{responses: map[string][]json.RawMessage{"create_thread": {toolResult(`{"threadId":"new-task","hostId":"local"}`)}}}
 	agent := newAgentWithCaller(caller)

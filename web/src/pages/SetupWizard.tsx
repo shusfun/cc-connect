@@ -21,9 +21,9 @@ export default function SetupWizard() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [publicURL, setPublicURL] = useState('');
   const [pairing, setPairing] = useState<PairingCode | null>(null);
-  const [enableWeCom, setEnableWeCom] = useState(false);
-  const [botID, setBotID] = useState('');
-  const [botSecret, setBotSecret] = useState('');
+	const [enableFeishu, setEnableFeishu] = useState(false);
+	const [appID, setAppID] = useState('');
+	const [appSecret, setAppSecret] = useState('');
   const [allowFrom, setAllowFrom] = useState('');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -46,7 +46,7 @@ export default function SetupWizard() {
   }, [refresh]);
 
   useEffect(() => {
-    if (dashboard?.configured && dashboard.service.running) navigate('/chat', { replace: true });
+		if (dashboard?.configured && dashboard.service.running) navigate('/', { replace: true });
   }, [dashboard, navigate]);
 
   const pairCommand = useMemo(() => {
@@ -131,21 +131,21 @@ export default function SetupWizard() {
         </span>
       </SetupSection>
 
-      <SetupSection number={5} title={t('control.wecomOptional')} icon={<ServerCog size={17} />} complete={!enableWeCom || (!!botID && !!botSecret)}>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enableWeCom} onChange={(event) => setEnableWeCom(event.target.checked)} />{t('control.enableWeCom')}</label>
-        {enableWeCom && <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <input value={botID} onChange={(event) => setBotID(event.target.value)} placeholder={t('control.wecomBotID')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
-          <input type="password" value={botSecret} onChange={(event) => setBotSecret(event.target.value)} placeholder={t('control.wecomBotSecret')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
-          <input value={allowFrom} onChange={(event) => setAllowFrom(event.target.value)} placeholder={t('control.wecomAllowFrom')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm md:col-span-2 dark:border-gray-700 dark:bg-gray-900" />
+		<SetupSection number={5} title={t('control.feishuOptional')} icon={<ServerCog size={17} />} complete={!enableFeishu || (!!appID && !!appSecret)}>
+		<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enableFeishu} onChange={(event) => setEnableFeishu(event.target.checked)} />{t('control.enableFeishu')}</label>
+		{enableFeishu && <div className="mt-3 grid gap-3 md:grid-cols-2">
+		  <input value={appID} onChange={(event) => setAppID(event.target.value)} placeholder={t('control.feishuAppID')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
+		  <input type="password" value={appSecret} onChange={(event) => setAppSecret(event.target.value)} placeholder={t('control.feishuAppSecret')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" />
+		  <input value={allowFrom} onChange={(event) => setAllowFrom(event.target.value)} placeholder={t('control.feishuAllowFrom')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm md:col-span-2 dark:border-gray-700 dark:bg-gray-900" />
         </div>}
       </SetupSection>
 
       <SetupSection number={6} title={t('control.startService')} icon={<Play size={17} />} complete={!!dashboard?.service.running}>
         <div className="flex justify-end">
-          <button type="button" disabled={busy !== '' || !dashboard?.public_url || !runtimeReady || (enableWeCom && (!botID || !botSecret))}
+		  <button type="button" disabled={busy !== '' || !dashboard?.public_url || !runtimeReady || (enableFeishu && (!appID || !appSecret))}
             onClick={() => perform('start', async () => {
-              await configureServer({ language: i18n.language, enable_wecom: enableWeCom, wecom_bot_id: botID, wecom_bot_secret: botSecret, wecom_allow_from: allowFrom });
-              navigate('/chat', { replace: true });
+			  await configureServer({ language: i18n.language, enable_feishu: enableFeishu, feishu_app_id: appID, feishu_app_secret: appSecret, feishu_allow_from: allowFrom });
+			  navigate('/', { replace: true });
             })}
             className="flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-50">
             <Play size={15} />{t('control.startService')}

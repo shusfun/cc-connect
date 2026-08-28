@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shusfun/cc-connect/runtimeprotocol"
 	"github.com/gorilla/websocket"
+	"github.com/shusfun/cc-connect/runtimeprotocol"
 )
 
 type ClientConfig struct {
@@ -28,6 +28,12 @@ type ClientConfig struct {
 	Handler               *Handler
 	Checkpoint            EventCheckpointStore
 	AllowInsecureLoopback bool
+	OnConnectionState     func(ConnectionState)
+}
+
+type ConnectionState struct {
+	Connected            bool
+	ConnectionGeneration uint64
 }
 
 const (
@@ -181,6 +187,7 @@ func (c *Client) runConnection(ctx context.Context) error {
 	c.mu.Lock()
 	c.connection, c.generation, c.sequence = connection, generation, 0
 	c.mu.Unlock()
+	c.reportConnectionState(ConnectionState{Connected: true, ConnectionGeneration: generation})
 	connectionCtx, cancelConnection := context.WithCancel(ctx)
 	var workers sync.WaitGroup
 	workers.Add(3)
@@ -207,6 +214,7 @@ func (c *Client) runConnection(ctx context.Context) error {
 		_ = connection.Close()
 		workers.Wait()
 		c.config.Handler.ReleaseConnection()
+		c.reportConnectionState(ConnectionState{})
 	}()
 	var guard runtimeprotocol.SequenceGuard
 	for {
@@ -242,6 +250,12 @@ func (c *Client) runConnection(ctx context.Context) error {
 			defer workers.Done()
 			c.respond(connectionCtx, connection, generation, request)
 		}(envelope)
+	}
+}
+
+func (c *Client) reportConnectionState(state ConnectionState) {
+	if c.config.OnConnectionState != nil {
+		c.config.OnConnectionState(state)
 	}
 }
 
