@@ -82,8 +82,9 @@ func run(args []string) error {
 		if socketPath == "" {
 			socketPath = strings.TrimSpace(os.Getenv("CODEX_APP_TOOLS_PIPE_PATH"))
 		}
-		return codexapp.BootstrapRuntime(socketPath, strings.TrimSpace(*appNode), args)
+		return codexapp.BootstrapRuntime(socketPath, strings.TrimSpace(*appNode), filepath.Join(*stateDir, "logs", "runtime.log"), args)
 	}
+	signal.Ignore(syscall.SIGHUP)
 	identity, err := store.Load()
 	if err != nil {
 		return fmt.Errorf("请先在 Web 生成配对码并运行 cc-connect-runtime pair: %w", err)
@@ -126,10 +127,17 @@ func run(args []string) error {
 	go func() { clientResult <- client.Run(ctx) }()
 	select {
 	case err := <-clientResult:
-		return err
+		return runtimeExitError(ctx, err)
 	case <-updater.RestartRequested():
 		return client.Close()
 	}
+}
+
+func runtimeExitError(ctx context.Context, err error) error {
+	if ctx.Err() != nil && errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }
 
 func validateCodexRuntime(ctx context.Context, agent core.Agent) error {

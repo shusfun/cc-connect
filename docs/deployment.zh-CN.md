@@ -39,13 +39,13 @@ curl -fsSL https://cc.example.com/runtime/v1/install.sh -o cc-connect-runtime-in
 sh cc-connect-runtime-install.sh --server https://cc.example.com --code <pairing-code> --tag <tag>
 ```
 
-安装器验签、安装并配对后，会在同一 App 终端以前台进程启动 Runtime；关闭该终端会使设备离线。旧 `dev.cc-connect.runtime` LaunchAgent 会被停止并精确删除。已安装 Runtime 可从 App 终端重新启动：
+安装器验签、安装并配对后，会在同一 App 终端启动 Node supervisor。完成启动后可以关闭该终端；supervisor 与 worker 的输出写入 `~/Library/Application Support/cc-connect-runtime/logs/runtime.log`，Codex App 运行期间 supervisor 会持续保持 Runtime 在线。旧 `dev.cc-connect.runtime` LaunchAgent 会被停止并精确删除。已安装 Runtime 可从 App 终端重新启动：
 
 ```bash
 "$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime" --cosign "$(command -v cosign)"
 ```
 
-Runtime 私钥只保存在 macOS Keychain。launcher re-exec 为 App 内置 Node supervisor，再将已校验的 App Socket 通过继承 FD 交给 Go worker。Runtime 通过出站 TLS/WebSocket 连接 control；catalog 同步只传不透明项目元数据，不上传对话正文。Runtime 不启动第二个 Codex App Server。
+Runtime 私钥只保存在 macOS Keychain。launcher re-exec 为 App 内置 Node supervisor，再将已校验的 App Socket 通过继承 FD 交给 Go worker。supervisor 不随启动终端挂断或单个 worker 退出而结束；更新、worker 异常或 App Socket 断开时，它会清理旧代并从 `current` Release 重新启动 worker、扫描新 Socket。Runtime 通过出站 TLS/WebSocket 连接 control；catalog 同步只传不透明项目元数据，不上传对话正文。Runtime 不启动第二个 Codex App Server。
 
 ## 更新、回滚与诊断
 
@@ -55,6 +55,6 @@ Runtime 私钥只保存在 macOS Keychain。launcher re-exec 为 App 内置 Node
 
 - 原生通道：Web 运维状态、`systemctl status cc-connect-control.service`、`journalctl -u cc-connect-control.service`。
 - 容器通道：Web 运维状态、`systemctl status cc-connect-deploy-host.service`、deploy-host journal，以及与目标镜像 digest 对应的只读容器状态和日志。
-- Runtime：设备连接历史、Runtime launchd 状态与日志，以及 control 侧关联的 run/request ID。
+- Runtime：设备连接历史、`~/Library/Application Support/cc-connect-runtime/logs/runtime.log`，以及 control 侧关联的 run/request ID。
 
 取消或重试前，重新读取当前 run 状态，并取得日志新鲜度、健康状态、执行槽或候选 revision 中的一项独立信号。自动恢复失败时保留 activation 和 backup 现场。
