@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenhg5/cc-connect/agent/claudecode"
-	"github.com/chenhg5/cc-connect/agent/codex"
-	"github.com/chenhg5/cc-connect/agent/cursor"
-	"github.com/chenhg5/cc-connect/agent/gemini"
-	"github.com/chenhg5/cc-connect/agent/opencode"
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/agent/claudecode"
+	"github.com/shusfun/cc-connect/agent/codex"
+	"github.com/shusfun/cc-connect/agent/cursor"
+	"github.com/shusfun/cc-connect/agent/gemini"
+	"github.com/shusfun/cc-connect/agent/opencode"
+	"github.com/shusfun/cc-connect/core"
 )
 
 // skipUnlessAgentReady skips the test when the agent CLI binary is not

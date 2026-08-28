@@ -62,7 +62,7 @@ export default function SkillList() {
 
       {/* Tabs + refresh on the same row */}
       <div className="flex items-center justify-between">
-        <div className="flex gap-1 p-1 rounded-xl bg-gray-100 dark:bg-white/[0.06] w-fit">
+        <div className="flex gap-1 p-1 rounded-lg bg-gray-100 dark:bg-white/[0.06] w-fit">
           {(['local', 'recommended'] as const).map(key => (
             <button
               key={key}
@@ -142,7 +142,7 @@ function LocalSkills({
   return (
     <div className="flex gap-6 items-start">
       <div className="w-48 shrink-0 sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
-        <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-2">
+        <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase mb-2 px-2">
           {t('skills.projects')}
         </p>
         <div className="space-y-0.5">
@@ -151,7 +151,7 @@ function LocalSkills({
               key={p.project}
               onClick={() => onSelectProject(p.project)}
               className={cn(
-                'w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all text-left',
+                'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all text-left',
                 activeProject === p.project
                   ? 'bg-accent/10 text-accent font-medium'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06]',
@@ -182,8 +182,8 @@ function LocalSkills({
             </div>
 
             {current.dirs && current.dirs.length > 0 && (
-              <div className="mb-4 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] px-3 py-2">
-                <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
+              <div className="mb-4 rounded-lg bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] px-3 py-2">
+                <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase mb-1">
                   {t('skills.scanDirs')}
                 </p>
                 {current.dirs.map(d => (

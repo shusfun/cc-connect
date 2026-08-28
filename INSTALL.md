@@ -6,7 +6,7 @@
 
 cc-connect bridges local AI coding assistants to messaging platforms (Feishu, DingTalk, Telegram, Slack, Discord, LINE, WeChat Work, QQ, **personal WeChat** via the **Weixin (ilink)** platform).
 
-GitHub: https://github.com/chenhg5/cc-connect
+GitHub: https://github.com/shusfun/cc-connect
 
 **IMPORTANT: If you are an AI agent helping a user install cc-connect, use interactive tools (like AskUserQuestion) to guide them through configuration choices:**
 - Agent selection (Claude Code, Cursor, Gemini, etc.)
@@ -35,7 +35,7 @@ brew install cc-connect
 
 ### Option C: Download binary from GitHub Releases
 
-Go to https://github.com/chenhg5/cc-connect/releases and download the binary for your platform.
+Go to https://github.com/shusfun/cc-connect/releases and download the binary for your platform.
 
 Typical artifact names (check the release page for exact filenames):
 
@@ -45,7 +45,7 @@ Typical artifact names (check the release page for exact filenames):
 
 ```bash
 # Example for Linux amd64 (replace URL with the asset link from the release you chose):
-curl -L -o cc-connect https://github.com/chenhg5/cc-connect/releases/latest/download/cc-connect-linux-amd64
+curl -L -o cc-connect https://github.com/shusfun/cc-connect/releases/latest/download/cc-connect-linux-amd64
 chmod +x cc-connect
 sudo mv cc-connect /usr/local/bin/
 ```
@@ -61,7 +61,7 @@ xattr -d com.apple.quarantine cc-connect
 Requires Go 1.22+.
 
 ```bash
-git clone https://github.com/chenhg5/cc-connect.git
+git clone https://github.com/shusfun/cc-connect.git
 cd cc-connect
 make build
 # Binary will be at ./cc-connect
@@ -722,11 +722,11 @@ npm update -g cc-connect
 
 ### Binary users
 
-Check the latest release at https://github.com/chenhg5/cc-connect/releases and compare with your local version. To upgrade:
+Check the latest release at https://github.com/shusfun/cc-connect/releases and compare with your local version. To upgrade:
 
 ```bash
 # Linux/macOS — replace with your platform suffix
-curl -L -o /usr/local/bin/cc-connect https://github.com/chenhg5/cc-connect/releases/latest/download/cc-connect-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+curl -L -o /usr/local/bin/cc-connect https://github.com/shusfun/cc-connect/releases/latest/download/cc-connect-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
 chmod +x /usr/local/bin/cc-connect
 ```
 

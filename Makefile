@@ -1,12 +1,12 @@
 APP        := cc-connect
-MODULE     := github.com/chenhg5/cc-connect
+MODULE     := github.com/shusfun/cc-connect
 CMD        := ./cmd/cc-connect
 CONTROL_CMD := ./cmd/cc-connect-control
 RUNTIME_CMD := ./cmd/cc-connect-runtime
 DEPLOY_HOST_CMD := ./cmd/cc-connect-deploy-host
 DIST       := dist
 
-VERSION := v0.2.0
+VERSION := v0.3.0
 COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 BUILD_TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 

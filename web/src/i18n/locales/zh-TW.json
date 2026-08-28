@@ -10,7 +10,10 @@
     "bridge": "橋接",
     "skills": "技能",
     "system": "系統", "profile": "個人中心",
-    "operations": "維運中心"
+    "operations": "維運中心",
+    "workspace": "工作區",
+    "manage": "管理",
+    "settings": "設定"
   },
   "dashboard": {
     "title": "總覽",
@@ -406,6 +409,15 @@
   "settings": {
     "title": "全域設定",
     "general": "通用",
+    "appearance": "外觀",
+    "system": "系統",
+    "account": "帳戶",
+    "sections": "設定分類",
+    "appearanceHint": "選擇此裝置上的管理控制台外觀。",
+    "systemHint": "重新載入設定、重新啟動服務並檢視目前生效的設定。",
+    "light": "淺色",
+    "dark": "深色",
+    "systemTheme": "跟隨系統",
     "language": "語言",
     "quiet": "靜音模式",
     "quietHint": "全域關閉開始/結束通知",

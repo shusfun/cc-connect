@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/core"
 )
 
 func decodeSnapshot(raw json.RawMessage) (core.AgentSessionSnapshot, error) {

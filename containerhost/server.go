@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenhg5/cc-connect/releaseinstall"
+	"github.com/shusfun/cc-connect/releaseinstall"
 )
 
 type ServerConfig struct {

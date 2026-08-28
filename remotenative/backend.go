@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenhg5/cc-connect/controlplane"
-	"github.com/chenhg5/cc-connect/core"
-	"github.com/chenhg5/cc-connect/runtimeprotocol"
+	"github.com/shusfun/cc-connect/controlplane"
+	"github.com/shusfun/cc-connect/core"
+	"github.com/shusfun/cc-connect/runtimeprotocol"
 )
 
 // Backend exposes a paired Desktop App Runtime as a regular core.Agent.

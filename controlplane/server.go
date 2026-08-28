@@ -23,10 +23,10 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	appconfig "github.com/chenhg5/cc-connect/config"
-	"github.com/chenhg5/cc-connect/controlstore"
-	"github.com/chenhg5/cc-connect/deploy"
-	"github.com/chenhg5/cc-connect/runtimeprotocol"
+	appconfig "github.com/shusfun/cc-connect/config"
+	"github.com/shusfun/cc-connect/controlstore"
+	"github.com/shusfun/cc-connect/deploy"
+	"github.com/shusfun/cc-connect/runtimeprotocol"
 )
 
 const sessionCookieName = "cc_connect_session"

@@ -85,7 +85,7 @@ export default function Dashboard() {
           </Link>
         </div>
         {projects.length === 0 ? (
-          <div className="rounded-xl border border-gray-200/80 dark:border-white/[0.06] bg-white dark:bg-white/[0.02] p-8">
+          <div className="rounded-lg border border-gray-200/80 dark:border-white/[0.06] bg-white dark:bg-white/[0.02] p-8">
             <EmptyState message={t('projects.noProjects')} icon={Layers} />
           </div>
         ) : (
@@ -94,7 +94,7 @@ export default function Dashboard() {
               <Link
                 key={p.name}
                 to={`/platform-sessions/${p.name}`}
-                className="block p-4 rounded-xl border border-gray-200/80 dark:border-white/[0.06] bg-white dark:bg-white/[0.02] hover:border-accent/40 hover:shadow-md hover:shadow-accent/5 transition-all"
+                className="block p-4 rounded-lg border border-gray-200/80 dark:border-white/[0.06] bg-white dark:bg-white/[0.02] hover:border-accent/40 hover:shadow-md hover:shadow-accent/5 transition-all"
               >
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
@@ -132,7 +132,7 @@ export default function Dashboard() {
           </Link>
         </div>
         {recentSessions.length === 0 ? (
-          <div className="rounded-xl border border-gray-200/80 dark:border-white/[0.06] bg-white dark:bg-white/[0.02] p-8">
+          <div className="rounded-lg border border-gray-200/80 dark:border-white/[0.06] bg-white dark:bg-white/[0.02] p-8">
             <p className="text-xs text-gray-400 text-center">{t('sessions.noSessions')}</p>
           </div>
         ) : (
@@ -141,7 +141,7 @@ export default function Dashboard() {
               <Link
                 key={`${sess.project}-${sess.id}`}
                 to={`/platform-sessions/${sess.project}`}
-                className="block p-4 rounded-xl border border-gray-200/80 dark:border-white/[0.06] bg-white dark:bg-white/[0.02] hover:border-accent/40 hover:shadow-md hover:shadow-accent/5 transition-all"
+                className="block p-4 rounded-lg border border-gray-200/80 dark:border-white/[0.06] bg-white dark:bg-white/[0.02] hover:border-accent/40 hover:shadow-md hover:shadow-accent/5 transition-all"
               >
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${sess.active ? 'bg-green-400' : 'bg-gray-300 dark:bg-gray-600'}`} />

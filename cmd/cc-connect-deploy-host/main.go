@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chenhg5/cc-connect/containerhost"
-	"github.com/chenhg5/cc-connect/releaseinstall"
+	"github.com/shusfun/cc-connect/containerhost"
+	"github.com/shusfun/cc-connect/releaseinstall"
 )
 
 var (

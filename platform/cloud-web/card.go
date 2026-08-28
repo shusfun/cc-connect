@@ -1,6 +1,6 @@
 package cloudweb
 
-import "github.com/chenhg5/cc-connect/core"
+import "github.com/shusfun/cc-connect/core"
 
 func serializeCard(c *core.Card) map[string]any {
 	result := make(map[string]any)

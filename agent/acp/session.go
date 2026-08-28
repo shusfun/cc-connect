@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/core"
 )
 
 // toolInputCacheMaxEntries caps toolInputByID growth; beyond this we evict

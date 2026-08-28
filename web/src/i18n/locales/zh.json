@@ -10,7 +10,10 @@
     "bridge": "桥接",
     "skills": "技能",
     "system": "系统", "profile": "个人中心",
-    "operations": "运维中心"
+    "operations": "运维中心",
+    "workspace": "工作区",
+    "manage": "管理",
+    "settings": "设置"
   },
   "dashboard": {
     "title": "概览",
@@ -411,6 +414,15 @@
   "settings": {
     "title": "全局设置",
     "general": "通用",
+    "appearance": "外观",
+    "system": "系统",
+    "account": "账户",
+    "sections": "设置分类",
+    "appearanceHint": "选择此设备上的管理控制台外观。",
+    "systemHint": "重载配置、重启服务并查看当前生效的配置。",
+    "light": "浅色",
+    "dark": "深色",
+    "systemTheme": "跟随系统",
     "language": "语言",
     "quiet": "静默模式",
     "quietHint": "全局关闭开始/结束通知",

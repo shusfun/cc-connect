@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/chenhg5/cc-connect/core"
-	"github.com/chenhg5/cc-connect/runtimeprotocol"
+	"github.com/shusfun/cc-connect/core"
+	"github.com/shusfun/cc-connect/runtimeprotocol"
 )
 
 type remoteSession struct {

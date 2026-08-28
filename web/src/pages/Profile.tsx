@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { KeyRound, UserRound } from 'lucide-react';
+import { KeyRound, LogOut, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Card, Button } from '@/components/ui';
 import { changeAdministratorPassword, getAdministratorProfile, type AdministratorProfile } from '@/api/control';
 import { useAuthStore } from '@/store/auth';
+import { getStatus } from '@/api/status';
 
 export default function Profile() {
   const { t } = useTranslation();
@@ -17,8 +18,12 @@ export default function Profile() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState('');
 
-  useEffect(() => { getAdministratorProfile().then(setProfile).catch((e) => setError(e.message)); }, []);
+  useEffect(() => {
+    getAdministratorProfile().then(setProfile).catch((e) => setError(e.message));
+    getStatus().then((status) => setVersion(status.version || '')).catch(() => undefined);
+  }, []);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -37,17 +42,20 @@ export default function Profile() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 animate-fade-in">
-      <div><h1 className="text-xl font-semibold text-gray-900 dark:text-white">{t('control.profileTitle')}</h1></div>
+    <div className="space-y-6">
+      <div><h2 className="text-base font-semibold text-gray-950 dark:text-white">{t('control.profileTitle')}</h2></div>
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
       {message && <div role="status" className="rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">{message}</div>}
       <Card>
         <div className="flex items-center gap-3"><UserRound size={18} className="text-accent" /><h2 className="text-sm font-semibold">{t('control.account')}</h2></div>
         <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div><div className="text-xs text-gray-500">{t('control.adminUsername')}</div><div className="mt-1 font-medium">{profile?.username || '...'}</div></div>
-          <div><div className="text-xs text-gray-500">{t('dashboard.version')}</div><div className="mt-1 font-medium">{profile ? new Date(profile.created_at).toLocaleString() : '...'}</div></div>
+          <div><div className="text-xs text-gray-500">{t('dashboard.version')}</div><div className="mt-1 font-medium">{version ? (version.startsWith('v') ? version : `v${version}`) : '...'}</div></div>
         </div>
       </Card>
+      <div className="border-t border-gray-200 pt-5 dark:border-white/[0.08]">
+        <Button variant="secondary" onClick={() => void logout()}><LogOut size={16} />{t('login.logout')}</Button>
+      </div>
       <Card>
         <div className="flex items-center gap-3"><KeyRound size={18} className="text-accent" /><h2 className="text-sm font-semibold">{t('control.changePassword')}</h2></div>
         <form onSubmit={submit} className="mt-4 space-y-4">

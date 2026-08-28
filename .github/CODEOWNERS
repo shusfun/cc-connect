@@ -4,7 +4,7 @@
 # whenever a PR touches the matching paths.
 #
 # Project owner / default reviewer.
-*                                   @chenhg5
+*                                   @shusfun
 
 # ---------------------------------------------------------------------------
 # Critical paths — changes here should be reviewed with extra care because
@@ -17,31 +17,31 @@
 # ---------------------------------------------------------------------------
 
 # Engine core: message routing, command handling, interactive state.
-/core/engine.go                     @chenhg5
-/core/engine_test.go                @chenhg5
+/core/engine.go                     @shusfun
+/core/engine_test.go                @shusfun
 
 # Session manager: persistence, history, agent_session_id binding.
-/core/session.go                    @chenhg5
-/core/session_test.go               @chenhg5
+/core/session.go                    @shusfun
+/core/session_test.go               @shusfun
 
 # Scheduled task implementations.
-/core/cron.go                       @chenhg5
-/core/cron_test.go                  @chenhg5
-/core/timer.go                      @chenhg5
-/core/timer_test.go                 @chenhg5
+/core/cron.go                       @shusfun
+/core/cron_test.go                  @shusfun
+/core/timer.go                      @shusfun
+/core/timer_test.go                 @shusfun
 
 # Permission flow + bridge that talks to the agent.
-/core/bridge.go                     @chenhg5
-/core/interfaces.go                 @chenhg5
+/core/bridge.go                     @shusfun
+/core/interfaces.go                 @shusfun
 
 # i18n strings — user-facing copy must be reviewed for clarity and
 # all-language consistency.
-/core/i18n.go                       @chenhg5
+/core/i18n.go                       @shusfun
 
 # User-journey test framework.
-/core/cuj_test.go                   @chenhg5
+/core/cuj_test.go                   @shusfun
 
 # Build / CI / project policy.
-/AGENTS.md                          @chenhg5
-/.github/                           @chenhg5
-/Makefile                           @chenhg5
+/AGENTS.md                          @shusfun
+/.github/                           @shusfun
+/Makefile                           @shusfun

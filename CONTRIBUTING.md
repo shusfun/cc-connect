@@ -7,7 +7,7 @@ Thank you for using cc-connect and for every issue, pull request, and piece of f
 ## Before You Open An Issue Or PR
 
 1. Search first.
-Check [Issues](https://github.com/chenhg5/cc-connect/issues) and [Pull requests](https://github.com/chenhg5/cc-connect/pulls) for duplicates or related discussion before starting new work.
+Check [Issues](https://github.com/shusfun/cc-connect/issues) and [Pull requests](https://github.com/shusfun/cc-connect/pulls) for duplicates or related discussion before starting new work.
 
 2. Try the latest beta.
 Many bugs are fixed in beta or pre-release builds before they reach stable. Please retry on the latest beta first when possible.
@@ -39,7 +39,7 @@ We usually acknowledge new issues within about 1 to 2 business days. More comple
 - Beta / pre-release: roughly every 2 to 3 days
 - Stable: roughly every 2 weeks
 
-Always treat the [GitHub Releases](https://github.com/chenhg5/cc-connect/releases) page as the source of truth.
+Always treat the [GitHub Releases](https://github.com/shusfun/cc-connect/releases) page as the source of truth.
 
 ## Community
 
@@ -59,7 +59,7 @@ Commercial support, custom work, or enterprise inquiries can go through the same
 ## 提交 Issue 或 PR 之前
 
 1. 先搜索。
-先查看 [Issues](https://github.com/chenhg5/cc-connect/issues) 和 [Pull requests](https://github.com/chenhg5/cc-connect/pulls)，避免重复劳动，也方便在已有讨论里继续跟进。
+先查看 [Issues](https://github.com/shusfun/cc-connect/issues) 和 [Pull requests](https://github.com/shusfun/cc-connect/pulls)，避免重复劳动，也方便在已有讨论里继续跟进。
 
 2. 先试最新 beta。
 很多问题会先在 beta / 预发布版本中修复。如果条件允许，建议先在最新 beta 上复现一次。
@@ -91,7 +91,7 @@ Commercial support, custom work, or enterprise inquiries can go through the same
 - Beta / 预发布：大约每 2 到 3 天一次
 - 稳定版：大约每 2 周一次
 
-请以 [GitHub Releases](https://github.com/chenhg5/cc-connect/releases) 页面为准。
+请以 [GitHub Releases](https://github.com/shusfun/cc-connect/releases) 页面为准。
 
 ## 社区
 

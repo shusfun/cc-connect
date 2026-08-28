@@ -13,8 +13,7 @@ const PACKAGE = require("./package.json");
 const VERSION = `v${PACKAGE.version}`;
 const NAME = "cc-connect";
 
-const GITHUB_REPO = "chenhg5/cc-connect";
-const GITEE_REPO = "cg33/cc-connect";
+const GITHUB_REPO = "shusfun/cc-connect";
 
 const PLATFORM_MAP = {
   darwin: "darwin",
@@ -41,11 +40,8 @@ function getPlatformInfo() {
   return { platform, arch, ext, filename };
 }
 
-function getDownloadURLs(filename) {
-  return [
-    `https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${filename}`,
-    `https://gitee.com/${GITEE_REPO}/releases/download/${VERSION}/${filename}`,
-  ];
+function getDownloadURL(filename) {
+  return `https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${filename}`;
 }
 
 function fetch(url, redirects = 5) {
@@ -70,22 +66,11 @@ function fetch(url, redirects = 5) {
   });
 }
 
-async function download(urls) {
-  for (const url of urls) {
-    try {
-      console.log(`[cc-connect] Downloading from ${url}`);
-      const data = await fetch(url);
-      console.log(`[cc-connect] Downloaded ${(data.length / 1024 / 1024).toFixed(1)} MB`);
-      return data;
-    } catch (err) {
-      console.warn(`[cc-connect] Failed: ${err.message}, trying next source...`);
-    }
-  }
-  throw new Error(
-    `[cc-connect] Could not download binary from any source.\n` +
-      `  Tried: ${urls.join(", ")}\n` +
-      `  You can download manually from https://github.com/${GITHUB_REPO}/releases`
-  );
+async function download(url) {
+  console.log(`[cc-connect] Downloading from ${url}`);
+  const data = await fetch(url);
+  console.log(`[cc-connect] Downloaded ${(data.length / 1024 / 1024).toFixed(1)} MB`);
+  return data;
 }
 
 function extractTarGz(buffer, destDir, binaryName) {
@@ -183,8 +168,8 @@ async function main() {
     }
   }
 
-  const urls = getDownloadURLs(filename);
-  const data = await download(urls);
+  const url = getDownloadURL(filename);
+  const data = await download(url);
 
   if (ext === ".tar.gz") {
     extractTarGz(data, binDir, binaryName);

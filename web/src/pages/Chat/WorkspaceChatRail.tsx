@@ -123,7 +123,7 @@ export function WorkspaceChatRail(props: Props) {
   return (
     <>
       <aside className={cn(
-        'absolute inset-y-0 left-0 z-30 flex w-[min(19rem,calc(100vw-3rem))] flex-col border-r border-gray-200 bg-[#f7f7f8] transition-transform dark:border-white/[0.08] dark:bg-[#111113] md:static md:z-auto md:w-[19rem] md:translate-x-0',
+        'absolute inset-y-0 left-0 z-30 flex w-[min(18rem,calc(100vw-3rem))] flex-col border-r border-gray-200 bg-[#f3f3f0] transition-transform dark:border-white/[0.08] dark:bg-[#171715] md:static md:z-auto md:w-72 md:translate-x-0',
         props.open ? 'translate-x-0' : '-translate-x-full',
       )}>
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-3 dark:border-white/[0.08]">

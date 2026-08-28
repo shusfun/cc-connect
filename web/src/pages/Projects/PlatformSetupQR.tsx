@@ -218,7 +218,7 @@ export default function PlatformSetupQR({ platformType, projectName, workDir, ag
 
       {(phase === 'scanning' || phase === 'scanned' || phase === 'saving') && (
         <>
-          <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
             <QRCodeSVG value={qrUrl} size={200} level="M" />
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 text-center max-w-xs">

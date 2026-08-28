@@ -15,6 +15,9 @@ import SkillList from '@/pages/Skills/SkillList';
 import Operations from '@/pages/Operations';
 import SetupWizard from '@/pages/SetupWizard';
 import Profile from '@/pages/Profile';
+import GlobalSettings from '@/pages/System/GlobalSettings';
+import SettingsLayout from '@/pages/Settings/SettingsLayout';
+import Appearance from '@/pages/Settings/Appearance';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -43,9 +46,14 @@ export default function App() {
         <Route path="platform-sessions" element={<ChatList />} />
         <Route path="platform-sessions/:name" element={<ChatView />} />
         <Route path="cron" element={<CronList />} />
-        <Route path="system" element={<SystemConfig />} />
         <Route path="operations" element={<Operations />} />
-        <Route path="profile" element={<Profile />} />
+        <Route path="settings" element={<SettingsLayout />}>
+          <Route index element={<Navigate to="general" replace />} />
+          <Route path="general" element={<GlobalSettings />} />
+          <Route path="appearance" element={<Appearance />} />
+          <Route path="system" element={<SystemConfig />} />
+          <Route path="account" element={<Profile />} />
+        </Route>
       </Route>
     </Routes>
   );

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenhg5/cc-connect/runtimeprotocol"
+	"github.com/shusfun/cc-connect/runtimeprotocol"
 	"github.com/gorilla/websocket"
 )
 

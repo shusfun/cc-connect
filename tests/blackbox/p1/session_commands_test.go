@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenhg5/cc-connect/core"
-	"github.com/chenhg5/cc-connect/tests/blackbox/helper"
-	bbplatform "github.com/chenhg5/cc-connect/tests/blackbox/platform"
+	"github.com/shusfun/cc-connect/core"
+	"github.com/shusfun/cc-connect/tests/blackbox/helper"
+	bbplatform "github.com/shusfun/cc-connect/tests/blackbox/platform"
 )
 
 const cmdTimeout = 30 * time.Second // engine-handled commands are near-instant

@@ -2,4 +2,4 @@
 
 package main
 
-import _ "github.com/chenhg5/cc-connect/platform/tuitui"
+import _ "github.com/shusfun/cc-connect/platform/tuitui"

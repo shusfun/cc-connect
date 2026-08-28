@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenhg5/cc-connect/config"
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/config"
+	"github.com/shusfun/cc-connect/core"
 )
 
 type stubMainAgent struct {

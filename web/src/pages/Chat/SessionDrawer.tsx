@@ -82,7 +82,7 @@ export default function SessionDrawer({ open, onClose, sessions, currentSessionI
                   type="button"
                   onClick={() => onSelect(s)}
                   className={cn(
-                    'w-full text-left p-3 rounded-xl mb-1 transition-all duration-200',
+                    'w-full text-left p-3 rounded-lg mb-1 transition-all duration-200',
                     isCurrent
                       ? 'bg-accent/10 ring-1 ring-accent/30'
                       : 'hover:bg-gray-100/80 dark:hover:bg-white/[0.04]',

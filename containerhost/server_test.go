@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenhg5/cc-connect/controlstore"
-	"github.com/chenhg5/cc-connect/releasecontract"
-	"github.com/chenhg5/cc-connect/releaseinstall"
-	"github.com/chenhg5/cc-connect/runtimeprotocol"
+	"github.com/shusfun/cc-connect/controlstore"
+	"github.com/shusfun/cc-connect/releasecontract"
+	"github.com/shusfun/cc-connect/releaseinstall"
+	"github.com/shusfun/cc-connect/runtimeprotocol"
 )
 
 type fakeRunner struct {

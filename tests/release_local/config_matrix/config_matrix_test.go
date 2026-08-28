@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chenhg5/cc-connect/config"
+	"github.com/shusfun/cc-connect/config"
 )
 
 func writeConfig(t *testing.T, body string) string {

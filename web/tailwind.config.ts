@@ -12,20 +12,15 @@ export default {
         },
       },
       animation: {
-        'fade-in': 'fadeIn 0.4s ease',
+        'fade-in': 'fadeIn 0.18s ease-out',
         'slide-up': 'slideUp 0.4s ease',
-        'float-in': 'floatIn 0.4s ease',
       },
       keyframes: {
         fadeIn: {
-          from: { opacity: '0', transform: 'scale(0.96) translateY(20px)' },
-          to: { opacity: '1', transform: 'scale(1)' },
+          from: { opacity: '0' },
+          to: { opacity: '1' },
         },
         slideUp: {
-          from: { opacity: '0', transform: 'translateY(10px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
-        },
-        floatIn: {
           from: { opacity: '0', transform: 'translateY(10px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },

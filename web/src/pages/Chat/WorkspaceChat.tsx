@@ -3,7 +3,7 @@ import { useMatch, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Bot, Loader2, Menu, Send, User } from 'lucide-react';
+import { Bot, Loader2, Menu, Send } from 'lucide-react';
 import { Modal, Button, useFeedback } from '@/components/ui';
 import { listProjects, type ProjectSummary } from '@/api/projects';
 import {
@@ -101,12 +101,10 @@ async function loadAllHistory(bridgeProject: string, taskID: string, hostID?: st
 function Message({ entry }: { entry: AgentTaskHistoryEntry }) {
   const user = entry.role === 'user';
   return (
-    <article className={cn('flex min-w-0 gap-2.5', user && 'justify-end')}>
-      {!user && <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><Bot size={15} /></div>}
-      <div className={cn('min-w-0 break-words text-sm leading-6', user ? 'max-w-[82%] rounded-lg bg-gray-900 px-3.5 py-2.5 text-white dark:bg-white dark:text-black' : 'max-w-[calc(100%-2.5rem)] flex-1 py-0.5 text-gray-800 dark:text-gray-100')}>
+    <article className={cn('flex min-w-0', user && 'justify-end')}>
+      <div className={cn('min-w-0 break-words text-sm leading-6', user ? 'max-w-[82%] rounded-lg bg-gray-200 px-3.5 py-2.5 text-gray-950 dark:bg-white/[0.1] dark:text-white' : 'w-full py-0.5 text-gray-800 dark:text-gray-100')}>
         {user ? <div className="whitespace-pre-wrap">{entry.content}</div> : <div className="prose prose-sm max-w-none break-words dark:prose-invert prose-pre:max-w-full prose-pre:overflow-auto prose-pre:rounded-md prose-a:text-accent"><Markdown remarkPlugins={[remarkGfm]}>{entry.content}</Markdown></div>}
       </div>
-      {user && <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-200"><User size={14} /></div>}
     </article>
   );
 }
@@ -133,6 +131,7 @@ export default function WorkspaceChat() {
   const [renameTask, setRenameTask] = useState<AgentTask | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const selectedTask = useMemo(() => tasks.find((task) => task.id === params.taskId), [params.taskId, tasks]);
   const selectedTaskID = selectedTask?.id;
   const selectedTaskHostID = selectedTask?.host_id;
@@ -220,6 +219,13 @@ export default function WorkspaceChat() {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [snapshot?.history.length]);
 
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) return;
+    composer.style.height = '0px';
+    composer.style.height = `${Math.min(composer.scrollHeight, 144)}px`;
+  }, [input]);
+
   const submit = async () => {
     const prompt = input.trim();
     if (!prompt || submitting || !bridgeProject) return;
@@ -293,7 +299,7 @@ export default function WorkspaceChat() {
   const composerDisabled = submitting || !bridgeProject || !selectedProject || (!isDraft && !selectedTask);
 
   return (
-    <div className="relative flex h-[calc(100dvh-9.5rem)] min-h-[32rem] overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-white/[0.08] dark:bg-[#0b0b0d]">
+    <div className="relative flex h-full min-h-0 overflow-hidden bg-white dark:bg-[#111110]">
       <WorkspaceChatRail
         open={projectPanelOpen}
         loading={loading}
@@ -312,7 +318,7 @@ export default function WorkspaceChat() {
       />
 
       <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-gray-200 px-3 sm:px-4 dark:border-white/[0.08]">
+        <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-gray-200 pl-14 pr-3 sm:pr-4 md:px-4 dark:border-white/[0.08]">
           <button type="button" className="rounded-md p-1.5 hover:bg-gray-100 md:hidden dark:hover:bg-white/[0.08]" onClick={() => setProjectPanelOpen(true)} aria-label={t('workspaceChat.openProjects', '打开项目列表')}><Menu size={18} /></button>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">{isDraft ? '新建任务' : taskLabel(currentTask)}</div>
@@ -343,9 +349,9 @@ export default function WorkspaceChat() {
           ) : history.length === 0 && !error ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">{snapshot ? '当前任务还没有消息' : <Loader2 className="animate-spin text-accent" size={22} />}</div>
           ) : (
-            <div className="mx-auto w-full max-w-4xl space-y-6 py-6">
+            <div className="mx-auto w-full max-w-3xl space-y-7 py-7">
               {history.map((entry, index) => <Message key={`${entry.timestamp}-${entry.role}-${index}`} entry={entry} />)}
-              {currentTask?.status === 'active' && <div className="flex items-center gap-2 pl-9 text-xs text-gray-400"><Loader2 size={13} className="animate-spin" />Codex 正在处理</div>}
+              {currentTask?.status === 'active' && <div className="flex items-center gap-2 text-xs text-gray-400"><Loader2 size={13} className="animate-spin" />Codex 正在处理</div>}
               <div ref={endRef} />
             </div>
           )}
@@ -353,9 +359,10 @@ export default function WorkspaceChat() {
 
         {error && <div role="alert" className="shrink-0 border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
 
-        <footer className="shrink-0 border-t border-gray-200 px-3 py-3 dark:border-white/[0.08]">
-          <div className="mx-auto flex max-w-4xl items-end gap-2 rounded-lg border border-gray-300 bg-white p-2 focus-within:border-gray-500 dark:border-white/[0.14] dark:bg-black/20">
+        <footer className="shrink-0 bg-white px-3 pb-4 pt-2 dark:bg-[#111110]">
+          <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-lg border border-gray-300 bg-white p-2 shadow-sm focus-within:border-gray-500 focus-within:ring-2 focus-within:ring-gray-200 dark:border-white/[0.14] dark:bg-[#1b1b19] dark:focus-within:border-white/25 dark:focus-within:ring-white/[0.06]">
             <textarea
+              ref={composerRef}
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
@@ -365,9 +372,9 @@ export default function WorkspaceChat() {
                 }
               }}
               disabled={composerDisabled}
-              rows={2}
+              rows={1}
               placeholder={isDraft ? '描述你要 Codex 完成的任务' : currentTask?.status === 'active' ? '向当前任务补充消息' : '给 Codex 发送消息'}
-              className="max-h-36 min-h-[44px] min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none disabled:opacity-50"
+              className="max-h-36 min-h-[40px] min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 text-sm leading-6 outline-none disabled:opacity-50"
             />
             <button type="button" onClick={() => void submit()} disabled={!input.trim() || composerDisabled} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-900 text-white hover:bg-black disabled:opacity-35 dark:bg-white dark:text-black dark:hover:bg-gray-200" title="发送" aria-label="发送">
               {submitting ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}

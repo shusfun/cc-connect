@@ -20,10 +20,8 @@ import (
 )
 
 const (
-	githubReleasesAPI = "https://api.github.com/repos/chenhg5/cc-connect/releases"
-	giteeReleasesAPI  = "https://gitee.com/api/v5/repos/cg33/cc-connect/releases"
-	githubDownload    = "https://github.com/chenhg5/cc-connect/releases/download"
-	giteeDownload     = "https://gitee.com/cg33/cc-connect/releases/download"
+	githubReleasesAPI = "https://api.github.com/repos/shusfun/cc-connect/releases"
+	githubDownload    = "https://github.com/shusfun/cc-connect/releases/download"
 )
 
 type ReleaseInfo struct {
@@ -34,10 +32,9 @@ type ReleaseInfo struct {
 	CreatedAt  string `json:"created_at"`
 }
 
-// CheckForUpdate queries GitHub/Gitee for newer releases.
-// If preferGitee is true, tries Gitee first (faster in China); otherwise GitHub first.
-func CheckForUpdate(currentVersion string, preferGitee bool) (*ReleaseInfo, error) {
-	releases, err := fetchReleases(preferGitee)
+// CheckForUpdate queries GitHub for newer releases.
+func CheckForUpdate(currentVersion string) (*ReleaseInfo, error) {
+	releases, err := fetchReleases()
 	if err != nil {
 		return nil, err
 	}
@@ -70,28 +67,10 @@ func CheckForUpdate(currentVersion string, preferGitee bool) (*ReleaseInfo, erro
 	return best, nil
 }
 
-func fetchReleases(preferGitee bool) ([]ReleaseInfo, error) {
-	type source struct {
-		name string
-		url  string
-	}
-	sources := []source{
-		{"github", githubReleasesAPI + "?per_page=20"},
-		{"gitee", giteeReleasesAPI + "?per_page=20&direction=desc&sort=created"},
-	}
-	if preferGitee {
-		sources[0], sources[1] = sources[1], sources[0]
-	}
-
-	releases, err := fetchReleasesFrom(sources[0].url)
-	if err == nil && len(releases) > 0 {
-		return releases, nil
-	}
-	slog.Debug("updater: primary source failed, trying fallback", "primary", sources[0].name, "error", err)
-
-	releases, err = fetchReleasesFrom(sources[1].url)
+func fetchReleases() ([]ReleaseInfo, error) {
+	releases, err := fetchReleasesFrom(githubReleasesAPI + "?per_page=20")
 	if err != nil {
-		return nil, fmt.Errorf("check updates failed (both sources): %w", err)
+		return nil, fmt.Errorf("check updates: %w", err)
 	}
 	return releases, nil
 }
@@ -123,8 +102,7 @@ func fetchReleasesFrom(apiURL string) ([]ReleaseInfo, error) {
 }
 
 // SelfUpdate downloads and installs the given release version.
-// If preferGitee is true, tries Gitee download first.
-func SelfUpdate(tag string, preferGitee bool) error {
+func SelfUpdate(tag string) error {
 	goos := runtime.GOOS
 	goarch := runtime.GOARCH
 
@@ -134,29 +112,14 @@ func SelfUpdate(tag string, preferGitee bool) error {
 	}
 	filename := fmt.Sprintf("cc-connect-%s-%s-%s%s", tag, goos, goarch, ext)
 
-	giteeURL := fmt.Sprintf("%s/%s/%s", giteeDownload, tag, filename)
 	githubURL := fmt.Sprintf("%s/%s/%s", githubDownload, tag, filename)
-	urls := []string{githubURL, giteeURL}
-	if preferGitee {
-		urls = []string{giteeURL, githubURL}
-	}
-
-	var data []byte
-	var lastErr error
-	for _, u := range urls {
-		slog.Info("updater: downloading", "url", u)
-		data, lastErr = downloadFile(u)
-		if lastErr == nil {
-			break
-		}
-		slog.Debug("updater: download failed, trying next", "error", lastErr)
-	}
-	if lastErr != nil && data == nil {
-		return fmt.Errorf("download failed from all sources: %w", lastErr)
+	slog.Info("updater: downloading", "url", githubURL)
+	data, err := downloadFile(githubURL)
+	if err != nil {
+		return fmt.Errorf("download release: %w", err)
 	}
 
 	var binary []byte
-	var err error
 	if goos == "windows" {
 		binary, err = extractBinaryFromZip(data)
 	} else {

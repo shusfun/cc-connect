@@ -3,20 +3,20 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/chenhg5/cc-connect/actions/workflows/ci.yml">
-    <img src="https://github.com/chenhg5/cc-connect/actions/workflows/ci.yml/badge.svg" alt="CI Status"/>
+  <a href="https://github.com/shusfun/cc-connect/actions/workflows/ci.yml">
+    <img src="https://github.com/shusfun/cc-connect/actions/workflows/ci.yml/badge.svg" alt="CI Status"/>
   </a>
-  <a href="https://github.com/chenhg5/cc-connect/releases">
-    <img src="https://img.shields.io/github/v/release/chenhg5/cc-connect?include_prereleases" alt="Release"/>
+  <a href="https://github.com/shusfun/cc-connect/releases">
+    <img src="https://img.shields.io/github/v/release/shusfun/cc-connect?include_prereleases" alt="Release"/>
   </a>
   <a href="https://www.npmjs.com/package/cc-connect">
     <img src="https://img.shields.io/npm/dm/cc-connect?logo=npm" alt="npm downloads"/>
   </a>
-  <a href="https://github.com/chenhg5/cc-connect/blob/main/LICENSE">
+  <a href="https://github.com/shusfun/cc-connect/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"/>
   </a>
-  <a href="https://goreportcard.com/report/github.com/chenhg5/cc-connect">
-    <img src="https://goreportcard.com/badge/github.com/chenhg5/cc-connect" alt="Go Report Card"/>
+  <a href="https://goreportcard.com/report/github.com/shusfun/cc-connect">
+    <img src="https://goreportcard.com/badge/github.com/shusfun/cc-connect" alt="Go Report Card"/>
   </a>
 </p>
 
@@ -35,7 +35,7 @@
 
 <p align="center">
   <a href="https://trendshift.io/repositories/23266" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/23266" alt="chenhg5/cc-connect | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
+    <img src="https://trendshift.io/api/badge/repositories/23266" alt="shusfun/cc-connect | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
   </a>
 </p>
 
@@ -333,7 +333,7 @@ npm install -g cc-connect
 # Homebrew（macOS / Linux）
 brew install cc-connect
 
-# 也可以从 https://github.com/chenhg5/cc-connect/releases 直接下载二进制
+# 也可以从 https://github.com/shusfun/cc-connect/releases 直接下载二进制
 ```
 
 ### 4️⃣ 在 Linux 服务器安装 control
@@ -359,7 +359,7 @@ bootstrap 只监听 `127.0.0.1:9820`，输出一次性设置 Token 和 SSH 端�
 > **最简单的方式** — 把这段话发给 Claude Code 或其他 AI 编码 Agent，它会帮你完成整个安装和配置过程：
 
 ```bash
-请参考 https://raw.githubusercontent.com/chenhg5/cc-connect/refs/heads/main/INSTALL.md 帮我安装和配置 cc-connect
+请参考 https://raw.githubusercontent.com/shusfun/cc-connect/refs/heads/main/INSTALL.md 帮我安装和配置 cc-connect
 ```
 
 
@@ -377,11 +377,11 @@ bootstrap 只监听 `127.0.0.1:9820`，输出一次性设置 Token 和 SSH 端�
 brew install cc-connect
 ```
 
-**从 [GitHub Releases](https://github.com/chenhg5/cc-connect/releases) 下载：**
+**从 [GitHub Releases](https://github.com/shusfun/cc-connect/releases) 下载：**
 
 ```bash
 # Linux amd64 - 稳定版
-curl -L -o cc-connect https://github.com/chenhg5/cc-connect/releases/latest/download/cc-connect-linux-amd64
+curl -L -o cc-connect https://github.com/shusfun/cc-connect/releases/latest/download/cc-connect-linux-amd64
 chmod +x cc-connect
 sudo mv cc-connect /usr/local/bin/
 
@@ -390,7 +390,7 @@ sudo mv cc-connect /usr/local/bin/
 **从源码编译（需要 Go 1.22+）：**
 
 ```bash
-git clone https://github.com/chenhg5/cc-connect.git
+git clone https://github.com/shusfun/cc-connect.git
 cd cc-connect
 make build
 ```
@@ -639,60 +639,25 @@ cc-connect send --tts "你好"
 - [Telegram](https://t.me/+odGNDhCjbjdmMmZl)
 
 
-## ☕ 支持项目
+## 项目来源
 
-如果 cc-connect 对你有帮助，请考虑请我们喝杯咖啡！你的支持帮助我们：
-
-- 🛠️ 维护和改进项目
-- 📚 编写更好的文档和教程
-- 🐛 更快修复 bug 和添加新功能
-- ☕ 让开发者保持精力充沛
-
-### 捐赠方式
-
-**Buy Me a Coffee**：[https://buymeacoffee.com/cg33](https://buymeacoffee.com/cg33)
-
-**微信支付 / 支付宝**：
-
-| 微信支付 | 支付宝 |
-|:----------:|:------:|
-| <img src="docs/images/wechatpay.jpg" alt="微信支付" width="150"> | <img src="docs/images/alipay.jpg" alt="支付宝" width="150"> |
-
-### 感谢捐赠者！🎉
-
-感谢每一位支持这个项目的朋友。捐赠时留言你的 GitHub 用户名，我们会在这里展示！
-
-<!-- 捐赠者名单 -->
-| 头像 | GitHub 用户名 | 日期 |
-|------|-----------------|------|
-| <img src="https://avatars.githubusercontent.com/u/1762560?v=4" width="40" height="40" style="border-radius: 50%;"> | [@thx0701](https://github.com/thx0701) | 2026-04-29 |
-
-
-## 🤝 商业合作
-
-我们接受以下商业合作：
-
-- **企业定制**：为企业定制内部 AI 工具入口（飞书、钉钉、企业微信、Slack 等）
-- **技术咨询**：AI agent 集成方案设计与架构咨询
-- **外包项目**：AI 相关系统开发
-
-**联系方式**：**邮箱**：chg80333@gmail.com | **微信**：mongorz | [Telegram](https://t.me/+odGNDhCjbjdmMmZl) | [Discord](https://discord.gg/kHpwgaM4kq)
+CC-Connect 最初由 [chenhg5](https://github.com/chenhg5) 创建，当前作为独立仓库在此维护。完整 Git 历史和 MIT 许可证保留了此前的作者归属与贡献记录。
 
 
 ## 🙏 贡献者
 
-<a href="https://github.com/chenhg5/cc-connect/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=chenhg5/cc-connect&v=20250313" />
+<a href="https://github.com/shusfun/cc-connect/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=shusfun/cc-connect&v=20250313" />
 </a>
 
 
 ## ⭐ Star History
 
-<a href="https://www.star-history.com/#chenhg5/cc-connect&Date">
+<a href="https://www.star-history.com/#shusfun/cc-connect&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=chenhg5/cc-connect&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=chenhg5/cc-connect&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=chenhg5/cc-connect&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=shusfun/cc-connect&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=shusfun/cc-connect&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=shusfun/cc-connect&type=Date" />
  </picture>
 </a>
 

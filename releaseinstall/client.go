@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chenhg5/cc-connect/releasecontract"
+	"github.com/shusfun/cc-connect/releasecontract"
 )
 
 const (

@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chenhg5/cc-connect/core"
-	"github.com/chenhg5/cc-connect/tests/mocks"
-	"github.com/chenhg5/cc-connect/tests/mocks/fake"
+	"github.com/shusfun/cc-connect/core"
+	"github.com/shusfun/cc-connect/tests/mocks"
+	"github.com/shusfun/cc-connect/tests/mocks/fake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

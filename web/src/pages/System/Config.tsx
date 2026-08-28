@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileCode, RefreshCw, RotateCcw, Settings2, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileCode, RefreshCw, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react';
 import { Card, Button, useFeedback } from '@/components/ui';
 import { restartSystem, reloadConfig } from '@/api/status';
 import api from '@/api/client';
-import GlobalSettings from './GlobalSettings';
 import { useRefresh } from '@/store/refresh';
 
 export default function SystemConfig() {
@@ -67,20 +66,15 @@ export default function SystemConfig() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in ">
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold text-gray-950 dark:text-white">{t('settings.system')}</h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('settings.systemHint')}</p>
+      </div>
       {/* Actions */}
       <div className="flex flex-wrap gap-3">
         <Button variant="secondary" onClick={handleReload}><RefreshCw size={16} /> {t('system.reload')}</Button>
         <Button variant="danger" onClick={handleRestart}><RotateCcw size={16} /> {t('system.restart')}</Button>
-      </div>
-
-      {/* Global Settings */}
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Settings2 size={16} className="text-gray-400" />
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t('settings.title', 'Global Settings')}</h2>
-        </div>
-        <GlobalSettings />
       </div>
 
       {/* Raw Config (collapsible) */}

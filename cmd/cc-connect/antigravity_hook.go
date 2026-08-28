@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/chenhg5/cc-connect/agent/antigravityhook"
+	"github.com/shusfun/cc-connect/agent/antigravityhook"
 )
 
 func runAntigravityPermissionHook() {

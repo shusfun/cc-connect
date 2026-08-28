@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/chenhg5/cc-connect/config"
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/config"
+	"github.com/shusfun/cc-connect/core"
 	_ "modernc.org/sqlite"
 )
 

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/core"
 )
 
 // TestUsageReport creates a test usage report.
