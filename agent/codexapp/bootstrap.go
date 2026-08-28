@@ -24,13 +24,30 @@ const REQUIRED_TOOLS = ["create_thread", "list_projects", "list_threads", "read_
 const explicitPath = process.argv[1];
 const workerExecutable = process.env.CC_CONNECT_RUNTIME_EXECUTABLE;
 const workerArgs = JSON.parse(process.env.CC_CONNECT_RUNTIME_ARGS || "[]");
+const runtimeLogPath = process.env.CC_CONNECT_RUNTIME_LOG_PATH;
 const contextThreadId = process.env.CODEX_THREAD_ID;
-let worker = null;
-let activeSocket = null;
-let stoppingWorker = false;
 let stopped = false;
+let activeGeneration = null;
+let generationStarting = false;
+let restartTimer = null;
+let logFD = null;
 let lastRelayError = "";
 let lastRelayErrorAt = 0;
+
+function runtimeLogFD() {
+  if (logFD != null) return logFD;
+  if (!runtimeLogPath) throw new Error("CC_CONNECT_RUNTIME_LOG_PATH is unavailable");
+  fs.mkdirSync(require("path").dirname(runtimeLogPath), {recursive:true, mode:0o700});
+  logFD = fs.openSync(runtimeLogPath, "a", 0o600);
+  return logFD;
+}
+
+function writeRuntimeLog(level, message) {
+  const line = new Date().toISOString() + " level=" + level + " component=codex-app-supervisor message=" + JSON.stringify(String(message)) + "\n";
+  try { fs.writeSync(runtimeLogFD(), line); } catch (error) {
+    try { console.error("cc-connect Codex App supervisor log failed: " + (error?.message || error)); } catch {}
+  }
+}
 
 function frame(value) {
   const payload = Buffer.from(JSON.stringify(value), "utf8");
@@ -134,67 +151,114 @@ function reportRelayError(error) {
   const message = error?.message || String(error);
   const now = Date.now();
   if (message !== lastRelayError || now - lastRelayErrorAt >= 30000) {
-    console.error("cc-connect Codex App relay: " + message);
+    writeRuntimeLog("ERROR", message);
     lastRelayError = message;
     lastRelayErrorAt = now;
   }
 }
 
-function stopWorker() {
+function terminateWorker(current) {
   return new Promise(resolve => {
-    if (worker == null) return resolve();
-    const current = worker;
-    stoppingWorker = true;
-    const timer = setTimeout(() => current.kill("SIGKILL"), 2000);
-    current.once("exit", () => {
-      clearTimeout(timer);
-      if (worker === current) worker = null;
-      stoppingWorker = false;
+    if (current == null || current.exitCode != null || current.signalCode != null) return resolve();
+    let settled = false;
+    let finalTimer = null;
+    function finish() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(forceTimer);
+      if (finalTimer != null) clearTimeout(finalTimer);
       resolve();
-    });
-    current.kill("SIGTERM");
+    }
+    const forceTimer = setTimeout(() => {
+      try { current.kill("SIGKILL"); } catch {}
+      finalTimer = setTimeout(finish, 250);
+    }, 2000);
+    current.once("exit", finish);
+    current.once("close", finish);
+    try { current.kill("SIGTERM"); } catch { finish(); }
   });
 }
 
+function scheduleGeneration(delay) {
+  if (stopped || restartTimer != null) return;
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    void startGeneration();
+  }, delay);
+}
+
 async function startGeneration() {
-  while (!stopped) {
-    try {
-      activeSocket = await selectSocket();
-      lastRelayError = "";
-      lastRelayErrorAt = 0;
-      const environment = {...process.env, CC_CONNECT_CODEXAPP_BRIDGE_FD:"3"};
-      worker = spawn(workerExecutable, workerArgs, {env:environment, stdio:["ignore","inherit","inherit","pipe"]});
-      const control = worker.stdio[3];
-      control.pipe(activeSocket);
-      activeSocket.pipe(control);
-      activeSocket.once("close", async () => {
-        if (stopped) return;
-        activeSocket = null;
-        await stopWorker();
-        setTimeout(startGeneration, 250);
-      });
-      worker.once("exit", code => {
-        if (!stoppingWorker && !stopped) process.exit(code == null ? 1 : code);
-      });
+  if (stopped || generationStarting || activeGeneration != null) return;
+  generationStarting = true;
+  try {
+    const socket = await selectSocket();
+    if (stopped) {
+      socket.destroy();
       return;
-    } catch (error) {
-      reportRelayError(error);
-      await new Promise(resolve => setTimeout(resolve, 2000));
     }
+    lastRelayError = "";
+    lastRelayErrorAt = 0;
+    const environment = {...process.env, CC_CONNECT_CODEXAPP_BRIDGE_FD:"3"};
+    const workerLogFD = runtimeLogFD();
+    const worker = spawn(workerExecutable, workerArgs, {env:environment, stdio:["ignore",workerLogFD,workerLogFD,"pipe"]});
+    const control = worker.stdio[3];
+    const generation = {socket, worker, control, finished:false};
+    activeGeneration = generation;
+
+    async function finishGeneration(reason, workerExited, restartDelay) {
+      if (generation.finished) return;
+      generation.finished = true;
+      writeRuntimeLog(restartDelay > 250 ? "ERROR" : "INFO", reason);
+      socket.unpipe(control);
+      control.unpipe(socket);
+      socket.destroy();
+      control.destroy();
+      if (!workerExited) await terminateWorker(worker);
+      if (activeGeneration === generation) activeGeneration = null;
+      scheduleGeneration(restartDelay);
+    }
+
+    control.pipe(socket);
+    socket.pipe(control);
+    socket.once("close", () => void finishGeneration("Desktop App tools socket closed; reconnecting", false, 250));
+    socket.once("error", error => void finishGeneration("Desktop App tools socket error: " + (error?.message || error), false, 2000));
+    control.once("close", () => void finishGeneration("Runtime control pipe closed; restarting worker", false, 250));
+    control.once("error", error => void finishGeneration("Runtime control pipe error: " + (error?.message || error), false, 2000));
+    worker.once("error", error => void finishGeneration("Runtime worker spawn error: " + (error?.message || error), false, 2000));
+    worker.once("exit", (code, signal) => void finishGeneration(
+      "Runtime worker exited (code=" + code + ", signal=" + signal + "); restarting from current release",
+      true,
+      code === 0 ? 250 : 2000
+    ));
+  } catch (error) {
+    reportRelayError(error);
+    scheduleGeneration(2000);
+  } finally {
+    generationStarting = false;
   }
 }
 
 async function shutdown() {
   if (stopped) return;
   stopped = true;
-  activeSocket?.destroy();
-  await stopWorker();
+  if (restartTimer != null) clearTimeout(restartTimer);
+  restartTimer = null;
+  const generation = activeGeneration;
+  activeGeneration = null;
+  if (generation != null) {
+    generation.finished = true;
+    generation.socket.destroy();
+    generation.control.destroy();
+    await terminateWorker(generation.worker);
+  }
+  if (logFD != null) fs.closeSync(logFD);
   process.exit(0);
 }
 
 process.once("SIGINT", shutdown);
 process.once("SIGTERM", shutdown);
-startGeneration();
+process.on("SIGHUP", () => writeRuntimeLog("INFO", "launch terminal detached; supervisor remains active"));
+void startGeneration();
 `
 
 func InheritedBridgeFD() (int, error) {
@@ -209,7 +273,7 @@ func InheritedBridgeFD() (int, error) {
 	return fd, nil
 }
 
-func BootstrapRuntime(socketPath, explicitNodePath string, args []string) error {
+func BootstrapRuntime(socketPath, explicitNodePath, logPath string, args []string) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 		return errors.New("codex app bridge: cc-connect-runtime must be started from an interactive Codex App terminal")
 	}
@@ -236,6 +300,7 @@ func BootstrapRuntime(socketPath, explicitNodePath string, args []string) error 
 	environment := replaceEnv(os.Environ(), "CODEX_APP_TOOLS_PIPE_PATH", socketPath)
 	environment = replaceEnv(environment, "CC_CONNECT_RUNTIME_EXECUTABLE", executable)
 	environment = replaceEnv(environment, "CC_CONNECT_RUNTIME_ARGS", string(encodedArgs))
+	environment = replaceEnv(environment, "CC_CONNECT_RUNTIME_LOG_PATH", logPath)
 	if err := syscall.Exec(nodePath, []string{nodePath, "-e", bootstrapRelayScript, socketPath}, environment); err != nil {
 		return fmt.Errorf("codex app bridge: exec Desktop relay: %w", err)
 	}

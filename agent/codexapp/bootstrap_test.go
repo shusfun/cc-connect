@@ -33,9 +33,29 @@ func TestInheritedBridgeFDValidation(t *testing.T) {
 }
 
 func TestBootstrapRuntimeRequiresInteractiveCodexAppTerminal(t *testing.T) {
-	err := BootstrapRuntime("/tmp/not-inspected.sock", "", nil)
+	err := BootstrapRuntime("/tmp/not-inspected.sock", "", "/tmp/runtime.log", nil)
 	if err == nil || !strings.Contains(err.Error(), "interactive Codex App terminal") {
 		t.Fatalf("BootstrapRuntime() error = %v", err)
+	}
+}
+
+func TestBootstrapRelayKeepsRuntimeOnlineAfterWorkerRestartAndTerminalDetach(t *testing.T) {
+	required := []string{
+		`process.on("SIGHUP", () => writeRuntimeLog`,
+		`worker.once("exit", (code, signal) => void finishGeneration(`,
+		`scheduleGeneration(restartDelay);`,
+		`stdio:["ignore",workerLogFD,workerLogFD,"pipe"]`,
+		`socket.once("error", error => void finishGeneration(`,
+		`control.once("error", error => void finishGeneration(`,
+		`worker.once("error", error => void finishGeneration(`,
+	}
+	for _, fragment := range required {
+		if !strings.Contains(bootstrapRelayScript, fragment) {
+			t.Errorf("bootstrap relay is missing lifecycle behavior %q", fragment)
+		}
+	}
+	if strings.Contains(bootstrapRelayScript, `if (!stoppingWorker && !stopped) process.exit`) {
+		t.Fatal("bootstrap relay still exits with the Runtime worker")
 	}
 }
 

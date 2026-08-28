@@ -5,17 +5,17 @@ Web 主聊天和消息平台通过 cc-connect 的标准 `Platform → Engine →
 ## 前置条件
 
 - macOS 上的 Codex Desktop App 必须正在运行，并且至少有一个可路由任务。
-- `cc-connect-runtime` 必须从当前 Codex App 的交互终端启动。普通 Terminal、launchd 和其他后台进程不具备 App tools Socket 所需的执行上下文。
+- `cc-connect-runtime` 必须从当前 Codex App 的交互终端完成首次启动。普通 Terminal、launchd 和其他后台进程不具备 App tools Socket 所需的执行上下文；启动后的 Node supervisor 不依赖该终端继续打开。
 - 本地运行时使用 `agent.type = "codexapp"`。Linux control/server 通过已配对的 `cc-connect-runtime` 访问用户 Mac；服务器不读取 `CODEX_HOME`。
 - `agent.type = "codex"` 仍表示用户显式配置的普通 Codex CLI 项目，不能作为 Desktop App 的 fallback。
 
-Runtime launcher 先 re-exec 为 App 内置 Node supervisor。supervisor 优先连接 App 明确传入的 `CODEX_APP_TOOLS_PIPE_PATH`，否则扫描 `/tmp/codex-browser-use/*.sock` 中当前 UID 所有的 Socket。候选必须通过 `tools/list` schema 校验和 `list_projects` 探测；没有候选或存在多个不同的活动候选都会明确失败。探测连接关闭后，supervisor 使用新连接启动 Go worker，并通过双向 FD 3 转交连接；worker 不自行扫描 Socket。
+Runtime launcher 先 re-exec 为 App 内置 Node supervisor。supervisor 优先连接 App 明确传入的 `CODEX_APP_TOOLS_PIPE_PATH`，否则扫描 `/tmp/codex-browser-use/*.sock` 中当前 UID 所有的 Socket。候选必须通过 `tools/list` schema 校验和 `list_projects` 探测；没有候选或存在多个不同的活动候选都会明确失败。唯一候选通过探测后，supervisor 将同一连接通过双向 FD 3 转交 Go worker；worker 不自行扫描 Socket。
 
 ## 当前契约
 
 cc-connect 只映射审核过的语义能力：项目列表、任务列表、权威快照、等待、发送、新建，以及 App schema 实际提供的重命名、置顶、归档、fork 和 handoff。必需工具缺失、字段不兼容或 schema 变化时返回具体错误；未知工具不会自动暴露，也不会启动 `codex app-server` 或调用 `thread/resume`。
 
-Socket 使用 4 字节 little-endian 长度帧，单帧上限 8 MiB。Bridge 负责 JSON-RPC ID 对应、单写入所有者、唯一 `callId`/`turnId`、取消和断线清理。App Socket 关闭时 supervisor 终止旧 worker，重新扫描并创建新代际；新 worker 读取 `tools/list`、计算 schema 指纹并原子替换能力目录。已派发但结果未知的写操作不会自动重放。
+Socket 使用 4 字节 little-endian 长度帧，单帧上限 8 MiB。Bridge 负责 JSON-RPC ID 对应、单写入所有者、唯一 `callId`/`turnId`、取消和断线清理。App Socket 关闭时 supervisor 终止旧 worker，重新扫描并创建新代际；worker 因更新、正常退出或异常退出时，supervisor 也会从 `current` Release 创建新代际。启动终端挂断不会停止 supervisor。新 worker 读取 `tools/list`、计算 schema 指纹并原子替换能力目录。已派发但结果未知的写操作不会自动重放。
 
 ## 项目、任务与历史
 
