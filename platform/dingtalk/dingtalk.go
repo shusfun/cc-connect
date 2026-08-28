@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/core"
 
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	dingtalkClient "github.com/open-dingtalk/dingtalk-stream-sdk-go/client"

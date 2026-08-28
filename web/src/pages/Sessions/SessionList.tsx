@@ -97,10 +97,10 @@ export default function SessionList() {
           {filtered.map((s) => (
             <Link key={`${s._project}-${s.id}`} to={`/sessions/${s._project}/${s.id}`}>
               <div className={cn(
-                'group relative rounded-xl border p-4 transition-all duration-200 cursor-pointer h-full',
+                'group relative rounded-lg border p-4 transition-all duration-200 cursor-pointer h-full',
                 'bg-white/60 dark:bg-white/[0.03] backdrop-blur-sm',
                 'border-gray-200/80 dark:border-white/[0.06]',
-                'hover:border-accent/40 hover:shadow-md hover:shadow-accent/5 hover:-translate-y-0.5',
+                'hover:border-accent/40 hover:shadow-md hover:shadow-accent/5 ',
               )}>
                 {/* Top: name + time */}
                 <div className="flex items-start justify-between gap-2 mb-2">

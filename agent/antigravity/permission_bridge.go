@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/chenhg5/cc-connect/agent/antigravityhook"
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/agent/antigravityhook"
+	"github.com/shusfun/cc-connect/core"
 )
 
 const agyPermissionHookName = "cc-connect-permission-bridge"

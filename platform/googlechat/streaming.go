@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/core"
 )
 
 // previewHandle points at the in-flight streaming-preview message so

@@ -127,7 +127,7 @@ export default function CommandPalette({ open, onClose, onSelect, anchorRef }: P
     <div
       ref={panelRef}
       className={cn(
-        'absolute bottom-full left-0 mb-2 w-80 max-h-[420px] flex flex-col rounded-xl overflow-hidden z-50',
+        'absolute bottom-full left-0 mb-2 w-80 max-h-[420px] flex flex-col rounded-lg overflow-hidden z-50',
         'bg-white/95 backdrop-blur-xl border border-gray-200/80 shadow-2xl shadow-black/15',
         'dark:bg-[rgba(20,20,20,0.96)] dark:border-white/[0.1] dark:shadow-black/50',
         'animate-in slide-in-from-bottom-2 fade-in duration-200',
@@ -149,7 +149,7 @@ export default function CommandPalette({ open, onClose, onSelect, anchorRef }: P
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {grouped.map((g) => (
           <div key={g.key} className="mb-1">
-            <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+            <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
               {t(g.labelKey)}
             </div>
             {g.items.map((cmd) => {

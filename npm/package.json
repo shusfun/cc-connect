@@ -15,10 +15,10 @@
     "chatbot",
     "bridge"
   ],
-  "homepage": "https://github.com/chenhg5/cc-connect",
+  "homepage": "https://github.com/shusfun/cc-connect",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chenhg5/cc-connect.git"
+    "url": "https://github.com/shusfun/cc-connect.git"
   },
   "license": "MIT",
   "author": "chenhg5",

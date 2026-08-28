@@ -339,7 +339,7 @@ export default function CronList() {
               key={job.id}
               onClick={() => openEdit(job)}
               className={cn(
-                'relative p-4 rounded-xl border transition-all cursor-pointer group',
+                'relative p-4 rounded-lg border transition-all cursor-pointer group',
                 'bg-white dark:bg-white/[0.02]',
                 job.enabled
                   ? 'border-gray-200/80 dark:border-white/[0.06] hover:border-accent/40 hover:shadow-md hover:shadow-accent/5'

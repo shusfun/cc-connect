@@ -130,6 +130,22 @@ describe('Codex App 工作区聊天', () => {
     }));
   });
 
+  it('Enter 发送且 Shift+Enter 保留换行', async () => {
+    const view = renderChat('/chat/project-1/task-1');
+    const input = await view.findByPlaceholderText('给 Codex 发送消息') as HTMLTextAreaElement;
+    await waitFor(() => expect(input.disabled).toBe(false));
+    fireEvent.change(input, { target: { value: '第一行' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: '第一行\n第二行' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith('codex-app', {
+      session_key: 'web:management',
+      message: '第一行\n第二行',
+    }));
+  });
+
   it('浏览器 scrollIntoView 返回非函数值时卸载任务页不会调用它作为 effect cleanup', async () => {
     const originalScrollIntoView = Element.prototype.scrollIntoView;
     Object.defineProperty(Element.prototype, 'scrollIntoView', {

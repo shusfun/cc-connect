@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	appconfig "github.com/chenhg5/cc-connect/config"
-	"github.com/chenhg5/cc-connect/containerhost"
-	"github.com/chenhg5/cc-connect/controlstore"
-	"github.com/chenhg5/cc-connect/runtimeprotocol"
+	appconfig "github.com/shusfun/cc-connect/config"
+	"github.com/shusfun/cc-connect/containerhost"
+	"github.com/shusfun/cc-connect/controlstore"
+	"github.com/shusfun/cc-connect/runtimeprotocol"
 )
 
 func TestControlAuthenticationSetupCookieCSRFAndLoginRateLimit(t *testing.T) {

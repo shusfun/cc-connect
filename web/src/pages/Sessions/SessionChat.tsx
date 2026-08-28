@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Send, User, Bot, RotateCw, Circle, WifiOff,
+  ArrowLeft, Send, RotateCw, Circle, WifiOff,
   Copy, Check, FileText, Image as ImageIcon, Loader2,
 } from 'lucide-react';
 import { Badge, Button } from '@/components/ui';
@@ -42,7 +42,7 @@ function PreBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) 
   return (
     <div className="not-prose relative group my-4">
       {lang && (
-        <div className="absolute top-0 left-0 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-tl-lg rounded-br-lg border-b border-r border-gray-200 dark:border-gray-700 font-mono">
+        <div className="absolute top-0 left-0 px-2.5 py-1 text-[10px] font-medium uppercase text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-tl-lg rounded-br-lg border-b border-r border-gray-200 dark:border-gray-700 font-mono">
           {lang}
         </div>
       )}
@@ -67,7 +67,7 @@ function RenderMarkdown({ content }: { content: string }) {
   return (
     <div className={cn(
       'prose max-w-none dark:prose-invert',
-      'prose-headings:font-semibold prose-headings:tracking-tight',
+      'prose-headings:font-semibold',
       'prose-h1:text-xl prose-h1:mt-5 prose-h1:mb-3 prose-h1:pb-1.5 prose-h1:border-b prose-h1:border-gray-200 dark:prose-h1:border-gray-700',
       'prose-h2:text-lg prose-h2:mt-5 prose-h2:mb-2',
       'prose-h3:text-base prose-h3:mt-4 prose-h3:mb-2',
@@ -108,7 +108,7 @@ interface ChatMsg {
 function CardBlock({ card, onAction }: { card: any; onAction: (v: string) => void }) {
   if (!card) return null;
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
       {card.header && (
         <div className={cn('px-4 py-2.5 font-semibold text-sm text-white', colorToBg(card.header.color))}>
           {card.header.title}
@@ -481,17 +481,12 @@ export default function SessionChat() {
           const isUser = msg.role === 'user';
           const isEmpty = !msg.content && !msg.card && !msg.buttons && !msg.imageUrl && !msg.fileName;
           return (
-            <div key={msg.id} className={cn('flex gap-3', isUser ? 'justify-end' : 'justify-start')}>
-              {!isUser && (
-                <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0 mt-1">
-                  <Bot size={16} className="text-accent" />
-                </div>
-              )}
+            <div key={msg.id} className={cn('mx-auto flex w-full max-w-3xl', isUser ? 'justify-end' : 'justify-start')}>
               <div className={cn(
-                'group/msg relative rounded-2xl px-5 py-3.5 text-sm',
+                'group/msg relative text-sm leading-6',
                 isUser
-                  ? 'max-w-[70%] bg-accent text-black rounded-br-md'
-                  : 'max-w-[85%] bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/60 text-gray-900 dark:text-gray-100 rounded-bl-md shadow-sm',
+                  ? 'max-w-[82%] rounded-lg bg-gray-200 px-3.5 py-2.5 text-gray-950 dark:bg-white/[0.1] dark:text-white'
+                  : 'w-full py-0.5 text-gray-900 dark:text-gray-100',
                 msg.streaming && 'animate-pulse-subtle',
               )}>
                 {isEmpty ? (
@@ -516,20 +511,12 @@ export default function SessionChat() {
                   <SessionMsgCopyButton text={msg.content} />
                 )}
               </div>
-              {isUser && (
-                <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0 mt-1">
-                  <User size={16} className="text-gray-500" />
-                </div>
-              )}
             </div>
           );
         })}
         {typing && !messages.some(m => m.streaming) && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0 mt-1">
-              <Bot size={16} className="text-accent" />
-            </div>
-            <div className="rounded-2xl px-5 py-3.5 text-sm bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/60 rounded-bl-md shadow-sm">
+          <div className="mx-auto flex w-full max-w-3xl justify-start">
+            <div className="py-2 text-sm">
               <div className="flex gap-1.5">
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -542,21 +529,22 @@ export default function SessionChat() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 dark:border-gray-800 pt-3 pb-1 shrink-0">
+      <div className="shrink-0 pb-1 pt-3">
         {canSend ? (
-          <div className="flex gap-3">
+          <div className="mx-auto flex max-w-3xl items-center gap-2 rounded-lg border border-gray-300 bg-white p-2 shadow-sm focus-within:border-gray-500 dark:border-white/[0.14] dark:bg-[#1b1b19]">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t('sessions.messageInput')}
-              className="flex-1 px-4 py-3 text-sm rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-colors placeholder:text-gray-400"
+              className="h-9 min-w-0 flex-1 border-0 bg-transparent px-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white"
               disabled={sending}
             />
             <button
               onClick={handleSend}
               disabled={sending || !input.trim()}
-              className="px-4 py-3 rounded-xl bg-accent text-black hover:bg-accent-dim transition-colors disabled:opacity-50 flex items-center gap-2"
+              className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-900 text-white transition-colors hover:bg-black disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+              aria-label={t('workspaceChat.send')}
             >
               {sending ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -566,17 +554,17 @@ export default function SessionChat() {
             </button>
           </div>
         ) : !bridgeCfg ? (
-          <div className="flex items-center gap-2 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+          <div className="flex items-center gap-2 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
             <WifiOff size={14} />
             <span>{t('sessions.bridgeNotAvailable', 'Bridge not available. Enable [bridge] in config.toml to chat from web.')}</span>
           </div>
         ) : bridgeStatus === 'disconnected' || bridgeStatus === 'error' ? (
-          <div className="flex items-center gap-2 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+          <div className="flex items-center gap-2 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
             <WifiOff size={14} />
             <span>{t('sessions.bridgeDisconnected', 'Bridge disconnected.')}</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+          <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
             <Loader2 size={14} className="animate-spin" />
             <span>{t('sessions.bridgeConnecting', 'Connecting to bridge...')}</span>
           </div>

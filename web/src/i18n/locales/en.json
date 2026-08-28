@@ -10,7 +10,10 @@
     "bridge": "Bridge",
     "skills": "Skills",
     "system": "System", "profile": "Profile",
-    "operations": "Operations"
+    "operations": "Operations",
+    "workspace": "Workspace",
+    "manage": "Manage",
+    "settings": "Settings"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -411,6 +414,15 @@
   "settings": {
     "title": "Global Settings",
     "general": "General",
+    "appearance": "Appearance",
+    "system": "System",
+    "account": "Account",
+    "sections": "Settings sections",
+    "appearanceHint": "Choose how the management console looks on this device.",
+    "systemHint": "Reload configuration, restart services, and inspect the active configuration.",
+    "light": "Light",
+    "dark": "Dark",
+    "systemTheme": "System",
     "language": "Language",
     "quiet": "Quiet mode",
     "quietHint": "Suppress start / end notifications globally",

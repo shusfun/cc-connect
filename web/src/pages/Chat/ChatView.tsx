@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Send, User, Bot, Circle, WifiOff,
+  ArrowLeft, Send, Bot, Circle, WifiOff,
   Copy, Check, FileText, Image as ImageIcon, Loader2,
   Slash, ChevronDown,
 } from 'lucide-react';
@@ -49,7 +49,7 @@ function PreBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) 
   return (
     <div className="not-prose relative group my-4">
       {lang && (
-        <div className="absolute top-0 left-0 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-tl-lg rounded-br-lg border-b border-r border-gray-200 dark:border-gray-700 font-mono">
+        <div className="absolute top-0 left-0 px-2.5 py-1 text-[10px] font-medium uppercase text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-tl-lg rounded-br-lg border-b border-r border-gray-200 dark:border-gray-700 font-mono">
           {lang}
         </div>
       )}
@@ -74,7 +74,7 @@ function RenderMarkdown({ content }: { content: string }) {
   return (
     <div className={cn(
       'prose max-w-none dark:prose-invert',
-      'prose-headings:font-semibold prose-headings:tracking-tight',
+      'prose-headings:font-semibold',
       'prose-h1:text-xl prose-h1:mt-5 prose-h1:mb-3 prose-h1:pb-1.5 prose-h1:border-b prose-h1:border-gray-200 dark:prose-h1:border-gray-700',
       'prose-h2:text-lg prose-h2:mt-5 prose-h2:mb-2',
       'prose-h3:text-base prose-h3:mt-4 prose-h3:mb-2',
@@ -607,7 +607,7 @@ export default function ChatView() {
       <div className="flex-1 overflow-y-auto py-6 space-y-5">
         {messages.length === 0 && !loading && (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
               <Bot size={32} className="text-accent" />
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('chat.emptyHint')}</p>
@@ -618,17 +618,12 @@ export default function ChatView() {
           const isUser = msg.role === 'user';
           const isEmpty = !msg.content && !msg.card && !msg.buttons && !msg.imageUrl && !msg.fileName;
           return (
-            <div key={msg.id} className={cn('flex gap-3', isUser ? 'justify-end' : 'justify-start')}>
-              {!isUser && (
-                <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0 mt-1">
-                  <Bot size={16} className="text-accent" />
-                </div>
-              )}
+            <div key={msg.id} className={cn('mx-auto flex w-full max-w-3xl', isUser ? 'justify-end' : 'justify-start')}>
               <div className={cn(
-                'group/msg relative rounded-2xl px-5 py-3.5 text-sm',
+                'group/msg relative text-sm leading-6',
                 isUser
-                  ? 'max-w-[70%] bg-accent text-black rounded-br-md'
-                  : 'max-w-[85%] bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/60 text-gray-900 dark:text-gray-100 rounded-bl-md shadow-sm',
+                  ? 'max-w-[82%] rounded-lg bg-gray-200 px-3.5 py-2.5 text-gray-950 dark:bg-white/[0.1] dark:text-white'
+                  : 'w-full py-0.5 text-gray-900 dark:text-gray-100',
                 msg.streaming && 'animate-pulse-subtle',
               )}>
                 {isEmpty ? (
@@ -653,20 +648,12 @@ export default function ChatView() {
                   <MsgCopyButton text={msg.content} />
                 )}
               </div>
-              {isUser && (
-                <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0 mt-1">
-                  <User size={16} className="text-gray-500" />
-                </div>
-              )}
             </div>
           );
         })}
         {typing && !messages.some(m => m.streaming) && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0 mt-1">
-              <Bot size={16} className="text-accent" />
-            </div>
-            <div className="rounded-2xl px-5 py-3.5 text-sm bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/60 rounded-bl-md shadow-sm">
+          <div className="mx-auto flex w-full max-w-3xl justify-start">
+            <div className="py-2 text-sm">
               <div className="flex gap-1.5">
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -679,9 +666,9 @@ export default function ChatView() {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-200 dark:border-gray-800 pt-3 shrink-0">
+      <div className="shrink-0 pt-3">
         {canSend ? (
-          <div className="relative flex items-end gap-2">
+          <div className="relative mx-auto flex max-w-3xl items-end gap-2 rounded-lg border border-gray-300 bg-white p-2 shadow-sm focus-within:border-gray-500 dark:border-white/[0.14] dark:bg-[#1b1b19]">
             {/* Command palette trigger */}
             <div className="relative">
               <button
@@ -689,7 +676,7 @@ export default function ChatView() {
                 type="button"
                 onClick={() => setCmdOpen(!cmdOpen)}
                 className={cn(
-                  'p-3 rounded-xl transition-all duration-200',
+                  'flex h-9 w-9 items-center justify-center rounded-md transition-colors',
                   cmdOpen
                     ? 'bg-accent/15 text-accent ring-1 ring-accent/30'
                     : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/[0.06]',
@@ -713,7 +700,7 @@ export default function ChatView() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={t('chat.inputPlaceholder')}
-                className="w-full px-4 py-3 text-sm rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-colors placeholder:text-gray-400"
+                className="h-9 w-full border-0 bg-transparent px-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white"
                 disabled={sending}
               />
             </div>
@@ -723,23 +710,24 @@ export default function ChatView() {
               type="button"
               onClick={handleSend}
               disabled={sending || !input.trim()}
-              className="p-3 rounded-xl bg-accent text-black hover:bg-accent-dim transition-colors disabled:opacity-50 flex items-center"
+              className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-900 text-white transition-colors hover:bg-black disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+              aria-label={t('workspaceChat.send')}
             >
               {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </button>
           </div>
         ) : !bridgeCfg ? (
-          <div className="flex items-center gap-2 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+          <div className="flex items-center gap-2 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
             <WifiOff size={14} />
             <span>{t('sessions.bridgeNotAvailable')}</span>
           </div>
         ) : bridgeStatus === 'disconnected' || bridgeStatus === 'error' ? (
-          <div className="flex items-center gap-2 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+          <div className="flex items-center gap-2 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
             <WifiOff size={14} />
             <span>{t('sessions.bridgeDisconnected')}</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+          <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
             <Loader2 size={14} className="animate-spin" />
             <span>{t('sessions.bridgeConnecting')}</span>
           </div>

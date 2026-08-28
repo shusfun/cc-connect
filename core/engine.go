@@ -13820,9 +13820,8 @@ func (e *Engine) renderUpgradeCard() *Card {
 		err     error
 	}
 	ch := make(chan result, 1)
-	useGitee := e.i18n.IsZhLike()
 	go func() {
-		r, err := CheckForUpdate(cur, useGitee)
+		r, err := CheckForUpdate(cur)
 		ch <- result{r, err}
 	}()
 
@@ -15267,8 +15266,7 @@ func (e *Engine) cmdUpgrade(p Platform, msg *Message, args []string) {
 		return
 	}
 
-	useGitee := e.i18n.IsZhLike()
-	release, err := CheckForUpdate(cur, useGitee)
+	release, err := CheckForUpdate(cur)
 	if err != nil {
 		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgError, err))
 		return
@@ -15293,8 +15291,7 @@ func (e *Engine) cmdUpgradeConfirm(p Platform, msg *Message) {
 		return
 	}
 
-	useGitee := e.i18n.IsZhLike()
-	release, err := CheckForUpdate(cur, useGitee)
+	release, err := CheckForUpdate(cur)
 	if err != nil {
 		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgError, err))
 		return
@@ -15306,7 +15303,7 @@ func (e *Engine) cmdUpgradeConfirm(p Platform, msg *Message) {
 
 	e.reply(p, msg.ReplyCtx, fmt.Sprintf(e.i18n.T(MsgUpgradeDownloading), release.TagName))
 
-	if err := SelfUpdate(release.TagName, useGitee); err != nil {
+	if err := SelfUpdate(release.TagName); err != nil {
 		e.reply(p, msg.ReplyCtx, e.i18n.Tf(MsgError, err))
 		return
 	}

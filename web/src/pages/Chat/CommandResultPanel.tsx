@@ -115,7 +115,7 @@ function ElementRenderer({ el, onAction }: { el: any; onAction?: (v: string) => 
     return (
       <button
         onClick={() => onAction?.(el.btn_value)}
-        className="w-full flex items-center gap-3 py-2.5 px-3 -mx-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors text-left group"
+        className="w-full flex items-center gap-3 py-2.5 px-3 -mx-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors text-left group"
       >
         {isCommand ? (
           <>

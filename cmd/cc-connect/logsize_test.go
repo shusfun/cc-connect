@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/chenhg5/cc-connect/daemon"
+	"github.com/shusfun/cc-connect/daemon"
 )
 
 func TestResolveLogMaxSize_FlagWinsOverEnv(t *testing.T) {

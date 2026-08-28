@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/chenhg5/cc-connect/config"
-	"github.com/chenhg5/cc-connect/platform/yuanbao"
+	"github.com/shusfun/cc-connect/config"
+	"github.com/shusfun/cc-connect/platform/yuanbao"
 )
 
 func runYuanbao(args []string) {

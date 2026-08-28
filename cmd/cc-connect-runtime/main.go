@@ -13,11 +13,11 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/chenhg5/cc-connect/agent/codexapp"
-	"github.com/chenhg5/cc-connect/core"
-	"github.com/chenhg5/cc-connect/releaseinstall"
-	"github.com/chenhg5/cc-connect/runtimeclient"
-	"github.com/chenhg5/cc-connect/runtimeidentity"
+	"github.com/shusfun/cc-connect/agent/codexapp"
+	"github.com/shusfun/cc-connect/core"
+	"github.com/shusfun/cc-connect/releaseinstall"
+	"github.com/shusfun/cc-connect/runtimeclient"
+	"github.com/shusfun/cc-connect/runtimeidentity"
 )
 
 var version = "dev"

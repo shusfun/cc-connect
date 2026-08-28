@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chenhg5/cc-connect/runtimeprotocol"
+	"github.com/shusfun/cc-connect/runtimeprotocol"
 )
 
 func TestRuntimeStatePersistsOnlyEventMetadataAndAcknowledgements(t *testing.T) {

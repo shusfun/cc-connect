@@ -10,7 +10,10 @@
     "bridge": "Puente",
     "skills": "Habilidades",
     "system": "Sistema", "profile": "Perfil",
-    "operations": "Operaciones"
+    "operations": "Operaciones",
+    "workspace": "Espacio de trabajo",
+    "manage": "Gestión",
+    "settings": "Ajustes"
   },
   "dashboard": {
     "title": "Panel",
@@ -406,6 +409,15 @@
   "settings": {
     "title": "Ajustes globales",
     "general": "General",
+    "appearance": "Apariencia",
+    "system": "Sistema",
+    "account": "Cuenta",
+    "sections": "Secciones de ajustes",
+    "appearanceHint": "Elige la apariencia de la consola de gestión en este dispositivo.",
+    "systemHint": "Recarga la configuración, reinicia servicios y revisa la configuración activa.",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "systemTheme": "Sistema",
     "language": "Idioma",
     "quiet": "Modo silencioso",
     "quietHint": "Suprimir notificaciones de inicio/fin globalmente",

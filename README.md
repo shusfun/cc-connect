@@ -3,20 +3,20 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/chenhg5/cc-connect/actions/workflows/ci.yml">
-    <img src="https://github.com/chenhg5/cc-connect/actions/workflows/ci.yml/badge.svg" alt="CI Status"/>
+  <a href="https://github.com/shusfun/cc-connect/actions/workflows/ci.yml">
+    <img src="https://github.com/shusfun/cc-connect/actions/workflows/ci.yml/badge.svg" alt="CI Status"/>
   </a>
-  <a href="https://github.com/chenhg5/cc-connect/releases">
-    <img src="https://img.shields.io/github/v/release/chenhg5/cc-connect?include_prereleases" alt="Release"/>
+  <a href="https://github.com/shusfun/cc-connect/releases">
+    <img src="https://img.shields.io/github/v/release/shusfun/cc-connect?include_prereleases" alt="Release"/>
   </a>
   <a href="https://www.npmjs.com/package/cc-connect">
     <img src="https://img.shields.io/npm/dm/cc-connect?logo=npm" alt="npm downloads"/>
   </a>
-  <a href="https://github.com/chenhg5/cc-connect/blob/main/LICENSE">
+  <a href="https://github.com/shusfun/cc-connect/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"/>
   </a>
-  <a href="https://goreportcard.com/report/github.com/chenhg5/cc-connect">
-    <img src="https://goreportcard.com/badge/github.com/chenhg5/cc-connect" alt="Go Report Card"/>
+  <a href="https://goreportcard.com/report/github.com/shusfun/cc-connect">
+    <img src="https://goreportcard.com/badge/github.com/shusfun/cc-connect" alt="Go Report Card"/>
   </a>
 </p>
 
@@ -35,7 +35,7 @@
 
 <p align="center">
   <a href="https://trendshift.io/repositories/23266" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/23266" alt="chenhg5/cc-connect | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
+    <img src="https://trendshift.io/api/badge/repositories/23266" alt="shusfun/cc-connect | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
   </a>
 </p>
 
@@ -334,7 +334,7 @@ npm install -g cc-connect
 # Homebrew (macOS / Linux)
 brew install cc-connect
 
-# Or download a binary from https://github.com/chenhg5/cc-connect/releases
+# Or download a binary from https://github.com/shusfun/cc-connect/releases
 ```
 
 ### 4️⃣ Install control on the Linux server
@@ -360,7 +360,7 @@ That's it — send a message to your bot and cc-connect will relay it to your lo
 > **The easiest way** — Send this to Claude Code or any AI coding agent, and it will handle the entire installation and configuration for you:
 
 ```bash
-Follow https://raw.githubusercontent.com/chenhg5/cc-connect/refs/heads/main/INSTALL.md to install and configure cc-connect.
+Follow https://raw.githubusercontent.com/shusfun/cc-connect/refs/heads/main/INSTALL.md to install and configure cc-connect.
 ```
 
 
@@ -378,11 +378,11 @@ npm install -g cc-connect
 brew install cc-connect
 ```
 
-**Download binary from [GitHub Releases](https://github.com/chenhg5/cc-connect/releases):**
+**Download binary from [GitHub Releases](https://github.com/shusfun/cc-connect/releases):**
 
 ```bash
 # Linux amd64 - Stable
-curl -L -o cc-connect https://github.com/chenhg5/cc-connect/releases/latest/download/cc-connect-linux-amd64
+curl -L -o cc-connect https://github.com/shusfun/cc-connect/releases/latest/download/cc-connect-linux-amd64
 chmod +x cc-connect
 sudo mv cc-connect /usr/local/bin/
 
@@ -391,7 +391,7 @@ sudo mv cc-connect /usr/local/bin/
 **Build from source (requires Go 1.22+):**
 
 ```bash
-git clone https://github.com/chenhg5/cc-connect.git
+git clone https://github.com/shusfun/cc-connect.git
 cd cc-connect
 make build
 ```
@@ -653,60 +653,25 @@ Notes:
 - [Telegram](https://t.me/+odGNDhCjbjdmMmZl)
 
 
-## ☕ Support the Project
+## Project Origin
 
-If cc-connect has been helpful to you, consider buying us a coffee! Your support helps us:
-
-- 🛠️ Maintain and improve the project
-- 📚 Write better documentation and tutorials
-- 🐛 Fix bugs and add new features faster
-- ☕ Keep the developers caffeinated
-
-### How to Donate
-
-**Buy Me a Coffee**: [https://buymeacoffee.com/cg33](https://buymeacoffee.com/cg33)
-
-**WeChat Pay / Alipay**:
-
-| WeChat Pay | Alipay |
-|:----------:|:------:|
-| <img src="docs/images/wechatpay.jpg" alt="WeChat Pay" width="150"> | <img src="docs/images/alipay.jpg" alt="Alipay" width="150"> |
-
-### Thank You, Donors! 🎉
-
-We're grateful to everyone who has supported this project. Leave your GitHub username in the donation message if you'd like to be recognized here!
-
-<!-- Donors will be listed below -->
-| Avatar | GitHub Username | Date |
-|--------|-----------------|------|
-| <img src="https://avatars.githubusercontent.com/u/1762560?v=4" width="40" height="40" style="border-radius: 50%;"> | [@thx0701](https://github.com/thx0701) | 2026-04-29 |
-
-
-## 🤝 Commercial Cooperation
-
-We accept the following commercial collaborations:
-
-- **Enterprise Customization**: Custom deployment for internal AI tooling (Feishu, DingTalk, WeChat Work, Slack, etc.)
-- **Technical Consulting**: AI agent integration and architecture design
-- **Outsourcing Projects**: AI-related system development
-
-**Contact**: **Email**: chg80333@gmail.com | **WeChat**: mongorz | [Telegram](https://t.me/+odGNDhCjbjdmMmZl) | [Discord](https://discord.gg/kHpwgaM4kq)
+CC-Connect was originally created by [chenhg5](https://github.com/chenhg5) and is maintained here as an independent repository. The complete Git history and MIT license preserve prior authorship and contributions.
 
 
 ## 🙏 Contributors
 
-<a href="https://github.com/chenhg5/cc-connect/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=chenhg5/cc-connect&v=20250313" />
+<a href="https://github.com/shusfun/cc-connect/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=shusfun/cc-connect&v=20250313" />
 </a>
 
 
 ## ⭐ Star History
 
-<a href="https://www.star-history.com/#chenhg5/cc-connect&Date">
+<a href="https://www.star-history.com/#shusfun/cc-connect&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=chenhg5/cc-connect&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=chenhg5/cc-connect&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=chenhg5/cc-connect&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=shusfun/cc-connect&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=shusfun/cc-connect&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=shusfun/cc-connect&type=Date" />
  </picture>
 </a>
 

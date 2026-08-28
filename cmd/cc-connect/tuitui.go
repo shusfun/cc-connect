@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chenhg5/cc-connect/config"
-	"github.com/chenhg5/cc-connect/platform/tuitui"
+	"github.com/shusfun/cc-connect/config"
+	"github.com/shusfun/cc-connect/platform/tuitui"
 )
 
 func runTuiTui(args []string) {

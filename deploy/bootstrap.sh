@@ -44,7 +44,7 @@ test -f "$manifest" && test -f "$bundle" || { echo "Release 目录缺少 manifes
 repository="$(jq -er '.repository' "$manifest")"
 workflow="$(jq -er '.workflow' "$manifest")"
 tag="$(jq -er '.tag' "$manifest")"
-test "$repository" = "shusfun/cc-connect" || { echo "拒绝非个人 fork Release: $repository" >&2; exit 1; }
+test "$repository" = "shusfun/cc-connect" || { echo "拒绝非官方仓库 Release: $repository" >&2; exit 1; }
 test "$workflow" = ".github/workflows/release.yml" || { echo "拒绝未知 Release workflow: $workflow" >&2; exit 1; }
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "无效 tag: $tag" >&2; exit 1; }
 

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chenhg5/cc-connect/releasecontract"
-	"github.com/chenhg5/cc-connect/releaseinstall"
+	"github.com/shusfun/cc-connect/releasecontract"
+	"github.com/shusfun/cc-connect/releaseinstall"
 )
 
 const runtimeActivationVersion = 1

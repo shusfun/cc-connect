@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chenhg5/cc-connect/containerhost"
-	"github.com/chenhg5/cc-connect/controlplane"
-	"github.com/chenhg5/cc-connect/controlstore"
-	"github.com/chenhg5/cc-connect/core"
-	"github.com/chenhg5/cc-connect/releaseinstall"
-	_ "github.com/chenhg5/cc-connect/web"
+	"github.com/shusfun/cc-connect/containerhost"
+	"github.com/shusfun/cc-connect/controlplane"
+	"github.com/shusfun/cc-connect/controlstore"
+	"github.com/shusfun/cc-connect/core"
+	"github.com/shusfun/cc-connect/releaseinstall"
+	_ "github.com/shusfun/cc-connect/web"
 )
 
 var (

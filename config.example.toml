@@ -71,7 +71,7 @@ level = "info" # debug, info, warn, error
 #
 # Remote presets URL (fetches recommended providers list from GitHub/Gitee)
 # 远程预设列表 URL（从 GitHub/Gitee 拉取推荐服务商）
-# provider_presets_url = "https://raw.githubusercontent.com/chenhg5/cc-connect/main/provider-presets.json"
+# provider_presets_url = "https://raw.githubusercontent.com/shusfun/cc-connect/main/provider-presets.json"
 
 # [[providers]]
 # name = "anthropic"

@@ -11,11 +11,9 @@ import (
 )
 
 const (
-	defaultPresetsURL          = "https://raw.githubusercontent.com/chenhg5/cc-connect/main/provider-presets.json"
-	fallbackPresetsURL         = "https://gitee.com/chenhg5/cc-connect/raw/main/provider-presets.json"
-	presetsCacheTTL            = 6 * time.Hour
-	presetsHTTPTimeout         = 15 * time.Second
-	presetsFallbackHTTPTimeout = 10 * time.Second
+	defaultPresetsURL  = "https://raw.githubusercontent.com/shusfun/cc-connect/main/provider-presets.json"
+	presetsCacheTTL    = 6 * time.Hour
+	presetsHTTPTimeout = 15 * time.Second
 )
 
 // ProviderPreset describes a recommended provider available from the remote presets list.
@@ -116,12 +114,8 @@ func (c *presetsCache) fetch() (*ProviderPresetsResponse, error) {
 
 	result, err := fetchPresetsFromURL(primaryURL, presetsHTTPTimeout)
 	if err != nil {
-		slog.Warn("primary presets fetch failed, trying fallback", "url", primaryURL, "error", err)
-		result, err = fetchPresetsFromURL(fallbackPresetsURL, presetsFallbackHTTPTimeout)
-	}
-	if err != nil {
 		if c.data != nil {
-			slog.Warn("all presets sources failed, using stale cache", "error", err)
+			slog.Warn("presets fetch failed, using stale cache", "url", primaryURL, "error", err)
 			return c.data, nil
 		}
 		return nil, fmt.Errorf("fetch presets: %w", err)

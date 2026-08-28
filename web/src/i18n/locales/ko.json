@@ -10,7 +10,10 @@
     "bridge": "브리지",
     "skills": "스킬",
     "system": "시스템", "profile": "개인 센터",
-    "operations": "운영"
+    "operations": "운영",
+    "workspace": "작업 공간",
+    "manage": "관리",
+    "settings": "설정"
   },
   "dashboard": {
     "title": "대시보드",
@@ -406,6 +409,15 @@
   "settings": {
     "title": "전역 설정",
     "general": "일반",
+    "appearance": "모양",
+    "system": "시스템",
+    "account": "계정",
+    "sections": "설정 섹션",
+    "appearanceHint": "이 기기에서 관리 콘솔의 모양을 선택합니다.",
+    "systemHint": "구성을 다시 불러오고 서비스를 재시작하며 활성 구성을 확인합니다.",
+    "light": "라이트",
+    "dark": "다크",
+    "systemTheme": "시스템",
     "language": "언어",
     "quiet": "조용한 모드",
     "quietHint": "시작/종료 알림을 전역으로 억제합니다",

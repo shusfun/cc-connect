@@ -342,7 +342,7 @@ export default function ProjectDetail() {
                 <div
                   key={p.name}
                   className={cn(
-                    'flex items-center justify-between px-4 py-3 rounded-xl border transition-all',
+                    'flex items-center justify-between px-4 py-3 rounded-lg border transition-all',
                     p.active
                       ? 'border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-900/10'
                       : 'border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800/40',
@@ -671,7 +671,7 @@ export default function ProjectDetail() {
                 <button
                   key={key}
                   onClick={() => setAddPlatType(key)}
-                  className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-accent/50 hover:bg-accent/5 transition-all text-left"
+                  className="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-accent/50 hover:bg-accent/5 transition-all text-left"
                 >
                   <div className={`w-9 h-9 rounded-lg ${color} flex items-center justify-center shrink-0 font-bold text-xs`}>
                     {abbr}

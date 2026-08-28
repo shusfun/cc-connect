@@ -118,7 +118,7 @@ export default function ProviderList() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-gray-100 dark:bg-white/[0.06] w-fit">
+      <div className="flex gap-1 p-1 rounded-lg bg-gray-100 dark:bg-white/[0.06] w-fit">
         {(['providers', 'presets'] as const).map(key => (
           <button
             key={key}
@@ -585,7 +585,7 @@ function AgentConfigEditor({
             value={config.wire_api || ''}
             onChange={e => onChange({ ...config, wire_api: e.target.value || undefined })}
             className={cn(
-              'w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors',
+              'w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors',
               'border-gray-200 bg-white text-gray-900',
               'dark:border-white/10 dark:bg-white/[0.04] dark:text-white',
               'focus:border-accent focus:ring-1 focus:ring-accent/30',
@@ -771,7 +771,7 @@ function ProviderFormModal({
               </div>
             </>
           ) : (
-            <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+            <div className="rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden">
               <p className="px-3 pt-3 text-xs text-gray-400">{t('globalProviders.form.perAgentHint')}</p>
               <div className="flex gap-1 px-3 pt-2 pb-0">
                 {agents.map(at => (
@@ -816,7 +816,7 @@ function ProviderFormModal({
               value={form.thinking || ''}
               onChange={e => set('thinking', e.target.value)}
               className={cn(
-                'w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors',
+                'w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors',
                 'border-gray-200 bg-white text-gray-900',
                 'dark:border-white/10 dark:bg-white/[0.04] dark:text-white',
                 'focus:border-accent focus:ring-1 focus:ring-accent/30',
@@ -907,7 +907,7 @@ function CCSwitchImportModal({
         )}
 
         {error && (
-          <div className="rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-900/10 p-4 text-sm text-amber-700 dark:text-amber-400">
+          <div className="rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-900/10 p-4 text-sm text-amber-700 dark:text-amber-400">
             {error}
           </div>
         )}
@@ -930,7 +930,7 @@ function CCSwitchImportModal({
                   <label
                     key={p.name}
                     className={cn(
-                      'flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors cursor-pointer',
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors cursor-pointer',
                       exists
                         ? 'opacity-50 cursor-not-allowed'
                         : selected.has(p.name)
@@ -977,7 +977,7 @@ function CCSwitchImportModal({
 
         {result && (
           <>
-            <div className="rounded-xl border border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-900/10 p-4 text-sm text-green-700 dark:text-green-400">
+            <div className="rounded-lg border border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-900/10 p-4 text-sm text-green-700 dark:text-green-400">
               {t('globalProviders.ccSwitch.result', { imported: result.imported?.length || 0, skipped: result.skipped?.length || 0 })}
             </div>
             <div className="flex justify-end">

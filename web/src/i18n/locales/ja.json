@@ -10,7 +10,10 @@
     "bridge": "ブリッジ",
     "skills": "スキル",
     "system": "システム", "profile": "プロフィール",
-    "operations": "運用"
+    "operations": "運用",
+    "workspace": "ワークスペース",
+    "manage": "管理",
+    "settings": "設定"
   },
   "dashboard": {
     "title": "ダッシュボード",
@@ -406,6 +409,15 @@
   "settings": {
     "title": "グローバル設定",
     "general": "一般",
+    "appearance": "外観",
+    "system": "システム",
+    "account": "アカウント",
+    "sections": "設定セクション",
+    "appearanceHint": "このデバイスでの管理コンソールの表示を選択します。",
+    "systemHint": "設定の再読み込み、サービスの再起動、現在の設定の確認を行います。",
+    "light": "ライト",
+    "dark": "ダーク",
+    "systemTheme": "システム",
     "language": "言語",
     "quiet": "サイレントモード",
     "quietHint": "開始/終了通知をグローバルで抑制",

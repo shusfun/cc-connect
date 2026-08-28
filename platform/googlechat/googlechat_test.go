@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chenhg5/cc-connect/core"
+	"github.com/shusfun/cc-connect/core"
 )
 
 // testServiceAccountJSON is a syntactically valid service-account JSON whose
