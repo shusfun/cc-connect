@@ -47,3 +47,4 @@
 - 部署运行手册：`docs/deployment.md`、`docs/deployment.zh-CN.md`
 - 发布与部署经验：`.agents/notes/release-deployment-efficiency.md`
 - 项目经验路由：`.agents/skills/cc-connect-project-context/SKILL.md`
+- 生产浏览器认证：`.agents/skills/cc-connect-production-browser-auth/SKILL.md`
