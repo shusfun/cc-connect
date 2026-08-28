@@ -39,13 +39,13 @@ curl -fsSL https://cc.example.com/runtime/v1/install.sh -o cc-connect-runtime-in
 sh cc-connect-runtime-install.sh --server https://cc.example.com --code <code> --tag <tag>
 ```
 
-After verification, installation, and pairing, the installer starts Runtime as a foreground process in that App terminal. Closing the terminal takes the device offline. The installer stops and precisely removes the obsolete `dev.cc-connect.runtime` LaunchAgent. Restart an installed Runtime from an App terminal with:
+After verification, installation, and pairing, the installer starts the Node supervisor from that App terminal. The terminal may be closed after startup; supervisor and worker output is persisted in `~/Library/Application Support/cc-connect-runtime/logs/runtime.log`, and the supervisor keeps Runtime online while Codex App is running. The installer stops and precisely removes the obsolete `dev.cc-connect.runtime` LaunchAgent. Restart an installed Runtime from an App terminal with:
 
 ```bash
 "$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime" --cosign "$(command -v cosign)"
 ```
 
-The Ed25519 private key stays in macOS Keychain. The launcher re-execs into the App-bundled Node supervisor and passes the verified App Socket to the Go worker through an inherited fd. Runtime connects outbound over TLS/WebSocket; catalog sync sends opaque project metadata and never conversation bodies. Runtime never starts a second Codex App Server.
+The Ed25519 private key stays in macOS Keychain. The launcher re-execs into the App-bundled Node supervisor and passes the verified App Socket to the Go worker through an inherited fd. The supervisor survives launch-terminal detachment and individual worker exits; after an update, worker failure, or App Socket disconnect, it cleans up the old generation, starts the worker from the `current` Release, and scans for the new Socket. Runtime connects outbound over TLS/WebSocket; catalog sync sends opaque project metadata and never conversation bodies. Runtime never starts a second Codex App Server.
 
 ## Updates, rollback, and diagnosis
 
@@ -55,6 +55,6 @@ Start diagnosis from the reported symptom, UTC window, target tag/commit, and li
 
 - Native lane: Web operations state, `systemctl status cc-connect-control.service`, and `journalctl -u cc-connect-control.service`.
 - Container lane: Web operations state, `systemctl status cc-connect-deploy-host.service`, deploy-host journal, and read-only container status/logs for the expected image digest.
-- Runtime: the paired device's connection history, Runtime launchd state/logs, and the control-side run or request correlation ID.
+- Runtime: the paired device's connection history, `~/Library/Application Support/cc-connect-runtime/logs/runtime.log`, and the control-side run or request correlation ID.
 
 Before retrying or cancelling, reread the current run state and one independent signal such as log freshness, health, execution-slot state, or candidate revision. Preserve activation and backup evidence when automatic recovery fails.
