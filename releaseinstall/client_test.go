@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -62,6 +63,92 @@ func TestClientLocksLatestTagVerifiesManifestAndArtifactDigest(t *testing.T) {
 	destination := t.TempDir() + "/artifact.tar.gz"
 	if err := client.DownloadArtifact(context.Background(), release, manifest.Artifacts[0], destination); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestClientFetchAllowsUnsignedManifestWithoutBundle(t *testing.T) {
+	manifest := releasecontract.Manifest{
+		Version: 1, Repository: releasecontract.Repository, Workflow: releasecontract.Workflow, Tag: "v0.1.1",
+		CommitSHA: strings.Repeat("b", 40), RuntimeContractHash: "contract", ControlSchema: 4,
+		GeneratedAt: time.Now().UTC(),
+	}
+	for _, target := range [][3]string{{"control", "linux", "amd64"}, {"control", "linux", "arm64"}, {"server", "linux", "amd64"}, {"server", "linux", "arm64"}, {"deployhost", "linux", "amd64"}, {"deployhost", "linux", "arm64"}, {"runtime", "darwin", "amd64"}, {"runtime", "darwin", "arm64"}} {
+		manifest.Artifacts = append(manifest.Artifacts, releasecontract.Artifact{
+			Name: "cc-connect-" + strings.Join(target[:], "-") + ".tar.gz", Component: target[0], OS: target[1], Arch: target[2],
+			SHA256: strings.Repeat("0", 64), Size: 1,
+		})
+	}
+	manifestRaw, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/manifest.json"):
+			_, _ = w.Write(manifestRaw)
+		case strings.HasSuffix(r.URL.Path, "/manifest.bundle"):
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	verified := false
+	client, err := New(Config{HTTPClient: server.Client(), ReleaseBase: server.URL, Verify: func(context.Context, string, []byte, []byte) error {
+		verified = true
+		return nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	release, err := client.Fetch(context.Background(), manifest.Tag)
+	if err != nil {
+		t.Fatalf("Fetch() unsigned release: %v", err)
+	}
+	if release.BundleRaw != nil {
+		t.Fatalf("BundleRaw = %v, want nil", release.BundleRaw)
+	}
+	if verified {
+		t.Fatal("unsigned release unexpectedly invoked verifier")
+	}
+}
+
+func TestClientFetchTreatsUnavailableBundleAsUnsigned(t *testing.T) {
+	manifest := releasecontract.Manifest{
+		Version: 1, Repository: releasecontract.Repository, Workflow: releasecontract.Workflow, Tag: "v0.1.2",
+		CommitSHA: strings.Repeat("c", 40), RuntimeContractHash: "contract", ControlSchema: 4,
+		GeneratedAt: time.Now().UTC(),
+	}
+	for _, target := range [][3]string{{"control", "linux", "amd64"}, {"control", "linux", "arm64"}, {"server", "linux", "amd64"}, {"server", "linux", "arm64"}, {"deployhost", "linux", "amd64"}, {"deployhost", "linux", "arm64"}, {"runtime", "darwin", "amd64"}, {"runtime", "darwin", "arm64"}} {
+		manifest.Artifacts = append(manifest.Artifacts, releasecontract.Artifact{
+			Name: "cc-connect-" + strings.Join(target[:], "-") + ".tar.gz", Component: target[0], OS: target[1], Arch: target[2],
+			SHA256: strings.Repeat("0", 64), Size: 1,
+		})
+	}
+	manifestRaw, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/manifest.json") {
+			_, _ = w.Write(manifestRaw)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/manifest.bundle") {
+			http.Error(w, "temporary unavailable", http.StatusBadGateway)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	client, err := New(Config{HTTPClient: server.Client(), ReleaseBase: server.URL, Verify: func(context.Context, string, []byte, []byte) error {
+		return errors.New("must not be called without bundle")
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Fetch(context.Background(), manifest.Tag); err != nil {
+		t.Fatalf("Fetch() unavailable bundle: %v", err)
 	}
 }
 

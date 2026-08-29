@@ -101,12 +101,16 @@ func (c *Client) Fetch(ctx context.Context, tag string) (Release, error) {
 	}
 	var bundleRaw []byte
 	if c.verify != nil {
-		bundleRaw, err = c.downloadBytes(ctx, base+"manifest.bundle", 8<<20)
+		// 未签名制品不包含 manifest.bundle。签名材料是可选的，不能因为
+		// 缺失或暂时不可下载而阻断 manifest 已通过的未验证发布。
+		bundleRaw, err = c.downloadOptionalBundle(ctx, base+"manifest.bundle")
 		if err != nil {
 			return Release{}, err
 		}
-		if err := c.verify(ctx, tag, manifestRaw, bundleRaw); err != nil {
-			return Release{}, fmt.Errorf("release install: verify manifest: %w", err)
+		if len(bundleRaw) > 0 {
+			if err := c.verify(ctx, tag, manifestRaw, bundleRaw); err != nil {
+				return Release{}, fmt.Errorf("release install: verify manifest: %w", err)
+			}
 		}
 	}
 	manifest, err := DecodeLockedManifest(manifestRaw, tag)
@@ -114,6 +118,37 @@ func (c *Client) Fetch(ctx context.Context, tag string) (Release, error) {
 		return Release{}, err
 	}
 	return Release{Manifest: manifest, ManifestRaw: manifestRaw, BundleRaw: bundleRaw}, nil
+}
+
+// downloadOptionalBundle 返回 nil 表示发布没有签名材料，或签名材料暂时不可用。
+// manifest.json 仍由 Fetch 强制下载并经过完整结构校验，因此这里不会降低制品身份校验。
+func (c *Client) downloadOptionalBundle(ctx context.Context, address string) ([]byte, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := c.http.Do(request)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, nil
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return nil, nil
+	}
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 8<<20+1))
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, nil
+	}
+	if len(raw) > 8<<20 {
+		return nil, nil
+	}
+	return raw, nil
 }
 
 // DecodeLockedManifest 校验已由调用方可信边界验签的清单，并将其绑定到指定标签。
