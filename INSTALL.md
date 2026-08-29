@@ -4,7 +4,7 @@ CC-Connect 只服务 Codex Desktop App。请先安装并登录 Codex Desktop App
 
 ## 1. 部署 Control
 
-从同一个签名 Release 选择 Linux 原生或容器通道，二者不得共享状态目录：
+从同一个 manifest Release 选择 Linux 原生或容器通道，当前未签名联调版本会以 `unverified=true` 标记，二者不得共享状态目录：
 
 ```bash
 gh release download <tag> --repo shusfun/cc-connect --dir release
@@ -32,7 +32,7 @@ sh cc-connect-runtime-install.sh --server https://cc.example.com --code <pairing
 安装器验签并启动 `Go launcher -> Node supervisor -> Go Runtime worker`。完成后可以关闭终端；要恢复 supervisor，仍必须从 Codex App 终端运行：
 
 ```bash
-"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime" --cosign "$(command -v cosign)"
+"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime"
 ```
 
 禁止用 Wails、launchd 或普通 Node 代启 supervisor。Runtime 私钥保存在 macOS Keychain，日志位于 `~/Library/Application Support/cc-connect-runtime/logs/runtime.log`。
@@ -57,4 +57,4 @@ cc-connect config-example
 
 旧 Agent、Lark、微信、Provider、Cron、Bridge、Webhook 等配置不迁移；启动会返回明确不支持错误和删除提示。
 
-完整生命周期、签名与诊断说明见 [部署手册](docs/deployment.zh-CN.md)。
+完整生命周期、未验证部署与诊断说明见 [部署手册](docs/deployment.zh-CN.md)。

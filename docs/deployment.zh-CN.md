@@ -2,9 +2,9 @@
 
 ## 权威来源
 
-Release workflow 及其签名 manifest 是构建契约，选定的 GitHub Release 是制品来源，服务和部署的实时状态是运行事实。仓库示例与历史日志仅用于指引。安装、更新、回滚或诊断前，必须核验 `<tag>`、commit、目标架构、manifest identity 和当前服务状态。
+Release workflow 及其 manifest 是构建契约，选定的 GitHub Release 是制品来源，服务和部署的实时状态是运行事实。当前线上联调允许未签名制品（`unverified=true`），但安装、更新、回滚或诊断前仍必须核验 `<tag>`、commit、目标架构、manifest identity 和当前服务状态。
 
-正式 manifest v2 Release 包含 Linux amd64/arm64 的 control、server、deploy-host，macOS amd64/arm64 的 Runtime，以及同时提供 App ZIP 和 DMG 的已公证 universal macOS Desktop App。安装与更新验证 GitHub OIDC/Sigstore identity 和每个 SHA-256，拒绝未签名制品。
+manifest v2 Release 包含 Linux amd64/arm64 的 control、server、deploy-host，macOS amd64/arm64 的 Runtime，以及同时提供 App ZIP 和 DMG 的 universal macOS Desktop App。当前未签名联调版本跳过 OIDC/Sigstore 验证，但仍验证固定仓库、workflow、tag、manifest、每个 SHA-256、镜像 digest 和候选服务健康；日志必须标记 `unverified=true`。
 
 Linux 有两条相互独立的通道：原生安装由 systemd 管理 control；容器安装由 systemd 只管理 deploy-host，deploy-host 管理 control 容器，control 仍是 server 的唯一生命周期所有者。两条通道不得共用持久目录。macOS Runtime 不容器化，也不通过 launchd 直连 App 私有 Socket。
 
@@ -42,14 +42,14 @@ sh cc-connect-runtime-install.sh --server https://cc.example.com --code <pairing
 安装器验签、安装并配对后，会在同一 App 终端启动 Node supervisor。完成启动后可以关闭该终端；supervisor 与 worker 的输出写入 `~/Library/Application Support/cc-connect-runtime/logs/runtime.log`，Codex App 运行期间 supervisor 会持续保持 Runtime 在线。旧 `dev.cc-connect.runtime` LaunchAgent 会被停止并精确删除。已安装 Runtime 可从 App 终端重新启动：
 
 ```bash
-"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime" --cosign "$(command -v cosign)"
+"$HOME/Library/Application Support/cc-connect-runtime/current/cc-connect-runtime"
 ```
 
 Runtime 私钥只保存在 macOS Keychain。launcher re-exec 为 App 内置 Node supervisor，再将已校验的 App Socket 通过继承 FD 交给 Go worker。supervisor 不随启动终端挂断或单个 worker 退出而结束；更新、worker 异常或 App Socket 断开时，它会清理旧代并从 `current` Release 重新启动 worker、扫描新 Socket。Runtime 通过出站 TLS/WebSocket 连接 control；catalog 同步只传不透明项目元数据，不上传对话正文。Runtime 不启动第二个 Codex App Server。
 
 ## macOS 伴生 App
 
-从同一个签名 Release 安装 `cc-connect-desktop-darwin-universal.dmg`。已公证的 `CC-Connect.app` 使用 accessory 激活策略，提供菜单栏托盘、紧凑 attached 状态窗口、单实例和可选登录启动。它可以完成设备配对，显示 supervisor/worker 代际与 Runtime 连接，打开 Web 控制台和日志，请求重连，并验签、下载 Desktop DMG 更新。
+从同一个未验证联调 Release 安装 `cc-connect-desktop-darwin-universal.dmg`。`CC-Connect.app` 使用 accessory 激活策略，提供菜单栏托盘、紧凑 attached 状态窗口、单实例和可选登录启动。它可以完成设备配对，显示 supervisor/worker 代际与 Runtime 连接，打开 Web 控制台和日志，请求重连，并校验 manifest 与 DMG SHA-256 后下载更新。
 
 伴生 App 不启动 Node supervisor 或 Runtime worker；登录启动只启动伴生 UI。supervisor 离线时，必须在 Codex Desktop App 终端运行上面的 launcher。伴生 App 只通过 `~/Library/Application Support/cc-connect-runtime/status.sock` 读取状态并请求受限的 `reconnect` 操作；该当前用户 Unix Socket 权限为 `0600`，与 Codex tools Socket 完全分离。Runtime 替换仍由现有 control/activation 生命周期负责，伴生 App 只把已验证 DMG 交给用户安装。
 

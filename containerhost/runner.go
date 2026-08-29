@@ -79,12 +79,6 @@ func (r *CommandRunner) PrepareImage(ctx context.Context, tag string) (string, e
 	if digest == "" {
 		return "", errors.New("container host runner: Docker returned no digest for the fixed repository")
 	}
-	identity := "https://github.com/shusfun/cc-connect/.github/workflows/release.yml@refs/tags/" + tag
-	if err := r.run(ctx, r.config.CosignBinary, "verify",
-		"--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
-		"--certificate-identity", identity, digest); err != nil {
-		return "", err
-	}
 	return digest, nil
 }
 

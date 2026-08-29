@@ -23,7 +23,6 @@ func TestBootstrapIsIdempotentAndCreatesOnlyControlService(t *testing.T) {
 	fixture := newReleaseFixture(t, false)
 	root := filepath.Join(t.TempDir(), "root")
 	fakeBin := filepath.Join(t.TempDir(), "bin")
-	writeExecutable(t, filepath.Join(fakeBin, "cosign"), "#!/bin/sh\nexit 0\n")
 	writeExecutable(t, filepath.Join(fakeBin, "systemctl"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CC_TEST_SYSTEMCTL_LOG\"\n")
 	logPath := filepath.Join(t.TempDir(), "systemctl.log")
 	command := func() string {
@@ -58,10 +57,13 @@ func TestBootstrapIsIdempotentAndCreatesOnlyControlService(t *testing.T) {
 	if !strings.Contains(unit, "ExecStart=/opt/cc-connect/current/cc-connect-control") || strings.Contains(unit, "cc-connect-server.service") || !strings.Contains(unit, "ExecStopPost=") {
 		t.Fatalf("unexpected systemd unit:\n%s", unit)
 	}
-	for _, name := range []string{"manifest.json", "manifest.bundle", "cc-connect-control", "cc-connect-server"} {
+	for _, name := range []string{"manifest.json", "cc-connect-control", "cc-connect-server"} {
 		if _, err := os.Stat(filepath.Join(root, "opt/cc-connect/releases", fixture.manifest.Tag, name)); err != nil {
 			t.Fatalf("release slot missing %s: %v", name, err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "opt/cc-connect/releases", fixture.manifest.Tag, "manifest.bundle")); !os.IsNotExist(err) {
+		t.Fatalf("unsigned release unexpectedly installed manifest.bundle: %v", err)
 	}
 }
 
@@ -159,7 +161,6 @@ func TestContainerBootstrapIsIdempotentAndInstallsOnlyDeployHostService(t *testi
 	fixture := newReleaseFixture(t, false)
 	root := filepath.Join(t.TempDir(), "root")
 	fakeBin := filepath.Join(t.TempDir(), "bin")
-	writeExecutable(t, filepath.Join(fakeBin, "cosign"), "#!/bin/sh\nexit 0\n")
 	writeExecutable(t, filepath.Join(fakeBin, "docker"), "#!/bin/sh\nexit 0\n")
 	writeExecutable(t, filepath.Join(fakeBin, "systemctl"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CC_TEST_SYSTEMCTL_LOG\"\n")
 	logPath := filepath.Join(t.TempDir(), "systemctl.log")
@@ -213,7 +214,6 @@ func TestRuntimeInstallerIsIdempotentAndPreservesSignedSlot(t *testing.T) {
 	fixture := newReleaseFixture(t, true)
 	home := t.TempDir()
 	fakeBin := filepath.Join(t.TempDir(), "bin")
-	writeExecutable(t, filepath.Join(fakeBin, "cosign"), "#!/bin/sh\nexit 0\n")
 	writeExecutable(t, filepath.Join(fakeBin, "launchctl"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CC_TEST_LAUNCHCTL_LOG\"\n[ \"${1:-}\" != print ]\n")
 	writeExecutable(t, filepath.Join(fakeBin, "curl"), `#!/bin/sh
 set -eu
@@ -259,12 +259,14 @@ sha256sum "$@"
 	if strings.TrimSpace(readFile(t, filepath.Join(state, "start-count"))) != "2" {
 		t.Fatal("runtime installer did not hand off to the foreground Runtime")
 	}
-	if args := strings.TrimSpace(readFile(t, filepath.Join(state, "start-args"))); args != "--cosign cosign" {
+	if args := strings.TrimSpace(readFile(t, filepath.Join(state, "start-args"))); args != "" {
 		t.Fatalf("runtime installer arguments = %q", args)
 	}
 	slot := filepath.Join(state, "releases", fixture.manifest.Tag)
 	assertMode(t, filepath.Join(slot, "manifest.json"), 0o600)
-	assertMode(t, filepath.Join(slot, "manifest.bundle"), 0o600)
+	if _, err := os.Stat(filepath.Join(slot, "manifest.bundle")); !os.IsNotExist(err) {
+		t.Fatalf("unsigned runtime slot unexpectedly contains manifest.bundle: %v", err)
+	}
 	if _, err := os.Stat(filepath.Join(home, "Library/LaunchAgents/dev.cc-connect.runtime.plist")); !os.IsNotExist(err) {
 		t.Fatalf("obsolete Runtime LaunchAgent was not removed: %v", err)
 	}
@@ -314,9 +316,6 @@ func newReleaseFixture(t *testing.T, executableRuntime bool) releaseFixture {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(directory, "manifest.json"), raw, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, "manifest.bundle"), []byte("signed"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return releaseFixture{directory: directory, manifest: manifest}

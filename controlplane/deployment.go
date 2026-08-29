@@ -276,7 +276,7 @@ func (m *DeploymentManager) execute(ctx context.Context, run controlstore.Deploy
 		fail(err)
 		return
 	}
-	log("签名和运行前检查通过")
+	log("未验证 Release 的仓库、manifest、摘要和运行前检查通过: unverified=true")
 
 	targetDirectory, err := m.installServerSlot(ctx, release)
 	if err != nil {
@@ -513,8 +513,10 @@ func (m *DeploymentManager) installServerSlot(ctx context.Context, release relea
 	if err := os.WriteFile(filepath.Join(temporary, "manifest.json"), release.ManifestRaw, 0o644); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(filepath.Join(temporary, "manifest.bundle"), release.BundleRaw, 0o644); err != nil {
-		return "", err
+	if len(release.BundleRaw) > 0 {
+		if err := os.WriteFile(filepath.Join(temporary, "manifest.bundle"), release.BundleRaw, 0o644); err != nil {
+			return "", err
+		}
 	}
 	if err := os.Rename(temporary, final); err != nil {
 		return "", fmt.Errorf("deployment manager: install server release slot: %w", err)
@@ -536,10 +538,7 @@ func validateInstalledServerSlot(directory string, release releaseinstall.Releas
 	}
 	manifest, err := releasecontract.Decode(raw)
 	if err != nil || manifest.Tag != release.Manifest.Tag || manifest.CommitSHA != release.Manifest.CommitSHA || manifest.RuntimeContractHash != release.Manifest.RuntimeContractHash {
-		return errors.New("deployment manager: installed release slot manifest does not match the signed release")
-	}
-	if info, err := os.Stat(filepath.Join(directory, "manifest.bundle")); err != nil || !info.Mode().IsRegular() {
-		return errors.New("deployment manager: installed release slot signature bundle is unavailable")
+		return errors.New("deployment manager: installed release slot manifest does not match the release")
 	}
 	return nil
 }

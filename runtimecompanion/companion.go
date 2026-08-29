@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -215,30 +214,8 @@ func ReadReleaseStatus(stateDirectory string) (ReleaseStatus, error) {
 	return status, nil
 }
 
-func FindCosign() (string, error) {
-	if explicit := strings.TrimSpace(os.Getenv("COSIGN_BIN")); explicit != "" {
-		if info, err := os.Stat(explicit); err == nil && !info.IsDir() {
-			return explicit, nil
-		}
-		return "", fmt.Errorf("COSIGN_BIN 指向的文件不可用: %s", explicit)
-	}
-	for _, candidate := range []string{"/opt/homebrew/bin/cosign", "/usr/local/bin/cosign"} {
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return candidate, nil
-		}
-	}
-	if candidate, err := exec.LookPath("cosign"); err == nil {
-		return candidate, nil
-	}
-	return "", errors.New("未找到 cosign，无法验证签名 Release")
-}
-
 func CheckDesktopUpdate(ctx context.Context, currentTag string) (DesktopUpdateStatus, error) {
-	cosign, err := FindCosign()
-	if err != nil {
-		return DesktopUpdateStatus{}, err
-	}
-	client, err := openReleaseClient(cosign)
+	client, err := openReleaseClient("")
 	if err != nil {
 		return DesktopUpdateStatus{}, err
 	}
@@ -261,11 +238,7 @@ func CheckDesktopUpdate(ctx context.Context, currentTag string) (DesktopUpdateSt
 }
 
 func DownloadDesktopUpdate(ctx context.Context, tag, destination string) error {
-	cosign, err := FindCosign()
-	if err != nil {
-		return err
-	}
-	client, err := openReleaseClient(cosign)
+	client, err := openReleaseClient("")
 	if err != nil {
 		return err
 	}

@@ -114,12 +114,7 @@ func TestQueryStatusOfflineErrorDirectsUserToCodexTerminal(t *testing.T) {
 	}
 }
 
-func TestCheckDesktopUpdateRequiresSignedManifestV2DMG(t *testing.T) {
-	cosign := filepath.Join(t.TempDir(), "cosign")
-	if err := os.WriteFile(cosign, []byte("test"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("COSIGN_BIN", cosign)
+func TestCheckDesktopUpdateRequiresManifestV2DMG(t *testing.T) {
 	original := openReleaseClient
 	t.Cleanup(func() { openReleaseClient = original })
 	client := &fakeReleaseClient{
@@ -132,12 +127,7 @@ func TestCheckDesktopUpdateRequiresSignedManifestV2DMG(t *testing.T) {
 			}},
 		}},
 	}
-	openReleaseClient = func(gotCosign string) (releaseClient, error) {
-		if gotCosign != cosign {
-			t.Fatalf("cosign = %q, want %q", gotCosign, cosign)
-		}
-		return client, nil
-	}
+	openReleaseClient = func(string) (releaseClient, error) { return client, nil }
 
 	status, err := CheckDesktopUpdate(context.Background(), "v0.3.9")
 	if err != nil {
@@ -153,11 +143,6 @@ func TestCheckDesktopUpdateRequiresSignedManifestV2DMG(t *testing.T) {
 }
 
 func TestDownloadDesktopUpdateSelectsDMGArtifact(t *testing.T) {
-	cosign := filepath.Join(t.TempDir(), "cosign")
-	if err := os.WriteFile(cosign, []byte("test"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("COSIGN_BIN", cosign)
 	original := openReleaseClient
 	t.Cleanup(func() { openReleaseClient = original })
 	dmg := releasecontract.Artifact{

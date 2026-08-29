@@ -2,17 +2,15 @@
 set -euo pipefail
 
 usage() {
-  echo "用法: sudo ./bootstrap.sh --release-dir <已下载的 Release 目录> [--cosign <路径>]" >&2
+  echo "用法: sudo ./bootstrap.sh --release-dir <已下载的 Release 目录>" >&2
 }
 
 release_dir=""
-cosign_bin="${COSIGN_BIN:-cosign}"
 bootstrap_root="${CC_CONNECT_BOOTSTRAP_ROOT:-}"
 bootstrap_testing="${CC_CONNECT_BOOTSTRAP_TESTING:-0}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --release-dir) release_dir="${2:-}"; shift 2 ;;
-    --cosign) cosign_bin="${2:-}"; shift 2 ;;
     *) usage; exit 2 ;;
   esac
 done
@@ -30,7 +28,7 @@ if [ -z "$release_dir" ]; then
   usage
   exit 2
 fi
-required_commands=("$cosign_bin" jq sha256sum tar openssl systemctl)
+required_commands=(jq sha256sum tar openssl systemctl)
 if [ -z "$bootstrap_root" ]; then required_commands+=(useradd); fi
 for command in "${required_commands[@]}"; do
   command -v "$command" >/dev/null 2>&1 || { echo "缺少必需命令: $command" >&2; exit 1; }
@@ -38,8 +36,7 @@ done
 
 release_dir="$(cd "$release_dir" && pwd)"
 manifest="$release_dir/manifest.json"
-bundle="$release_dir/manifest.bundle"
-test -f "$manifest" && test -f "$bundle" || { echo "Release 目录缺少 manifest.json 或 manifest.bundle" >&2; exit 1; }
+test -f "$manifest" || { echo "Release 目录缺少 manifest.json" >&2; exit 1; }
 
 repository="$(jq -er '.repository' "$manifest")"
 workflow="$(jq -er '.workflow' "$manifest")"
@@ -48,11 +45,6 @@ test "$repository" = "shusfun/cc-connect" || { echo "拒绝非官方仓库 Relea
 test "$workflow" = ".github/workflows/release.yml" || { echo "拒绝未知 Release workflow: $workflow" >&2; exit 1; }
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "无效 tag: $tag" >&2; exit 1; }
 
-"$cosign_bin" verify-blob \
-  --bundle "$bundle" \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity "https://github.com/shusfun/cc-connect/.github/workflows/release.yml@refs/tags/$tag" \
-  "$manifest" >/dev/null
 
 case "$(uname -m)" in
   x86_64) arch=amd64 ;;
@@ -94,7 +86,7 @@ if [ ! -d "$slot" ]; then
   tar -xzf "$release_dir/$server_archive" -C "$slot"
   chmod 0755 "$slot/cc-connect-control" "$slot/cc-connect-server"
   install -m 0644 "$manifest" "$slot/manifest.json"
-  install -m 0644 "$bundle" "$slot/manifest.bundle"
+  echo "Control Release 未验证: unverified=true（已校验仓库、workflow、tag 和 SHA-256）" >&2
 fi
 test -x "$slot/cc-connect-control" && test -x "$slot/cc-connect-server" || { echo "版本槽不完整: $slot" >&2; exit 1; }
 test "$(jq -er '.tag' "$slot/manifest.json")" = "$tag" || { echo "现有版本槽 manifest 不匹配" >&2; exit 1; }

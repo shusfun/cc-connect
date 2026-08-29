@@ -262,7 +262,7 @@ func (h *Handler) send(ctx context.Context, request runtimeprotocol.TaskSendRequ
 
 func (h *Handler) update(ctx context.Context, method runtimeprotocol.Method, payload json.RawMessage) (json.RawMessage, error) {
 	if h.dependencies.Updater == nil {
-		return nil, errors.New("runtime handler: signed release updates are unavailable")
+		return nil, errors.New("runtime handler: release updates are unavailable")
 	}
 	request, err := decodePayload[runtimeprotocol.RuntimeUpdateRequest](payload)
 	if err != nil {

@@ -723,7 +723,7 @@ func (s *Server) handlePreflightOperations(w http.ResponseWriter, r *http.Reques
 		{"id": "public_url", "ok": publicURLSet, "message": publicURL},
 		{"id": "runtime_workspace", "ok": catalogErr == nil && validWorkspace, "message": "至少一台在线 Runtime 必须提供有效 Codex 项目"},
 		{"id": "runtime_contract", "ok": true, "message": runtimeprotocol.ContractHash},
-		{"id": "signed_release_required", "ok": true, "message": "更新只接受 GitHub OIDC/Sigstore 签名制品"},
+		{"id": "release_verification", "ok": true, "message": "当前部署接受未签名制品；仍校验仓库、manifest、摘要和运行健康（unverified=true）"},
 	}, "")
 }
 

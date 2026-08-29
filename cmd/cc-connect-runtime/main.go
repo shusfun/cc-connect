@@ -44,7 +44,7 @@ func run(args []string) error {
 	deviceName := flags.String("name", hostname(), "设备显示名称")
 	toolsSocket := flags.String("codex-app-tools-socket", "", "可选 Codex Desktop App tools Socket；默认自动发现")
 	appNode := flags.String("codex-app-node", "", "可选 Codex Desktop App 内置 Node 路径")
-	cosignBinary := flags.String("cosign", strings.TrimSpace(os.Getenv("COSIGN_BIN")), "用于 Release 验签的 cosign 路径")
+	cosignBinary := flags.String("cosign", "", "兼容旧启动参数；未验证模式不调用 cosign")
 	allowInsecureLoopback := flags.Bool("allow-insecure-loopback", false, "仅开发环境允许 loopback HTTP Control")
 	if err := flags.Parse(args); err != nil {
 		return err

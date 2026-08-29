@@ -31,8 +31,10 @@ type Config struct {
 	HTTPClient  *http.Client
 	ReleaseBase string
 	ReleaseAPI  string
-	Cosign      string
-	Verify      VerifyFunc
+	// Cosign is retained for API compatibility; unsigned releases are the
+	// current deployment mode and do not invoke an external verifier.
+	Cosign string
+	Verify VerifyFunc
 }
 
 type Client struct {
@@ -57,13 +59,6 @@ func New(config Config) (*Client, error) {
 	}
 	if strings.TrimSpace(config.ReleaseAPI) == "" {
 		config.ReleaseAPI = defaultReleaseAPI
-	}
-	if config.Verify == nil {
-		cosign := strings.TrimSpace(config.Cosign)
-		if cosign == "" {
-			cosign = "cosign"
-		}
-		config.Verify = cosignVerifier(cosign)
 	}
 	return &Client{http: config.HTTPClient, releaseBase: strings.TrimSuffix(config.ReleaseBase, "/"), releaseAPI: config.ReleaseAPI, verify: config.Verify}, nil
 }
@@ -104,12 +99,15 @@ func (c *Client) Fetch(ctx context.Context, tag string) (Release, error) {
 	if err != nil {
 		return Release{}, err
 	}
-	bundleRaw, err := c.downloadBytes(ctx, base+"manifest.bundle", 8<<20)
-	if err != nil {
-		return Release{}, err
-	}
-	if err := c.verify(ctx, tag, manifestRaw, bundleRaw); err != nil {
-		return Release{}, fmt.Errorf("release install: verify signed manifest: %w", err)
+	var bundleRaw []byte
+	if c.verify != nil {
+		bundleRaw, err = c.downloadBytes(ctx, base+"manifest.bundle", 8<<20)
+		if err != nil {
+			return Release{}, err
+		}
+		if err := c.verify(ctx, tag, manifestRaw, bundleRaw); err != nil {
+			return Release{}, fmt.Errorf("release install: verify manifest: %w", err)
+		}
 	}
 	manifest, err := DecodeLockedManifest(manifestRaw, tag)
 	if err != nil {

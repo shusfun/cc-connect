@@ -49,10 +49,10 @@ func run() error {
 	runDir := flag.String("run-dir", "/run/cc-connect", "private Unix socket directory")
 	serverBinary := flag.String("server-binary", "/opt/cc-connect/current/cc-connect-server", "managed server binary")
 	setupTokenFile := flag.String("setup-token-file", "/var/lib/cc-connect/control/setup-token", "首次启动一次性设置 Token 文件")
-	releasesDir := flag.String("releases-dir", "/opt/cc-connect/releases", "signed release slots directory")
+	releasesDir := flag.String("releases-dir", "/opt/cc-connect/releases", "release slots directory")
 	currentLink := flag.String("current-link", "/opt/cc-connect/current", "active release symlink")
-	cosignBinary := flag.String("cosign", "cosign", "cosign binary used for release verification")
-	releaseBase := flag.String("release-base", "", "optional signed Release download base")
+	cosignBinary := flag.String("cosign", "", "兼容旧启动参数；未验证模式不调用 cosign")
+	releaseBase := flag.String("release-base", "", "optional Release download base")
 	releaseAPI := flag.String("release-api", "", "optional latest Release API")
 	deploymentOwner := flag.String("deployment-owner", controlplane.DeploymentOwnerSystemd, "release lifecycle owner: systemd or container")
 	containerHostSocket := flag.String("container-host-socket", containerhost.DefaultSocket, "container host executor Unix socket")
@@ -202,7 +202,7 @@ func run() error {
 	select {
 	case <-ctx.Done():
 	case <-restartControl:
-		slog.Info("signed release activation requested; handing control back to process manager")
+		slog.Info("release activation requested; handing control back to process manager", "unverified", true)
 	}
 	shutdownContext, shutdownCancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer shutdownCancel()

@@ -106,8 +106,10 @@ func (m *UpdateManager) Stage(ctx context.Context, tag string) error {
 	if err := os.WriteFile(filepath.Join(temporaryDirectory, "manifest.json"), release.ManifestRaw, 0o600); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(temporaryDirectory, "manifest.bundle"), release.BundleRaw, 0o600); err != nil {
-		return err
+	if len(release.BundleRaw) > 0 {
+		if err := os.WriteFile(filepath.Join(temporaryDirectory, "manifest.bundle"), release.BundleRaw, 0o600); err != nil {
+			return err
+		}
 	}
 	if err := os.Remove(archivePath); err != nil {
 		return err
@@ -290,7 +292,7 @@ func validateInstalledRuntimeSlot(directory string, release releaseinstall.Relea
 	}
 	manifest, err := releasecontract.Decode(raw)
 	if err != nil || manifest.CommitSHA != release.Manifest.CommitSHA || manifest.RuntimeContractHash != release.Manifest.RuntimeContractHash {
-		return errors.New("runtime updater: installed slot manifest does not match signed release")
+		return errors.New("runtime updater: installed slot manifest does not match release")
 	}
 	return nil
 }
@@ -305,14 +307,11 @@ func validateRuntimeSlot(directory, tag string) error {
 	}
 	raw, err := os.ReadFile(filepath.Join(directory, "manifest.json"))
 	if err != nil {
-		return errors.New("runtime updater: signed manifest is unavailable")
+		return errors.New("runtime updater: release manifest is unavailable")
 	}
 	manifest, err := releasecontract.Decode(raw)
 	if err != nil || manifest.Tag != strings.TrimSpace(tag) {
 		return errors.New("runtime updater: staged manifest tag does not match release slot")
-	}
-	if info, err := os.Stat(filepath.Join(directory, "manifest.bundle")); err != nil || !info.Mode().IsRegular() {
-		return errors.New("runtime updater: signature bundle is unavailable")
 	}
 	return nil
 }
