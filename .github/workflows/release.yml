@@ -97,10 +97,10 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
-macos-artifacts:
-  runs-on: macos-14
-  environment: release
-  steps:
+  macos-artifacts:
+    runs-on: macos-14
+    environment: release
+    steps:
       - uses: actions/checkout@v4
 
       - name: Verify Apple release secret presence
