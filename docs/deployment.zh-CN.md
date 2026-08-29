@@ -17,7 +17,7 @@ sudo ./release/bootstrap-container.sh --release-dir ./release
 
 bootstrap 只安装 `cc-connect-deploy-host.service`。宿主执行器固定操作仓库 `shusfun/cc-connect`、镜像 `ghcr.io/shusfun/cc-connect`、Compose 项目 `cc-connect` 和 service `cc-connect`。制品内的 `compose.yaml` 是执行器输入，不是绕过执行器的独立生产入口。
 
-容器默认只映射 `127.0.0.1:9820`，以 UID/GID 10001 和只读根文件系统运行，状态分别保存在 `/var/lib/cc-connect-docker/control` 与 `/var/lib/cc-connect-docker/app`。control 不挂载 Docker Socket，只通过受限 Unix Socket 请求 deploy-host。Web 更新与回滚的业务事务由 control 所有，deploy-host 只负责容器替换和上一签名 digest 的看门狗恢复。
+容器默认只映射 `127.0.0.1:9820`，以 UID/GID 10001 和只读根文件系统运行，状态分别保存在 `/var/lib/cc-connect-docker/control` 与 `/var/lib/cc-connect-docker/app`。control 不挂载 Docker Socket，只通过受限 Unix Socket 请求 deploy-host。Web 更新与回滚的业务事务由 control 所有，deploy-host 只负责容器替换和上一固定 digest 的看门狗恢复。
 
 ## 原生 systemd 通道
 
@@ -55,7 +55,7 @@ Runtime 私钥只保存在 macOS Keychain。launcher re-exec 为 App 内置 Node
 
 ## 更新、回滚与诊断
 
-更新与回滚从 Web 发起。control 检查活动操作、备份 `control.db`、协调 Runtime 激活，并与重启共用一个执行槽。原生通道切换签名 Release 槽并由 systemd 恢复；容器通道请求 deploy-host 切换已验证 digest，并使用独立持久化 activation 状态。不得手工修改 release 链接、activation、deployer 状态或数据库备份。
+更新与回滚从 Web 发起。control 检查活动操作、备份 `control.db`、协调 Runtime 激活，并与重启共用一个执行槽。原生通道切换 Release 槽并由 systemd 恢复；容器通道请求 deploy-host 切换固定 digest，并使用独立持久化 activation 状态。不得手工修改 release 链接、activation、deployer 状态或数据库备份。
 
 诊断从真实症状、UTC 时间窗口、目标 tag/commit 和实时运行状态开始，只选择能区分当前假设的信号；下列日志与状态入口是候选证据，不是固定逐项清单：
 
