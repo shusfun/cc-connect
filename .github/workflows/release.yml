@@ -199,6 +199,11 @@ jobs:
             codesign --verify --deep --strict --verbose=2 "$APP"
           else
             echo "Desktop Release 未验证: unverified=true"
+            ditto -c -k --sequesterRsrc --keepParent "$APP" dist/cc-connect-desktop-darwin-universal-app.zip
+            mkdir -p stage/dmg
+            cp -R "$APP" stage/dmg/
+            ln -s /Applications stage/dmg/Applications
+            hdiutil create -volname CC-Connect -srcfolder stage/dmg -ov -format UDZO dist/cc-connect-desktop-darwin-universal.dmg
           fi
 
       - name: Notarize, staple, and package Desktop App
