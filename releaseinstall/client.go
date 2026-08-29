@@ -151,7 +151,7 @@ func (c *Client) downloadOptionalBundle(ctx context.Context, address string) ([]
 	return raw, nil
 }
 
-// DecodeLockedManifest 校验已由调用方可信边界验签的清单，并将其绑定到指定标签。
+// DecodeLockedManifest 校验清单结构并将其绑定到指定标签；签名材料可选。
 func DecodeLockedManifest(manifestRaw []byte, tag string) (releasecontract.Manifest, error) {
 	manifest, err := releasecontract.Decode(manifestRaw)
 	if err != nil {
