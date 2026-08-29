@@ -97,13 +97,14 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
-  macos-artifacts:
-    runs-on: macos-14
-    environment: release
-    steps:
+macos-artifacts:
+  runs-on: macos-14
+  environment: release
+  steps:
       - uses: actions/checkout@v4
 
       - name: Verify Apple release secret presence
+        if: ${{ !contains(github.ref_name, '-unverified') }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -132,6 +133,7 @@ jobs:
           cache: true
 
       - name: Import Developer ID certificate
+        if: ${{ !contains(github.ref_name, '-unverified') }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -163,6 +165,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_BUILD: ${{ github.run_number }}
+          UNVERIFIED: ${{ contains(github.ref_name, '-unverified') }}
         run: |
           set -euo pipefail
           mkdir -p dist stage/runtime-amd64 stage/runtime-arm64 stage/desktop
@@ -189,12 +192,17 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $RELEASE_BUILD" "$APP/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
           lipo -info "$APP/Contents/MacOS/CC-Connect" | grep -q 'x86_64 arm64\|arm64 x86_64'
-          codesign --force --options runtime --timestamp \
-            --entitlements desktop/build/darwin/entitlements.plist \
-            --sign "$SIGNING_IDENTITY" "$APP"
-          codesign --verify --deep --strict --verbose=2 "$APP"
+          if [[ "$UNVERIFIED" != "true" ]]; then
+            codesign --force --options runtime --timestamp \
+              --entitlements desktop/build/darwin/entitlements.plist \
+              --sign "$SIGNING_IDENTITY" "$APP"
+            codesign --verify --deep --strict --verbose=2 "$APP"
+          else
+            echo "Desktop Release 未验证: unverified=true"
+          fi
 
       - name: Notarize, staple, and package Desktop App
+        if: ${{ !contains(github.ref_name, '-unverified') }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -318,8 +326,10 @@ jobs:
           provenance: mode=max
 
       - uses: sigstore/cosign-installer@v3.8.2
+        if: ${{ !contains(github.ref_name, '-unverified') }}
 
       - name: Sign container image with GitHub OIDC
+        if: ${{ !contains(github.ref_name, '-unverified') }}
         env:
           COSIGN_EXPERIMENTAL: '1'
           IMAGE_DIGEST: ${{ steps.container.outputs.digest }}
@@ -360,8 +370,10 @@ jobs:
           install -m 0644 deploy/openresty-1panel.conf dist/openresty-1panel.conf
 
       - uses: sigstore/cosign-installer@v3.8.2
+        if: ${{ !contains(github.ref_name, '-unverified') }}
 
       - name: Sign manifest and every product artifact
+        if: ${{ !contains(github.ref_name, '-unverified') }}
         env:
           COSIGN_EXPERIMENTAL: '1'
         run: |
@@ -383,7 +395,27 @@ jobs:
             dist/openresty-1panel.conf
             compose.yaml
 
-      - uses: softprops/action-gh-release@v2
+      - name: Publish unsigned validation Release
+        if: ${{ contains(github.ref_name, '-unverified') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          prerelease: true
+          make_latest: false
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.dmg
+            dist/manifest.json
+            dist/bootstrap.sh
+            dist/bootstrap-container.sh
+            dist/openresty-1panel.conf
+            compose.yaml
+
+      - name: Publish signed Release
+        if: ${{ !contains(github.ref_name, '-unverified') }}
+        uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
           generate_release_notes: true
