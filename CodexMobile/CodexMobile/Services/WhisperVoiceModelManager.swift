@@ -4,6 +4,7 @@
 // Exports: WhisperVoiceModelManager, WhisperVoiceModelState, WhisperVoiceRetryStore
 // Depends on: CryptoKit, Foundation, Network, WhisperKit
 
+import Combine
 import CryptoKit
 import Foundation
 import Network

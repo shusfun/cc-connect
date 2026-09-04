@@ -4,6 +4,7 @@
 
 import AudioToolbox
 import Foundation
+import UIKit
 
 extension CodexService {
     func notifyRunCompletionIfNeeded(threadId: String, turnId: String?, result: CodexRunCompletionResult) {

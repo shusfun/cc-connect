@@ -127,7 +127,6 @@ extension CodexService {
                     allowAvailableBridgeUpdatePrompt: self?.isAppInForeground ?? false
                 )
                 self?.startGPTLoginSyncIfNeeded()
-                await self?.syncBridgeKeepMacAwakePreferenceIfNeeded()
             }
         } catch {
             let shouldResetSavedSession = recordTrustedReconnectFailureIfNeeded(

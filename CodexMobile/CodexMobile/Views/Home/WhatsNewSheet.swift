@@ -25,10 +25,6 @@ private let whatsNewItems: [WhatsNewItem] = [
         detail: "Create long-running goals, track progress and token budgets, pause or resume work, and receive completion notifications."
     ),
     .init(
-        title: "Live Activities",
-        detail: "Follow running, completed, and failed chats from the Dynamic Island and Lock Screen, with shortcuts back to Remodex."
-    ),
-    .init(
         title: "Smarter Worktrees",
         detail: "Choose any base branch, carry configured project files into new worktrees, and keep worktree chats grouped under their original project."
     ),

@@ -1688,8 +1688,6 @@ struct TurnView: View {
 
     private func handleVoiceRecoveryAction(_ action: VoiceRecoveryAction) {
         switch action {
-        case .reconnect:
-            reconnectAction?()
         case .openSystemSettings:
             guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
                 return

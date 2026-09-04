@@ -46,7 +46,6 @@ private enum NewChatDraftRuntimeMode {
 struct NewChatDraftView: View {
     @Environment(CodexService.self) private var codex
     @Environment(\.openURL) private var openURL
-    @Environment(\.reconnectAction) private var reconnectAction
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -1068,8 +1067,6 @@ struct NewChatDraftView: View {
 
     private func handleVoiceRecoveryAction(_ action: VoiceRecoveryAction) {
         switch action {
-        case .reconnect:
-            reconnectAction?()
         case .openSystemSettings:
             guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
                 return

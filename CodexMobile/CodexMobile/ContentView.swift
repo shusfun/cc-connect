@@ -90,7 +90,6 @@ struct ContentView: View {
     // inside the bar.
     @State private var isShowingSettingsCover = false
     @State private var isShowingDevicesSettingsSheet = false
-    @State private var displayIslandCoordinator = RemodexDisplayIslandCoordinator()
     @AppStorage("codex.hasSeenOnboarding") private var hasSeenOnboarding = false
     @AppStorage("codex.whatsNew.lastPresentedVersion") private var lastPresentedWhatsNewVersion = ""
 
@@ -159,10 +158,6 @@ struct ContentView: View {
                     to: thread?.id
                 )
                 codex.activeThreadId = thread?.id
-                if let thread {
-                    clearDisplayIslandOutcome(for: thread.id)
-                    syncDisplayIsland()
-                }
                 if thread != nil {
                     suppressAutomaticThreadSelection = false
                 }
@@ -183,12 +178,10 @@ struct ContentView: View {
                 routeExternalThreadOpenIfNeeded()
                 routePendingQuickActionIfNeeded()
                 scheduleSidebarPrewarmIfNeeded()
-                syncDisplayIsland()
             }
             .onChange(of: scenePhase) { _, phase in
                 debugSidebarLog("scenePhase changed phase=\(String(describing: phase))")
                 codex.setForegroundState(phase != .background)
-                syncDisplayIsland()
                 if phase == .active {
                     RemodexQuickActionCenter.updateShortcutItems(for: codex.threads)
                     routePendingQuickActionIfNeeded()
@@ -225,21 +218,7 @@ struct ContentView: View {
                 resetSavedMacWakeRecoveryState()
             }
             .onChange(of: codex.threadCompletionBanner) { _, banner in
-                displayIslandCoordinator.rememberCompletion(from: banner, codex: codex)
                 scheduleThreadCompletionBannerDismiss(for: banner)
-                syncDisplayIsland()
-            }
-            .onChange(of: codex.runningThreadIDs) { _, _ in
-                syncDisplayIsland()
-            }
-            .onChange(of: displayIslandTimelineFingerprint) { _, _ in
-                syncDisplayIsland()
-            }
-            .onChange(of: codex.activeTurnIdByThread) { _, _ in
-                syncDisplayIsland()
-            }
-            .onChange(of: codex.latestTurnTerminalStateByThread) { _, _ in
-                syncDisplayIsland()
             }
             .onReceive(NotificationCenter.default.publisher(for: RemodexQuickActionCenter.didReceiveQuickAction)) { notification in
                 _ = RemodexQuickActionCenter.consumePendingAction()
@@ -1152,8 +1131,6 @@ struct ContentView: View {
         selectedThread = thread
         codex.activeThreadId = thread.id
         codex.markThreadAsViewed(thread.id)
-        clearDisplayIslandOutcome(for: thread.id)
-        syncDisplayIsland()
         if shouldPresentSidebarAsNavigation {
             navigationPath = [.thread(id: thread.id)]
         }
@@ -1202,8 +1179,6 @@ struct ContentView: View {
         selectedThread = thread
         codex.activeThreadId = thread.id
         codex.markThreadAsViewed(thread.id)
-        clearDisplayIslandOutcome(for: thread.id)
-        syncDisplayIsland()
         if shouldPresentSidebarAsNavigation {
             navigationPath = [.thread(id: thread.id)]
         }
@@ -1288,8 +1263,6 @@ struct ContentView: View {
         selectedThread = thread
         codex.activeThreadId = thread.id
         codex.markThreadAsViewed(thread.id)
-        clearDisplayIslandOutcome(for: thread.id)
-        syncDisplayIsland()
 
         if shouldPresentSidebarAsNavigation {
             Task { @MainActor in
@@ -1986,8 +1959,6 @@ struct ContentView: View {
     private func openCompletedThreadFromBanner(_ banner: CodexThreadCompletionBanner) {
         threadCompletionBannerDismissTask?.cancel()
         codex.threadCompletionBanner = nil
-        clearDisplayIslandOutcome(for: banner.threadId)
-        syncDisplayIsland()
 
         guard let thread = codex.threads.first(where: { $0.id == banner.threadId }) else {
             return
@@ -1997,27 +1968,8 @@ struct ContentView: View {
     }
 
     private func dismissThreadCompletionBanner() {
-        if let banner = codex.threadCompletionBanner {
-            clearDisplayIslandOutcome(for: banner.threadId)
-        }
         threadCompletionBannerDismissTask?.cancel()
         codex.threadCompletionBanner = nil
-        syncDisplayIsland()
-    }
-
-    private func clearDisplayIslandOutcome(for threadId: String) {
-        displayIslandCoordinator.clearOutcome(
-            for: threadId,
-            terminalState: codex.latestTurnTerminalState(for: threadId)
-        )
-    }
-
-    private func syncDisplayIsland() {
-        displayIslandCoordinator.sync(codex: codex)
-    }
-
-    private var displayIslandTimelineFingerprint: String {
-        displayIslandCoordinator.timelineFingerprint(codex: codex)
     }
 
     // Keeps selected thread coherent with server list updates.

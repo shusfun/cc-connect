@@ -1,11 +1,10 @@
 // FILE: SettingsSupportCards.swift
-// Purpose: Settings cards for about/support links and paired-computer presentation.
+// Purpose: Settings cards for product information and paired-computer presentation.
 // Layer: Settings UI components
 // Exports: SettingsAboutCard, SettingsTrustedComputerCard, SettingsComputerNameSheet
-// Depends on: SwiftUI, UIKit, AppEnvironment, CodexTrustedPairPresentation
+// Depends on: SwiftUI, CodexTrustedPairPresentation
 
 import SwiftUI
-import UIKit
 
 struct SettingsAboutCard: View {
     let onShowHowItWorks: () -> Void
@@ -21,39 +20,6 @@ struct SettingsAboutCard: View {
             } label: {
                 SettingsLinkRow(title: "How Remodex Works") {
                     RemodexIcon.image(systemName: "info.circle")
-                }
-            }
-
-            Button {
-                HapticFeedback.shared.triggerImpactFeedback(style: .light)
-                if let url = URL(string: "https://x.com/emanueledpt") {
-                    UIApplication.shared.open(url)
-                }
-            } label: {
-                SettingsLinkRow(title: "Chat & Support") {
-                    Image("x-icon")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 16, height: 16)
-                }
-            }
-
-            Button {
-                HapticFeedback.shared.triggerImpactFeedback(style: .light)
-                UIApplication.shared.open(AppEnvironment.privacyPolicyURL)
-            } label: {
-                SettingsLinkRow(title: "Privacy Policy") {
-                    RemodexIcon.image(systemName: "hand.raised")
-                }
-            }
-
-            Button {
-                HapticFeedback.shared.triggerImpactFeedback(style: .light)
-                UIApplication.shared.open(AppEnvironment.termsOfUseURL)
-            } label: {
-                SettingsLinkRow(title: "Terms of Use") {
-                    RemodexIcon.image(systemName: "doc.text")
                 }
             }
         }
