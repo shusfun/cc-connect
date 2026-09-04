@@ -44,6 +44,7 @@ jobs:
           mkdir -p "$output_dir"
 
           xcodebuild \
+            -quiet \
             -project "$GITHUB_WORKSPACE/CodexMobile/CodexMobile.xcodeproj" \
             -scheme CodexMobile \
             -configuration Release \
@@ -71,6 +72,15 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$payload_root/Payload" "$ipa_path"
 
           echo "Unsigned IPA created at $ipa_path"
+
+      - name: Upload Xcode build log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: remodex-unsigned-ipa-build-log
+          path: build/unsigned-ipa/xcodebuild.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload unsigned IPA artifact
         uses: actions/upload-artifact@v4
