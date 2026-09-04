@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "activeDockerfiles": [
+    "relay/Dockerfile"
+  ],
+  "excludedPaths": [
+    ".cc-connect"
+  ],
+  "exceptions": []
+}

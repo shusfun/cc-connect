@@ -1,0 +1,113 @@
+// FILE: CodexMobileApp.swift
+// Purpose: App entry point and root dependency wiring.
+// Layer: App
+// Exports: CodexMobileApp
+
+import SwiftUI
+
+@MainActor
+@main
+struct CodexMobileApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    @UIApplicationDelegateAdaptor(CodexMobileAppDelegate.self) private var appDelegate
+    @AppStorage(AppFont.storageKey) private var appFontStyleRawValue = AppFont.defaultStoredStyleRawValue
+    @State private var codexService: CodexService
+
+    init() {
+        AppTypographyController.apply()
+        let service = CodexService()
+        _codexService = State(initialValue: service)
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .font(activeBodyFont)
+                .environment(codexService)
+                .onOpenURL { url in
+                    Task { @MainActor in
+                        guard !routeRemodexDeepLink(url) else {
+                            return
+                        }
+                        guard CodexService.legacyGPTLoginCallbackEnabled else {
+                            return
+                        }
+                        await codexService.handleGPTLoginCallbackURL(url)
+                    }
+                }
+                .onReceive(
+                    NotificationCenter.default.publisher(
+                        for: UIApplication.didReceiveMemoryWarningNotification
+                    )
+                ) { _ in
+                    TurnCacheManager.resetAll()
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    guard newPhase == .background else { return }
+                    TurnCacheManager.resetAll()
+                }
+                // App init already set the appearance proxies before the first
+                // window was built, so only live style changes need a re-apply
+                // (which also walks existing windows to restyle mounted chrome).
+                // Timeline caches hold text styled with the previous face, so drop them too.
+                .onChange(of: appFontStyleRawValue) { _, _ in
+                    AppTypographyController.apply()
+                    TurnCacheManager.resetAll()
+                }
+        }
+    }
+
+    private var activeBodyFont: Font {
+        // Reading AppStorage here invalidates the root font environment as soon
+        // as Settings changes the stored style, without rebuilding ContentView.
+        _ = appFontStyleRawValue
+        return AppFont.body()
+    }
+
+    @discardableResult
+    private func routeRemodexDeepLink(_ url: URL) -> Bool {
+        guard url.scheme?.caseInsensitiveCompare("phodex") == .orderedSame else {
+            return false
+        }
+
+        let threadId = Self.remodexDeepLinkThreadID(from: url)
+
+        let decodedThreadId = threadId?.removingPercentEncoding ?? threadId
+        guard let normalizedThreadId = decodedThreadId?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !normalizedThreadId.isEmpty else {
+            return false
+        }
+
+        codexService.handleNotificationOpen(threadId: normalizedThreadId, turnId: nil)
+        return true
+    }
+
+    private static func remodexDeepLinkThreadID(from url: URL) -> String? {
+        let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pathComponents = url.pathComponents
+            .dropFirst()
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if let host, isThreadRouteComponent(host) {
+            return pathComponents.first
+        }
+        if host?.isEmpty != false,
+           let route = pathComponents.first,
+           Self.isThreadRouteComponent(route) {
+            return pathComponents.dropFirst().first
+        }
+
+        let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        return queryItems.first { item in
+            item.name.caseInsensitiveCompare("threadId") == .orderedSame
+                || item.name.caseInsensitiveCompare("thread") == .orderedSame
+        }?.value
+    }
+
+    private static func isThreadRouteComponent(_ value: String) -> Bool {
+        value.caseInsensitiveCompare("thread") == .orderedSame
+            || value.caseInsensitiveCompare("threads") == .orderedSame
+    }
+}

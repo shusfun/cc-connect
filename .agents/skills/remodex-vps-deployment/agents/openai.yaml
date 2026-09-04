@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remodex VPS Deployment"
+  short_description: "安全部署、验收并回滚 Remodex 密文 Relay"
+  default_prompt: "使用 $remodex-vps-deployment 核验并部署 Remodex VPS Relay。"

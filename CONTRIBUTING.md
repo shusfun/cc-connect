@@ -1,103 +1,30 @@
-# Contributing to cc-connect
+# Remodex 开发说明
 
-[中文](#为-cc-connect-做贡献) | [English](#contributing-to-cc-connect)
+## 环境
 
-Thank you for using cc-connect and for every issue, pull request, and piece of feedback that helps improve it. This guide turns the contributor welcome note from [#295](https://github.com/chenhg5/cc-connect/issues/295) into a permanent repo document.
+- macOS 与完整 Xcode（支持 iOS 26 SDK）
+- Node `26.6.0`
+- pnpm `11.18.0`
+- 已登录且版本不低于 `0.147.0` 的 Codex
 
-## Before You Open An Issue Or PR
+## 本地验证
 
-1. Search first.
-Check [Issues](https://github.com/shusfun/cc-connect/issues) and [Pull requests](https://github.com/shusfun/cc-connect/pulls) for duplicates or related discussion before starting new work.
+```bash
+corepack enable
+corepack prepare pnpm@11.18.0 --activate
+pnpm install --frozen-lockfile
+pnpm --filter remodex test
+pnpm --filter remodex-relay test
+```
 
-2. Try the latest beta.
-Many bugs are fixed in beta or pre-release builds before they reach stable. Please retry on the latest beta first when possible.
+使用 `CodexMobile/CodexMobile.xcodeproj` 构建 iPhone 与 Mac target。Mac App 在构建时打包 Node 和 Bridge，并直接拥有 helper 生命周期；不要安装全局 `remodex` CLI 或 LaunchAgent。
 
-## Writing A Helpful Issue
+## 变更要求
 
-Please include as much of the following as possible:
+- 协议、缓存、生命周期改动必须同时覆盖生产者、消费者和测试。
+- 不新增旧协议 fallback、Push/APNs、托管后台或 VPS 模型执行。
+- Relay 日志不得包含原始 sessionId、客户端 IP、Token、Cookie、密钥、路径或聊天正文。
+- UI 变更需覆盖 Dynamic Type、VoiceOver、减少动态效果和至少 44pt 点击区域。
+- 完整发布验收包括 Relay/Bridge 全测、Xcode 单元/UI 测试、iOS 26 真机离线语音、WSS E2E 配对和密文边界检查。
 
-- Version: `cc-connect --version`, npm tag, or release asset
-- Environment: OS, installation method, agent type, and platform
-- Reproduction steps: the smaller the repro, the better
-- Expected behavior vs. actual behavior
-- Logs or errors, with secrets redacted
-- Optional analysis or a proposed fix
-
-We usually acknowledge new issues within about 1 to 2 business days. More complex bugs may take longer to investigate.
-
-## Pull Requests
-
-- Follow the repo guidance in [`AGENTS.md`](./AGENTS.md).
-- Submit evidence relevant to the risks introduced by the change and explain why it covers them. The repository CI is the source of truth for the complete merge gate.
-
-- Call out breaking changes explicitly in the PR description.
-- Update docs or examples when behavior or configuration changes.
-- If you are fixing an issue, link it in the PR body with `Closes #<number>` when appropriate.
-
-## Release Cadence
-
-- Beta / pre-release: roughly every 2 to 3 days
-- Stable: roughly every 2 weeks
-
-Always treat the [GitHub Releases](https://github.com/shusfun/cc-connect/releases) page as the source of truth.
-
-## Community
-
-- Discord: <https://discord.gg/kHpwgaM4kq>
-- Telegram: <https://t.me/+odGNDhCjbjdmMmZl>
-- X: <https://twitter.com/chg80333>
-- WeChat: `@mongorz` (mention cc-connect when adding)
-
-Commercial support, custom work, or enterprise inquiries can go through the same channels.
-
----
-
-# 为 cc-connect 做贡献
-
-感谢你使用 cc-connect，也感谢你通过 issue、PR 和反馈帮助项目持续改进。这份文档把 [#295](https://github.com/chenhg5/cc-connect/issues/295) 里的欢迎与参与指南正式沉淀到仓库中。
-
-## 提交 Issue 或 PR 之前
-
-1. 先搜索。
-先查看 [Issues](https://github.com/shusfun/cc-connect/issues) 和 [Pull requests](https://github.com/shusfun/cc-connect/pulls)，避免重复劳动，也方便在已有讨论里继续跟进。
-
-2. 先试最新 beta。
-很多问题会先在 beta / 预发布版本中修复。如果条件允许，建议先在最新 beta 上复现一次。
-
-## 如何提交高质量 Issue
-
-建议尽量包含以下信息：
-
-- 版本号：`cc-connect --version`、npm 标签或 release 资源名
-- 环境：操作系统、安装方式、Agent 类型、平台类型
-- 复现步骤：越小越好
-- 预期行为和实际行为
-- 日志或报错，注意打码敏感信息
-- 可选的原因分析或修复思路
-
-我们通常会在 1 到 2 个工作日内进行首次响应，复杂问题可能需要更长的排查时间。
-
-## Pull Request
-
-- 请遵循仓库中的 [`AGENTS.md`](./AGENTS.md)。
-- 提交与本次改动风险相关的验证证据，并说明覆盖理由；完整合并门禁以仓库 CI 为权威来源。
-
-- 如果包含 breaking change，请在 PR 描述中明确说明。
-- 如果改动影响行为或配置，请同步更新文档或示例。
-- 如果是在修复 issue，适合时请在 PR 描述中使用 `Closes #<编号>` 关联。
-
-## 发版节奏
-
-- Beta / 预发布：大约每 2 到 3 天一次
-- 稳定版：大约每 2 周一次
-
-请以 [GitHub Releases](https://github.com/shusfun/cc-connect/releases) 页面为准。
-
-## 社区
-
-- Discord: <https://discord.gg/kHpwgaM4kq>
-- Telegram: <https://t.me/+odGNDhCjbjdmMmZl>
-- X: <https://twitter.com/chg80333>
-- 微信: `@mongorz`（添加时请备注 cc-connect）
-
-如果是商业合作、定制需求或企业支持，也可以通过以上渠道联系。
+生产切换只通过 `.agents/skills/remodex-vps-deployment`，且前置验收不完整时不得执行。

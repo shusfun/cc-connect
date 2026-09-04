@@ -1,156 +1,53 @@
-# ============================================================================
-# Binary outputs
-# ============================================================================
-/cc-connect
-cc-connect.bak-*
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-*.old
-
-# ============================================================================
-# Go workspace & tooling
-# ============================================================================
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool
-coverage.html
-coverage.txt
-*.out
-
-# Go workspace files (go.work)
-go.work
-go.work.sum
-
-# Go module environment (local proxy settings)
-go.env
-
-# Dependency directories
-vendor/
-
-# ============================================================================
-# Project-specific
-# ============================================================================
-# Runtime configuration (contains secrets)
-config.toml
-config.*.toml
-!config.example.toml
-.env
-*.local.toml
-
-# Instance lock files (created at startup, released on shutdown)
-*.toml.lock
-
-# CC-Connect runtime state
-.cc-connect/
-
-# npm / pnpm (for npm package distribution and web admin)
-.npmrc
-package-lock.json
+# Dependencies
 node_modules/
-.vite/
-
-# ============================================================================
-# Build & distribution
-# ============================================================================
-dist/
-build/
-bin/
-release/
-# Keep web/dist directory (for embedded admin UI) but ignore build artifacts
-web/dist/*
-!web/dist/.keep
-# TypeScript incremental build cache — generated locally, should not be committed
-web/tsconfig.tsbuildinfo
-
-# ============================================================================
-# Testing & temporary files
-# ============================================================================
-test/
-scripts/*
-!scripts/release-manifest.go
-tmp/
-temp/
-*.tmp
-*.swp
-*.swo
-*~
-*.pid
-*.log
-
-# ============================================================================
-# IDE & Editor
-# ============================================================================
-.vscode/
-.idea/
-*.iml
-*.ipr
-*.iws
-.vs/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-
-# Emacs
-*~
-\#*\#
-.\#*
-
-# Vim
-*.swp
-*.swo
-*.swn
 
 # macOS
 .DS_Store
-.AppleDouble
-.LSOverride
+**/.DS_Store
 
-# ============================================================================
-# Documentation (drafts)
-# ============================================================================
-RELEASE.md
-DRAFTS.md
-NOTES.md
+# Xcode user data
+*.xcuserdatad/
+**/xcuserdata/
+*.xcworkspace/xcuserdata/
 
-# ============================================================================
-# System
-# ============================================================================
-# Thumbs.db on Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Xcode build
+DerivedData/
+build/
+*.ipa
 
-# ============================================================================
-# AI agent planning artifacts
-# ============================================================================
-.planning/
-
-# ============================================================================
-# Local git worktrees
-# ============================================================================
-# Convention: ad-hoc worktrees created with
-#   git worktree add .worktrees/<task-name> origin/<branch>
-# are local-only scratch directories used by multiple agents (qa, dev, release)
-# for parallel branch work. They must never be committed.
-.worktrees/
-
-# ============================================================================
-# Security
-# ============================================================================
-# Never commit secrets or credentials
-*.key
+# Environment / secrets
+.cc-connect/
+.env
+.env.*
 *.pem
 *.p12
-*.pfx
-secrets/
-credentials/
+*.key
+*.cer
+CodexMobile/BuildSupport/PrivateOverrides.xcconfig
+phodex-bridge/src/private-defaults.json
+security_best_practices_report.md
 
-.codex
-cc-connect-new
+# Build artifacts
+*.swp
+*.swo
+*~
+output/
+
+# Minified JS bundles (not part of this project)
+/main-*.js
+/main.js
+/deeplinks-*.js
+/links-*.js
+/scheme-*.js
+/initial-route-atom-*.js
+/use-navigate-to-local-conversation-*.js
+/preload.js
+
+# Temp files
+$TMP_PLACEHOLDER
+
+# Claude project config (local only)
+.claude/
+
+# VS Code
+.vscode/

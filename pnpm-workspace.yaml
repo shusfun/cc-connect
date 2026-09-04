@@ -1,4 +1,3 @@
 packages:
-  - web
-
-onlyBuiltDependencies: esbuild
+  - phodex-bridge
+  - relay
