@@ -18,15 +18,23 @@ jobs:
           ln -s /Applications "$out/dmg-root/拖到应用程序安装"; printf '将 Remodex.app 拖到“拖到应用程序安装”即可。\n' > "$out/dmg-root/安装说明.txt"
           hdiutil create -volname Remodex -srcfolder "$out/dmg-root" -ov -format UDZO "$out/Remodex-${{ matrix.arch }}.dmg"
       - uses: actions/upload-artifact@v4
-        with: { name: remodex-macos-${{ matrix.arch }}, path: build/macos/${{ matrix.arch }}/Remodex-${{ matrix.arch }}.dmg, compression-level: 0 }
+        with:
+          name: remodex-macos-${{ matrix.arch }}
+          path: build/macos/${{ matrix.arch }}/Remodex-${{ matrix.arch }}.dmg
+          compression-level: 0
   windows:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with:
+          dotnet-version: '10.0.x'
       - run: dotnet publish windows/Remodex/Remodex.csproj -c Release -r win-x64 --self-contained true -o build/windows/app
       - uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-        with: { path: windows/installer.iss }
+        with:
+          path: windows/installer.iss
       - uses: actions/upload-artifact@v4
-        with: { name: remodex-windows-x64, path: build/windows/*.exe, compression-level: 0 }
+        with:
+          name: remodex-windows-x64
+          path: build/windows/*.exe
+          compression-level: 0
