@@ -347,6 +347,8 @@ func timelineSelectableActionText(_ text: String) -> String? {
 // ─── Message row ────────────────────────────────────────────────────
 
 struct MessageRow: View, Equatable {
+    @Environment(\.locale) private var _localizationLocale
+
     let message: CodexMessage
     let isRetryAvailable: Bool
     let onRetryUserMessage: (String) -> Void

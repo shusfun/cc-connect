@@ -15,6 +15,14 @@ struct CodexMobileApp: App {
     @State private var codexService: CodexService
 
     init() {
+        #if DEBUG
+        // 不用 NSArgumentDomain 锁定业务语言键，否则设置页无法覆盖启动参数。
+        if ProcessInfo.processInfo.arguments.contains("-RemodexLocalizationFixture"),
+           let value = UserDefaults.standard.string(forKey: "FixtureLanguage"),
+           let language = AppLanguage(rawValue: value) {
+            UserDefaults.standard.set(language.rawValue, forKey: AppLanguage.storageKey)
+        }
+        #endif
         AppTypographyController.apply()
         let service = CodexService()
         _codexService = State(initialValue: service)
@@ -55,6 +63,9 @@ struct CodexMobileApp: App {
                 .onChange(of: appFontStyleRawValue) { _, _ in
                     AppTypographyController.apply()
                     TurnCacheManager.resetAll()
+                }
+                .onChange(of: languagePreference) { _, _ in
+                    RemodexQuickActionCenter.updateShortcutItems(for: codexService.threads)
                 }
         }
     }

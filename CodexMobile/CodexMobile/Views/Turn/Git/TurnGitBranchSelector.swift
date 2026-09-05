@@ -127,6 +127,8 @@ private enum TurnGitBranchPickerMode: String, Identifiable {
 }
 
 struct TurnGitBranchSelector: View, Equatable {
+    @Environment(\.locale) private var _localizationLocale
+
     let isEnabled: Bool
     let availableGitBranchTargets: [String]
     let gitBranchesCheckedOutElsewhere: Set<String>

@@ -4,7 +4,7 @@ final class LocalizationUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
     private func launch(_ route: String, language: String, theme: String = "light", large: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-RemodexLocalizationFixture", "-FixtureRoute", route, "-FixtureTheme", theme, "-remodex.language", language, "-AppleLanguages", language == "zh-Hans" ? "(zh-Hans)" : "(en)"]
+        app.launchArguments = ["-RemodexLocalizationFixture", "-FixtureRoute", route, "-FixtureTheme", theme, "-FixtureLanguage", language, "-AppleLanguages", language == "zh-Hans" ? "(zh-Hans)" : "(en)"]
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
         return app

@@ -5,17 +5,20 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { version } = require('../../package.json');
+const version = '0.5.0-alpha.2';
 
 // 在隔离目录运行真实发布入口；假制品仅测试发布拒绝规则，不代表平台构建通过。
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'remodex-publication-test-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  for (const directory of ['build/release-clients', 'relay', 'deploy', 'Docs']) fs.mkdirSync(path.join(root, directory), { recursive: true });
+  for (const directory of ['build/release-clients', 'relay', 'deploy', 'Docs', 'packages/updater']) fs.mkdirSync(path.join(root, directory), { recursive: true });
+  // 源码版本也是输入夹具；将来 main 升为正式版本时仍须运行 alpha 拒绝测试。
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version }));
+  for (const script of ['publish-prerelease.js', 'publication-contract.js', 'releases.js']) fs.copyFileSync(path.join(__dirname, script), path.join(root, 'packages/updater', script));
   for (const file of ['relay/compose.yaml', 'deploy/remodex.sh', 'Docs/PRERELEASE-INSTALL.md']) fs.writeFileSync(path.join(root, file), 'test fixture');
   const names = ['unsigned.ipa', 'x86_64-Debug.dmg', 'arm64-Debug.dmg', 'win-x64.exe'].map(suffix => `Remodex-${version}-${suffix}`);
   for (const name of names) fs.writeFileSync(path.join(root, 'build/release-clients', name), `fixture:${name}`);
-  const run = (extra = {}) => spawnSync(process.execPath, [path.join(__dirname, 'publish-prerelease.js')], {
+  const run = (extra = {}) => spawnSync(process.execPath, [path.join(root, 'packages/updater/publish-prerelease.js')], {
     cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_REF_NAME: `v${version}`, GITHUB_SHA: 'a'.repeat(40), RELAY_DIGEST: `sha256:${'b'.repeat(64)}`, UPDATER_DIGEST: `sha256:${'c'.repeat(64)}`, ...extra }
   });
   return { root, names, run };
@@ -44,6 +47,8 @@ for (const fault of ['missing', 'duplicate', 'version', 'digest']) {
     if (fault === 'version') fs.renameSync(path.join(directory, names[0]), path.join(directory, 'Remodex-0.0.0-unsigned.ipa'));
     const result = run(fault === 'digest' ? { RELAY_DIGEST: 'latest' } : {});
     assert.notEqual(result.status, 0);
+    const code = fault === 'digest' ? 'prerelease_image_digest_missing' : fault === 'version' ? 'client_artifact_version_mismatch' : 'client_artifact_missing_or_duplicate';
+    assert.ok(result.stderr.includes(code), result.stderr);
     assert.equal(fs.existsSync(path.join(root, 'build/release/remodex-prerelease.json')), false);
   });
 }
