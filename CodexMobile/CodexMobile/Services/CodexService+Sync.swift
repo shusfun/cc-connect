@@ -85,6 +85,10 @@ extension CodexService {
     }
 
     func stopSyncLoop() {
+        pendingImmediateSyncOwner = nil
+        pendingImmediateSyncTask?.cancel()
+        pendingImmediateSyncTask = nil
+        pendingImmediateSyncThreadId = nil
         threadListSyncTask?.cancel()
         threadListSyncTask = nil
 
@@ -131,12 +135,33 @@ extension CodexService {
             return
         }
 
-        Task { @MainActor [weak self] in
+        pendingImmediateSyncRevision &+= 1
+        pendingImmediateSyncThreadId = threadId ?? activeThreadId
+        guard pendingImmediateSyncTask == nil else { return }
+        let owner = UUID()
+        pendingImmediateSyncOwner = owner
+        pendingImmediateSyncTask = Task { @MainActor [weak self] in
+            // 合并同一轮 UI 事件；目录请求期间切换时，不再读取过时任务。
+            await Task.yield()
             guard let self else { return }
-            await self.syncThreadsList()
-            await self.refreshInactiveRunningBadgeThreads()
-            if let threadId = threadId ?? self.activeThreadId {
-                await self.syncActiveThreadState(threadId: threadId)
+            defer {
+                if self.pendingImmediateSyncOwner == owner {
+                    self.pendingImmediateSyncTask = nil
+                    self.pendingImmediateSyncOwner = nil
+                }
+            }
+            while !Task.isCancelled, self.pendingImmediateSyncOwner == owner, self.canRunRealtimeSyncLoop {
+                let revision = self.pendingImmediateSyncRevision
+                await self.syncThreadsList()
+                guard !Task.isCancelled, self.pendingImmediateSyncOwner == owner else { return }
+                guard revision == self.pendingImmediateSyncRevision else { continue }
+                await self.refreshInactiveRunningBadgeThreads()
+                guard !Task.isCancelled, self.pendingImmediateSyncOwner == owner else { return }
+                guard revision == self.pendingImmediateSyncRevision else { continue }
+                if let threadId = self.pendingImmediateSyncThreadId {
+                    await self.syncActiveThreadState(threadId: threadId)
+                }
+                if revision == self.pendingImmediateSyncRevision { return }
             }
         }
     }
@@ -182,6 +207,7 @@ extension CodexService {
             let changed = try await syncPrivateCatalog()
             debugSyncLog("sync catalog delta changed=\(changed) local=\(threads.count)")
         } catch {
+            guard !Task.isCancelled else { return }
             // A capped thread/list timing out while the socket still accepts writes is the
             // signature of a half-open connection: recover the transport instead of polling
             // a dead peer every cycle.
@@ -986,6 +1012,7 @@ extension CodexService {
         do {
             _ = try await syncPrivateThread(threadId: threadId)
         } catch {
+            guard !Task.isCancelled else { return }
             if isConnected, isAppInForeground, isRecoverableTransientConnectionError(error) {
                 handleReceiveError(error)
                 return

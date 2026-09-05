@@ -13,122 +13,95 @@ final class CodexServiceImmediateSyncTests: XCTestCase {
 
     func testImmediateSyncCoalescesRapidThreadSwitchesIntoLatestThread() async {
         let service = makeService()
-        let threadIDs = ["thread-a", "thread-b", "thread-c"]
-
         service.isConnected = true
         service.isInitialized = true
-        service.threads = threadIDs.map { CodexThread(id: $0, title: $0) }
-
-        var threadListRequestCount = 0
-        var readThreadIDs: [String] = []
+        service.privateSyncProtocolVersion = 1
+        var catalogRequests = 0
+        var reads: [String] = []
         service.requestTransportOverride = { method, params in
-            switch method {
-            case "thread/list":
-                threadListRequestCount += 1
-                let archived = params?.objectValue?["archived"]?.boolValue ?? false
-                let payload: [JSONValue] = archived ? [] : threadIDs.map { makeThreadJSON(id: $0, title: $0) }
-                return RPCMessage(
-                    id: .string(UUID().uuidString),
-                    result: .object([
-                        "threads": .array(payload),
-                    ]),
-                    includeJSONRPC: false
-                )
-            case "thread/read":
-                let threadID = params?.objectValue?["threadId"]?.stringValue ?? "missing"
-                readThreadIDs.append(threadID)
-                return RPCMessage(
-                    id: .string(UUID().uuidString),
-                    result: .object([
-                        "thread": .object([
-                            "id": .string(threadID),
-                            "title": .string(threadID),
-                            "turns": .array([]),
-                        ]),
-                    ]),
-                    includeJSONRPC: false
-                )
-            default:
-                return RPCMessage(
-                    id: .string(UUID().uuidString),
-                    result: .object([:]),
-                    includeJSONRPC: false
-                )
-            }
+            if method == "sync/catalog" { catalogRequests += 1 }
+            if method == "sync/thread/read" { reads.append(params?.objectValue?["threadId"]?.stringValue ?? "missing") }
+            return self.syncResponse(method: method, params: params)
         }
-
         service.requestImmediateSync(threadId: "thread-a")
         service.requestImmediateSync(threadId: "thread-b")
         service.requestImmediateSync(threadId: "thread-c")
-
-        while service.pendingImmediateSyncTask != nil {
-            await Task.yield()
-        }
-
-        XCTAssertEqual(threadListRequestCount, 2)
-        XCTAssertEqual(readThreadIDs, ["thread-c"])
+        await service.pendingImmediateSyncTask?.value
+        XCTAssertEqual(catalogRequests, 1)
+        XCTAssertEqual(reads, ["thread-c"])
+        XCTAssertNil(service.pendingImmediateSyncTask)
     }
 
     func testImmediateSyncSkipsObsoleteThreadReadAfterEarlierListAlreadyStarted() async {
         let service = makeService()
-        let threadIDs = ["thread-a", "thread-c"]
-
         service.isConnected = true
         service.isInitialized = true
-        service.threads = threadIDs.map { CodexThread(id: $0, title: $0) }
-
-        var activeListRequestCount = 0
-        var readThreadIDs: [String] = []
+        service.privateSyncProtocolVersion = 1
+        let started = expectation(description: "first catalog started")
+        var catalogRequests = 0
+        var reads: [String] = []
         service.requestTransportOverride = { method, params in
-            switch method {
-            case "thread/list":
-                let archived = params?.objectValue?["archived"]?.boolValue ?? false
-                if !archived {
-                    activeListRequestCount += 1
-                    if activeListRequestCount == 1 {
-                        try? await Task.sleep(nanoseconds: 20_000_000)
-                    }
+            if method == "sync/catalog" {
+                catalogRequests += 1
+                if catalogRequests == 1 {
+                    started.fulfill()
+                    try await Task.sleep(nanoseconds: 50_000_000)
                 }
-                let payload: [JSONValue] = archived ? [] : threadIDs.map { makeThreadJSON(id: $0, title: $0) }
-                return RPCMessage(
-                    id: .string(UUID().uuidString),
-                    result: .object([
-                        "threads": .array(payload),
-                    ]),
-                    includeJSONRPC: false
-                )
-            case "thread/read":
-                let threadID = params?.objectValue?["threadId"]?.stringValue ?? "missing"
-                readThreadIDs.append(threadID)
-                return RPCMessage(
-                    id: .string(UUID().uuidString),
-                    result: .object([
-                        "thread": .object([
-                            "id": .string(threadID),
-                            "title": .string(threadID),
-                            "turns": .array([]),
-                        ]),
-                    ]),
-                    includeJSONRPC: false
-                )
-            default:
-                return RPCMessage(
-                    id: .string(UUID().uuidString),
-                    result: .object([:]),
-                    includeJSONRPC: false
-                )
             }
+            if method == "sync/thread/read" { reads.append(params?.objectValue?["threadId"]?.stringValue ?? "missing") }
+            return self.syncResponse(method: method, params: params)
         }
-
         service.requestImmediateSync(threadId: "thread-a")
-        await Task.yield()
+        await fulfillment(of: [started], timeout: 2)
         service.requestImmediateSync(threadId: "thread-c")
+        await service.pendingImmediateSyncTask?.value
+        XCTAssertEqual(catalogRequests, 2)
+        XCTAssertEqual(reads, ["thread-c"])
+    }
 
-        while service.pendingImmediateSyncTask != nil {
-            await Task.yield()
+    func testStoppedSyncCannotClearOrReadTheReplacementRequest() async {
+        let service = makeService()
+        service.isConnected = true
+        service.isInitialized = true
+        service.privateSyncProtocolVersion = 1
+        let started = expectation(description: "old catalog started")
+        var catalogs = 0
+        var reads: [String] = []
+        service.requestTransportOverride = { method, params in
+            if method == "sync/catalog" {
+                catalogs += 1
+                if catalogs == 1 {
+                    started.fulfill()
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                }
+            }
+            if method == "sync/thread/read" { reads.append(params?.objectValue?["threadId"]?.stringValue ?? "missing") }
+            return self.syncResponse(method: method, params: params)
         }
+        service.requestImmediateSync(threadId: "thread-a")
+        await fulfillment(of: [started], timeout: 2)
+        let oldTask = service.pendingImmediateSyncTask
+        service.stopSyncLoop()
+        service.requestImmediateSync(threadId: "thread-c")
+        let replacementTask = service.pendingImmediateSyncTask
+        await oldTask?.value
+        await replacementTask?.value
+        XCTAssertEqual(reads, ["thread-c"])
+        XCTAssertNil(service.pendingImmediateSyncTask)
+    }
 
-        XCTAssertEqual(readThreadIDs, ["thread-c"])
+    private func syncResponse(method: String, params: JSONValue?) -> RPCMessage {
+        let result: JSONValue
+        switch method {
+        case "sync/catalog": result = .object(["revision": .integer(0), "upserts": .array([]), "tombstones": .array([])])
+        case "sync/thread/read": result = .object(["revision": .integer(0), "events": .array([])])
+        case "sync/thread/reset": result = .object(["revision": .integer(0), "thread": .object(["id": params?.objectValue?["threadId"] ?? .string("missing"), "turns": .array([])])])
+        case "sync/ack": result = .object([:])
+        default:
+            XCTFail("Unexpected non-delta request: \(method)")
+            result = .object([:])
+        }
+        return RPCMessage(id: .string(UUID().uuidString), result: result, includeJSONRPC: false)
     }
 
     func testProjectionWindowPreservesFileChangesFromVisibleTurnPrefix() {
@@ -579,6 +552,7 @@ final class CodexServiceImmediateSyncTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defaults.removePersistentDomain(forName: suiteName)
         let service = CodexService(defaults: defaults)
+        service.macScopedContextOverrideDeviceId = suiteName
         Self.retainedServices.append(service)
         return service
     }

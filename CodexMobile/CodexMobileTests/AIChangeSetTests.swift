@@ -47,7 +47,7 @@ final class AIChangeSetTests: XCTestCase {
         )
     }
 
-    func testTurnDiffFinalizesReadyChangeSetForAssistantMessage() {
+    func testTurnDiffFinalizesReadyChangeSetForAssistantMessage() throws {
         let service = makeService()
         let threadID = "thread-\(UUID().uuidString)"
         let turnID = "turn-\(UUID().uuidString)"
@@ -335,7 +335,7 @@ final class AIChangeSetTests: XCTestCase {
         XCTAssertFalse(changeSet.forwardUnifiedPatch.contains("Sources/B.swift"))
     }
 
-    func testMultipleFallbackPatchesStayNotRevertable() {
+    func testMultipleFallbackPatchesStayNotRevertable() throws {
         let service = makeService()
         let threadID = "thread-\(UUID().uuidString)"
         let turnID = "turn-\(UUID().uuidString)"
@@ -386,7 +386,7 @@ final class AIChangeSetTests: XCTestCase {
         )
     }
 
-    func testAssistantRevertPresentationIsSafeForDistinctFilesInSameRepo() {
+    func testAssistantRevertPresentationIsSafeForDistinctFilesInSameRepo() throws {
         let service = makeService()
         let threadID = "thread-\(UUID().uuidString)"
         let siblingThreadID = "thread-\(UUID().uuidString)"
@@ -416,7 +416,7 @@ final class AIChangeSetTests: XCTestCase {
         XCTAssertTrue(presentation.overlappingFiles.isEmpty)
     }
 
-    func testAssistantRevertPresentationWarnsWhenSiblingTouchesSameFile() {
+    func testAssistantRevertPresentationWarnsWhenSiblingTouchesSameFile() throws {
         let service = makeService()
         let threadID = "thread-\(UUID().uuidString)"
         let siblingThreadID = "thread-\(UUID().uuidString)"
@@ -446,7 +446,7 @@ final class AIChangeSetTests: XCTestCase {
         XCTAssertEqual(presentation.overlappingFiles, ["Sources/App.swift"])
     }
 
-    func testAssistantRevertPresentationBlocksWhileSiblingRunIsStillActive() {
+    func testAssistantRevertPresentationBlocksWhileSiblingRunIsStillActive() throws {
         let service = makeService()
         let threadID = "thread-\(UUID().uuidString)"
         let siblingThreadID = "thread-\(UUID().uuidString)"
@@ -476,7 +476,7 @@ final class AIChangeSetTests: XCTestCase {
         )
     }
 
-    func testTimelineSnapshotInvalidatesWarningWhenSiblingChangeSetBecomesReverted() {
+    func testTimelineSnapshotInvalidatesWarningWhenSiblingChangeSetBecomesReverted() throws {
         let service = makeService()
         let threadID = "thread-\(UUID().uuidString)"
         let siblingThreadID = "thread-\(UUID().uuidString)"
@@ -549,7 +549,7 @@ final class AIChangeSetTests: XCTestCase {
         )
     }
 
-    func testAssistantRevertPresentationBlocksWhenWorkingDirectoryIsMissing() {
+    func testAssistantRevertPresentationBlocksWhenWorkingDirectoryIsMissing() throws {
         let service = makeService()
         let threadID = "thread-\(UUID().uuidString)"
         let assistantMessage = recordReadyChangeSet(
@@ -566,7 +566,7 @@ final class AIChangeSetTests: XCTestCase {
         XCTAssertFalse(presentation.isEnabled)
     }
 
-    func testAssistantRevertPresentationBlocksNotRevertableResponse() {
+    func testAssistantRevertPresentationBlocksNotRevertableResponse() throws {
         let service = makeService()
         let threadID = "thread-\(UUID().uuidString)"
         let turnID = "turn-\(UUID().uuidString)"

@@ -24,7 +24,7 @@ final class CodexServiceCatchupRecoveryTests: XCTestCase {
             method: "remodex/bufferedReplay/gap",
             params: .object([
                 "remodexBufferedReplayGap": .bool(true),
-                "lastDiscardedBridgeOutboundSeq": .int(25),
+                "lastDiscardedBridgeOutboundSeq": .integer(25),
             ])
         )
 
@@ -41,7 +41,7 @@ final class CodexServiceCatchupRecoveryTests: XCTestCase {
             method: "remodex/bufferedReplay/reset",
             params: .object([
                 "remodexBufferedReplayReset": .bool(true),
-                "resetBridgeOutboundSeqTo": .int(0),
+                "resetBridgeOutboundSeqTo": .integer(0),
                 "bridgeReplayEpoch": .string("bridge-epoch-current"),
             ])
         )

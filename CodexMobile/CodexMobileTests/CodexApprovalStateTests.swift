@@ -170,7 +170,7 @@ final class CodexApprovalStateTests: XCTestCase {
         XCTAssertEqual(service.pendingApproval(for: "thread-a")?.id, service.idKey(from: requestID))
     }
 
-    func testFailedApproveKeepsApprovalQueued() async {
+    func testFailedApproveKeepsApprovalQueued() async throws {
         let service = makeService()
         let requestID: JSONValue = .string("approval-1")
 

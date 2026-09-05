@@ -695,6 +695,10 @@ final class CodexService {
     var isConstrainedNetwork = false
     @ObservationIgnored var networkPathMonitor: NWPathMonitor?
     var threadListSyncTask: Task<Void, Never>?
+    var pendingImmediateSyncTask: Task<Void, Never>?
+    var pendingImmediateSyncOwner: UUID?
+    var pendingImmediateSyncRevision: UInt64 = 0
+    var pendingImmediateSyncThreadId: String?
     var activeThreadSyncTask: Task<Void, Never>?
     var runningThreadWatchSyncTask: Task<Void, Never>?
     var postConnectSyncTask: Task<Void, Never>?
@@ -1176,6 +1180,7 @@ final class CodexService {
             compactRuntimeItemCompletedFlushTask?.cancel()
             coalescedRevertRefreshTask?.cancel()
             threadListSyncTask?.cancel()
+            pendingImmediateSyncTask?.cancel()
             activeThreadSyncTask?.cancel()
             runningThreadWatchSyncTask?.cancel()
             postConnectSyncTask?.cancel()
