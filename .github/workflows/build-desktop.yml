@@ -29,6 +29,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Install Chinese installer language
+        shell: pwsh
+        run: Invoke-WebRequest -Uri https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/ChineseSimplified.isl -OutFile "$env:ProgramFiles(x86)\Inno Setup 6\Languages\ChineseSimplified.isl"
       - run: dotnet publish windows/Remodex/Remodex.csproj -c Release -r win-x64 --self-contained true -o build/windows/app
       - uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
