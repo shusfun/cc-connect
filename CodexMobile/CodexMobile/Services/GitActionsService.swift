@@ -5,6 +5,7 @@
 // Depends on: CodexService, GitActionModels
 
 import Foundation
+import CryptoKit
 
 enum GitActionsError: LocalizedError {
     case disconnected
@@ -26,9 +27,9 @@ enum GitActionsError: LocalizedError {
         switch code {
         case "nothing_to_commit": return L10n.string("Nothing to commit.")
         case "nothing_to_push": return L10n.string("Nothing to push.")
-        case "already_git_repository": return fallback ?? L10n.string("This folder is already inside a Git repository.")
-        case "git_metadata_exists": return fallback ?? L10n.string("A .git entry already exists in this folder.")
-        case "git_init_failed": return fallback ?? L10n.string("Could not initialize Git in this folder.")
+        case "already_git_repository": return L10n.string("This folder is already inside a Git repository.")
+        case "git_metadata_exists": return L10n.string("A .git entry already exists in this folder.")
+        case "git_init_failed": return L10n.string("Could not initialize Git in this folder.")
         case "push_rejected": return L10n.string("Push rejected. Pull changes first.")
         case "branch_is_main": return L10n.string("Cannot operate on the main branch.")
         case "protected_branch": return L10n.string("This branch is protected.")
@@ -41,38 +42,42 @@ enum GitActionsError: LocalizedError {
         case "checkout_branch_in_other_worktree":
             return L10n.string("Cannot switch branches: this branch is already open in another worktree.")
         case "pull_conflict": return L10n.string("Pull failed due to conflicts.")
-        case "branch_exists": return fallback ?? L10n.string("Branch already exists.")
-        case "invalid_branch_name": return fallback ?? L10n.string("Branch name is not valid for Git.")
+        case "branch_exists": return L10n.string("Branch already exists.")
+        case "invalid_branch_name": return L10n.string("Branch name is not valid for Git.")
         case "missing_branch_name": return L10n.string("Branch name is required.")
-        case "branch_not_found": return fallback ?? L10n.string("That branch does not exist locally.")
-        case "missing_branch": return fallback ?? L10n.string("Branch name is required.")
-        case "missing_base_branch": return fallback ?? L10n.string("Base branch is required.")
+        case "branch_not_found": return L10n.string("That branch does not exist locally.")
+        case "missing_branch": return L10n.string("Branch name is required.")
+        case "missing_base_branch": return L10n.string("Base branch is required.")
         case "branch_already_open_here":
-            return fallback ?? L10n.string("This branch is already open in the current project.")
+            return L10n.string("This branch is already open in the current project.")
         case "branch_in_other_worktree":
-            return fallback ?? L10n.string("This branch is already open in another worktree.")
+            return L10n.string("This branch is already open in another worktree.")
         case "confirmation_required": return L10n.string("Confirmation is required for this action.")
         case "stash_pop_conflict": return L10n.string("Stash pop failed due to conflicts.")
-        case "missing_local_repo": return "Run `remodex up` from an existing local directory first."
+        case "missing_local_repo": return L10n.string("The selected local folder is not available on this device.")
         case "missing_working_directory":
-            return fallback ?? L10n.string("The selected local folder is not available on this device.")
+            return L10n.string("The selected local folder is not available on this device.")
         case "cannot_remove_local_checkout":
-            return fallback ?? L10n.string("Cannot remove the main local checkout.")
+            return L10n.string("Cannot remove the main local checkout.")
         case "unmanaged_worktree":
-            return fallback ?? L10n.string("Only managed worktrees can be cleaned up automatically.")
+            return L10n.string("Only managed worktrees can be cleaned up automatically.")
         case "worktree_cleanup_failed":
-            return fallback ?? L10n.string("We could not clean up the temporary worktree automatically.")
+            return L10n.string("We could not clean up the temporary worktree automatically.")
         case "handoff_target_dirty":
-            return fallback ?? L10n.string("The handoff destination already has uncommitted changes.")
+            return L10n.string("The handoff destination already has uncommitted changes.")
         case "handoff_target_mismatch":
-            return fallback ?? L10n.string("The selected handoff destination belongs to a different checkout.")
+            return L10n.string("The selected handoff destination belongs to a different checkout.")
         case "handoff_transfer_failed":
-            return fallback ?? L10n.string("Could not move local changes into the handoff destination.")
+            return L10n.string("Could not move local changes into the handoff destination.")
         case "missing_handoff_source":
-            return fallback ?? L10n.string("The current handoff source is no longer available on this device.")
+            return L10n.string("The current handoff source is no longer available on this device.")
         case "missing_handoff_target":
-            return fallback ?? L10n.string("The handoff destination is no longer available on this device.")
-        default: return fallback ?? L10n.string("Git operation failed.")
+            return L10n.string("The handoff destination is no longer available on this device.")
+        default:
+            // 未知响应不直接显示原始服务端正文；编号只用于本地诊断关联。
+            let fingerprint = SHA256.hash(data: Data("\(code ?? "unknown"):\(fallback ?? "")".utf8))
+                .prefix(8).map { String(format: "%02x", $0) }.joined()
+            return L10n.string("Git operation failed.") + "\n" + L10n.format("Diagnostic reference: %@", fingerprint)
         }
     }
 }

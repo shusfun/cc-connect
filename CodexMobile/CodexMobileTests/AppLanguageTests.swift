@@ -1,6 +1,7 @@
 import XCTest
 @testable import CodexMobile
 
+@MainActor
 final class AppLanguageTests: XCTestCase {
     func testSystemResolutionAndExplicitSelection() {
         XCTAssertEqual(AppLanguage.system.resolved(preferredLanguages: ["zh-Hans-CN"]), "zh-Hans")
@@ -52,5 +53,11 @@ final class AppLanguageTests: XCTestCase {
         let unknown = RelayAccessFailure(code: "untrusted-server-text", status: 500, requestID: nil)
         XCTAssertFalse(unknown.localizedDescription.contains("untrusted-server-text"))
         XCTAssertTrue(unknown.localizedDescription.contains("重试"))
+        let gitError = GitActionsError.bridgeError(code: "branch_exists", message: "PRIVATE_SERVER_DETAIL")
+        XCTAssertEqual(gitError.localizedDescription, L10n.string("Branch already exists."))
+        let unknownGit = GitActionsError.bridgeError(code: "unrecognized", message: "PRIVATE_SERVER_DETAIL")
+        XCTAssertFalse(unknownGit.localizedDescription.contains("PRIVATE_SERVER_DETAIL"))
+        XCTAssertTrue(unknownGit.localizedDescription.contains(L10n.string("Git operation failed.")))
+        XCTAssertFalse(GitActionsError.bridgeError(code: "missing_local_repo", message: nil).localizedDescription.contains("remodex up"))
     }
 }

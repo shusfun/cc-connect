@@ -6,6 +6,11 @@ const root = path.resolve(__dirname, '../CodexMobile');
 const catalog = JSON.parse(fs.readFileSync(path.join(root, 'Localizable.xcstrings')));
 const permissions = JSON.parse(fs.readFileSync(path.join(root, 'InfoPlist.xcstrings')));
 const failures = [];
+const project = fs.readFileSync(path.resolve(__dirname, '../CodexMobile.xcodeproj/project.pbxproj'), 'utf8');
+for (const [name, phase] of [['AppLanguageTests.swift', 'CC9279F10CC29F0557B8C955'], ['LocalizationUITests.swift', '328D9BFFDCB2BC75D1E050D5']]) {
+  const sources = project.match(new RegExp(`${phase} /\\* Sources \\*/ = \\{([\\s\\S]*?)\\n\\t\\t\\};`))?.[1];
+  if (!sources?.includes(`/* ${name} in Sources */`)) failures.push(`test target does not compile ${name}`);
+}
 const labels = new Set(['Remodex', 'Codex', 'Git', 'Bridge', 'Windows', 'macOS', 'Liquid Glass', 'ssh', 'user@hostname', 'Ctrl-C', 'remodex/my-feature', 'feature-name', 'main', 'GPT-5.3-Codex']);
 const formats = new Set(['git/%@', 'Remodex %@', 'P%@', 'A- %@ pt', 'A+ %@ pt', '\\u{00A0}%@']);
 function values(value) {

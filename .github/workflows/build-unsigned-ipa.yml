@@ -47,7 +47,7 @@ jobs:
       - name: Run iOS unit and real-page localization UI tests
         run: |
           set -euo pipefail
-          xcodebuild -quiet -project CodexMobile/CodexMobile.xcodeproj -scheme CodexMobile -configuration Debug \
+          xcodebuild -project CodexMobile/CodexMobile.xcodeproj -scheme CodexMobile -configuration Debug \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/remodex-ios-tests.xcresult" \
             test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM="" \
