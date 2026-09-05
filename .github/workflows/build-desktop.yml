@@ -37,8 +37,8 @@ jobs:
           app="$out/dmg-root/Remodex.app"
           /usr/libexec/PlistBuddy -c "Add :RemodexSourceSHA string $GITHUB_SHA" "$app/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c "Add :RemodexReleaseVersion string $REMODEX_VERSION" "$app/Contents/Info.plist"
-          lipo -verify_arch ${{ matrix.arch }} "$app/Contents/MacOS/Remodex"
-          lipo -verify_arch ${{ matrix.arch }} "$app/Contents/Resources/RemodexRuntime/node/bin/node"
+          lipo "$app/Contents/MacOS/Remodex" -verify_arch ${{ matrix.arch }}
+          lipo "$app/Contents/Resources/RemodexRuntime/node/bin/node" -verify_arch ${{ matrix.arch }}
           node -e "require(process.argv[1]+'/Contents/Resources/RemodexRuntime/bridge/src')" "$app"
           codesign --force --sign - "$app/Contents/Resources/RemodexRuntime/node/bin/node"
           codesign --force --sign - "$app"
