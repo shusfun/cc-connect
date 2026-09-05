@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - codex/codex-app-ux
   workflow_dispatch:
 
 concurrency:
@@ -88,3 +87,4 @@ jobs:
           name: remodex-unsigned-ipa
           path: build/unsigned-ipa/remodex-unsigned-release.ipa
           if-no-files-found: error
+          compression-level: 0

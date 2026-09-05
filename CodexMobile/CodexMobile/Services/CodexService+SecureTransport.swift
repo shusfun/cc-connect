@@ -1058,31 +1058,10 @@ private extension CodexService {
               !relayURL.isEmpty else {
             throw CodexTrustedSessionResolveError.noTrustedMac
         }
-        let resolveURLs = CodexTrustedSessionResolveURLBuilder.candidates(from: relayURL)
-        guard !resolveURLs.isEmpty else {
-            throw CodexTrustedSessionResolveError.invalidResponse("The trusted device relay URL is invalid.")
-        }
-
-        var lastRetriableResolveError: CodexTrustedSessionResolveError?
-        for (index, resolveURL) in resolveURLs.enumerated() {
-            do {
-                return try await sendTrustedSessionResolveRequest(
-                    makeTrustedSessionResolveRequestBody(for: trustedMac),
-                    trustedMac: trustedMac,
-                    resolveURL: resolveURL,
-                    relayURL: relayURL
-                )
-            } catch let error as CodexTrustedSessionResolveError {
-                guard shouldTryNextTrustedResolveCandidate(after: error),
-                      index < resolveURLs.count - 1 else {
-                    throw error
-                }
-                lastRetriableResolveError = error
-                continue
-            }
-        }
-
-        throw lastRetriableResolveError ?? CodexTrustedSessionResolveError.unsupportedRelay
+        let resolved = try await resolveAuthorizedSession(deviceId: trustedMac.macDeviceId, relay: relayURL)
+        try validateResolvedTrustedSession(resolved, for: trustedMac)
+        applyResolvedTrustedSession(resolved, relayURL: relayURL)
+        return resolved
     }
 
     private func makeTrustedSessionResolveRequestBody(

@@ -10,12 +10,17 @@ import SwiftUI
 
 struct BridgeMenuBarContentView: View {
     @ObservedObject var store: BridgeMenuBarStore
+    @ObservedObject private var access = DeviceAccessService.shared
     @State private var relayDraft = ""
+    @State private var remarkDraft = ""
+    @State private var replacingPhone: String?
+    @State private var confirmsLogout = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                accountSection
                 Divider()
                 statusGrid
                 Divider()
@@ -33,6 +38,36 @@ struct BridgeMenuBarContentView: View {
         .frame(width: 380, height: 640)
         .onAppear { relayDraft = store.relayOverride }
         .onChange(of: store.relayOverride) { _, value in relayDraft = value }
+        .onChange(of: access.remark) { _, value in remarkDraft = value }
+        .confirmationDialog("替换当前可信手机？旧手机将立即失去访问权限。", isPresented: Binding(get: { replacingPhone != nil }, set: { if !$0 { replacingPhone = nil } })) {
+            Button("确认替换", role: .destructive) { if let id = replacingPhone { Task { await access.approvePhone(id: id, replace: true) } }; replacingPhone = nil }
+        }
+        .confirmationDialog("退出登录将撤销本设备及手机配对，不影响其他设备或代码文件。", isPresented: $confirmsLogout) {
+            Button("退出登录", role: .destructive) { Task { await access.logout() } }
+        }
+    }
+
+    private var accountSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(access.status).font(.headline)
+            if access.isActivated {
+                TextField("设备备注", text: $remarkDraft).textFieldStyle(.roundedBorder)
+                Button("保存备注") { Task { await access.saveRemark(remarkDraft) } }
+                ForEach(access.pendingPhones, id: \.self) { phone in
+                    Text("新的手机配对申请").font(.headline)
+                    Text(phone["key"] ?? "").font(.caption.monospaced()).textSelection(.enabled)
+                    Button("允许配对") { if let id = phone["id"] { Task { await access.approvePhone(id: id, replace: false) } } }
+                    Button("替换旧手机", role: .destructive) { replacingPhone = phone["id"] }
+                }
+                Button("退出登录", role: .destructive) { confirmsLogout = true }
+            } else {
+                Button(access.isActivating ? "等待浏览器批准…" : "使用 GitHub 激活") {
+                    store.saveRelayOverride(relayDraft)
+                    access.activate(relay: relayDraft)
+                }.disabled(access.isActivating)
+            }
+            if !access.errorMessage.isEmpty { Text(access.errorMessage).foregroundStyle(.orange).font(.caption) }
+        }
     }
 
     private var header: some View {

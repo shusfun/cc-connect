@@ -39,6 +39,10 @@ struct CodexPairingQRPayload: Codable, Sendable {
     let macIdentityPublicKey: String
     let expiresAt: Int64
     var displayName: String? = nil
+    var invitation: String? = nil
+    var accountId: String? = nil
+    var instanceId: String? = nil
+    var platform: String? = nil
 }
 
 struct CodexPhoneIdentityState: Codable, Sendable {

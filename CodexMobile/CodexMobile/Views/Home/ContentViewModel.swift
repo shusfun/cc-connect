@@ -72,10 +72,16 @@ final class ContentViewModel {
     func connectToRelay(pairingPayload: CodexPairingQRPayload, codex: CodexService) async {
         await stopAutoReconnectForManualScan(codex: codex)
         // Avoid logging live pairing metadata; the relay URL path includes a bearer-like session id.
-        let fullURL = "\(pairingPayload.relay)/\(pairingPayload.sessionId)"
-        codex.rememberRelayPairing(pairingPayload)
-
         do {
+            codex.lastErrorMessage = "请在电脑上核对设备身份并确认手机配对"
+            let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState)
+            codex.phoneIdentityState = CodexPhoneIdentityState(phoneDeviceId: access.phoneId, phoneIdentityPrivateKey: codex.phoneIdentityState.phoneIdentityPrivateKey, phoneIdentityPublicKey: codex.phoneIdentityState.phoneIdentityPublicKey)
+            SecureStore.writeCodable(codex.phoneIdentityState, for: CodexSecureKeys.phoneIdentityState)
+            codex.rememberRelayPairing(pairingPayload)
+            let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay)
+            let fullURL = "\(pairingPayload.relay)/\(session.sessionId)"
+            codex.relaySessionId = session.sessionId
+            codex.lastErrorMessage = nil
             try await connectWithAutoRecovery(
                 codex: codex,
                 performAutoRetry: true,

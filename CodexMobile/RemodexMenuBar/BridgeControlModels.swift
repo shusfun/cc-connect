@@ -111,6 +111,11 @@ struct BridgePairingPayload: Codable, Equatable {
     let macDeviceId: String
     let macIdentityPublicKey: String
     let expiresAt: Int64
+    var invitation: String? = nil
+    var accountId: String? = nil
+    var instanceId: String? = nil
+    var platform: String? = nil
+    var displayName: String? = nil
 
     var expiryDate: Date {
         Date(timeIntervalSince1970: TimeInterval(expiresAt) / 1_000)

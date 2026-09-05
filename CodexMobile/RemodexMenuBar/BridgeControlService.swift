@@ -54,6 +54,7 @@ final class BridgeControlService {
     func startBridge(relayOverride: String?) async throws {
         guard !isRunning else { return }
         try validateBundledRuntime()
+        let activationBootstrap = try DeviceAccessService.shared.bootstrap(relay: relayOverride ?? "")
         guard let relay = relayOverride?.trimmingCharacters(in: .whitespacesAndNewlines), !relay.isEmpty else {
             throw BridgeRuntimeError.relayMissing
         }
@@ -89,6 +90,7 @@ final class BridgeControlService {
 
         do {
             try process.run()
+            try parentPipe.fileHandleForWriting.write(contentsOf: activationBootstrap)
         } catch {
             try? stdout.close()
             try? stderr.close()

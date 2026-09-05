@@ -4,9 +4,9 @@
 
 ## 架构边界
 
-- Codex、Git、工作区、任务与模型只在 Mac 运行。
-- VPS Relay 只做会合、短码/可信会话解析和 E2E 密文转发；不得加入数据库、聊天存储、模型、后台或 Push/APNs。
-- Mac 原生 App 是 Bridge 生命周期唯一所有者。不得恢复全局 npm/remodex CLI、LaunchAgent 或登录 shell 依赖。
+- Codex、Git、工作区与任务只在用户的 macOS／Windows 开发设备运行；iPhone 允许本地 Whisper 转写。
+- VPS 只支持 Docker Compose，提供账号审核、设备授权、管理后台与 E2E 密文转发；SQLite 只保存管理数据，不保存聊天、代码或模型，不提供 Push/APNs。
+- macOS／Windows 原生 App 是各自 Bridge 生命周期唯一所有者。不得恢复全局 npm/remodex CLI、Bridge 系统服务或登录 shell 依赖。
 - iPhone 只消费私有同步协议与本地派生缓存；能力不兼容时明确要求更新，不增加旧协议 fallback。
 - 不把 Mac 本地路径、密钥、Token、Cookie、聊天正文、会话标识或原始客户端 IP 暴露给 Relay 日志。
 
@@ -16,7 +16,9 @@
 - GRDB.swift `7.11.1`、WhisperKit `1.1.0`、iOS 26。
 - 首个支持的 Codex CLI 为 `0.147.0`。
 - 同步 RPC：`sync/hello`、`sync/catalog`、`sync/thread/read`、`sync/thread/reset`、`sync/ack`。
-- 缓存按 Mac 隔离，HMAC 索引、AES-GCM 正文、ThisDeviceOnly Keychain 密钥、1 GB LRU。
+- 缓存按 Relay 实例／账号／开发设备隔离，HMAC 索引、AES-GCM 正文、ThisDeviceOnly Keychain 密钥、1 GB LRU。
+- 账号须审核；设备须激活；手机须逐设备配对。一台开发设备只信任一台手机，手机一次只操作一台设备。
+- main 是唯一日常开发与发布分支；不强推、不自动删除历史分支。
 
 ## 实施边界
 

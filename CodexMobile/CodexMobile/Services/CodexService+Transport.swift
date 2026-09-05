@@ -724,6 +724,7 @@ extension CodexService {
         webSocketOptions.maximumMessageSize = codexWebSocketMaximumMessageSizeBytes
 
         var additionalHeaders: [(name: String, value: String)] = []
+        for (name, value) in try relayAuthorizationHeaders(url: url) { additionalHeaders.append((name: name, value: value)) }
         if let role, !role.isEmpty {
             additionalHeaders.append((name: "x-role", value: role))
         } else if !token.isEmpty {
@@ -776,6 +777,7 @@ extension CodexService {
         role: String? = nil
     ) async throws -> CodexWebSocketTransport {
         var request = URLRequest(url: url)
+        for (name, value) in try relayAuthorizationHeaders(url: url) { request.setValue(value, forHTTPHeaderField: name) }
         if let role, !role.isEmpty {
             request.setValue(role, forHTTPHeaderField: "x-role")
         } else if !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -962,6 +964,7 @@ extension CodexService {
         } else if !token.isEmpty {
             requestLines.append("Authorization: Bearer \(token)")
         }
+        for (name, value) in try relayAuthorizationHeaders(url: url) { requestLines.append("\(name): \(value)") }
         requestLines.append(contentsOf: ["", ""])
 
         codexLogPairingTransport("sending manual TCP websocket upgrade request")

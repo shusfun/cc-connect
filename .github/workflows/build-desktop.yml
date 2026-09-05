@@ -1,0 +1,32 @@
+name: Build Remodex desktop packages
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+permissions: { contents: read }
+jobs:
+  macos:
+    runs-on: macos-26
+    strategy: { matrix: { arch: [x86_64, arm64] } }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build macOS DMG
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/build/macos/${{ matrix.arch }}"; rm -rf "$out"; mkdir -p "$out/dmg-root"
+          xcodebuild -quiet -project CodexMobile/CodexMobile.xcodeproj -scheme RemodexMenuBar -configuration Release -destination 'generic/platform=macOS' -archivePath "$out/Remodex.xcarchive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
+          app="$(find "$out/Remodex.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"; test -n "$app"; ditto "$app" "$out/dmg-root/Remodex.app"
+          ln -s /Applications "$out/dmg-root/拖到应用程序安装"; printf '将 Remodex.app 拖到“拖到应用程序安装”即可。\n' > "$out/dmg-root/安装说明.txt"
+          hdiutil create -volname Remodex -srcfolder "$out/dmg-root" -ov -format UDZO "$out/Remodex-${{ matrix.arch }}.dmg"
+      - uses: actions/upload-artifact@v4
+        with: { name: remodex-macos-${{ matrix.arch }}, path: build/macos/${{ matrix.arch }}/Remodex-${{ matrix.arch }}.dmg, compression-level: 0 }
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - run: dotnet publish windows/Remodex/Remodex.csproj -c Release -r win-x64 --self-contained true -o build/windows/app
+      - uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with: { path: windows/installer.iss }
+      - uses: actions/upload-artifact@v4
+        with: { name: remodex-windows-x64, path: build/windows/*.exe, compression-level: 0 }

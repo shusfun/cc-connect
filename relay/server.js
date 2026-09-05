@@ -16,6 +16,7 @@ const {
 } = require("./relay");
 
 const relayLogIdentitySecret = randomBytes(32);
+const allowUpgrade = () => null;
 
 function createRelayServer({
   exposeDetailedHealth = false,
@@ -23,15 +24,27 @@ function createRelayServer({
   upgradeRateLimiter = createFixedWindowRateLimiter({ windowMs: 60_000, maxRequests: 60 }),
   relayOptions = {},
   trustProxy = false,
+  accessControl = null,
+  authorizeUpgrade = allowUpgrade,
 } = {}) {
   const runtimeMetrics = createRuntimeMetrics();
 
   const server = http.createServer((req, res) => {
-    void handleHTTPRequest(req, res, {
+    void (async () => {
+      if (accessControl && await accessControl.route(req, res)) return;
+      const pathname = safePathname(req.url);
+      if (accessControl && (pathname.includes('/v1/trusted/') || pathname.includes('/v1/pairing/'))) {
+        return writeJSON(res, 426, { ok: false, code: 'update_required' });
+      }
+      await handleHTTPRequest(req, res, {
       exposeDetailedHealth,
       httpRateLimiter,
       runtimeMetrics,
       trustProxy,
+      });
+    })().catch(() => {
+      if (!res.headersSent) writeJSON(res, 500, { ok: false, code: 'internal_error' });
+      else res.destroy();
     });
   });
   const wss = new WebSocketServer({
@@ -64,7 +77,15 @@ function createRelayServer({
       return;
     }
 
+    try {
+      req.remodexAccess = accessControl ? accessControl.authorizeUpgrade(req) : authorizeUpgrade(req);
+    } catch (error) {
+      const status = error.status === 429 ? 429 : 401;
+      socket.end(`HTTP/1.1 ${status} Unauthorized\r\nConnection: close\r\n\r\n`);
+      return;
+    }
     wss.handleUpgrade(req, socket, head, (ws) => {
+      if (accessControl) accessControl.attach(ws, req);
       wss.emit("connection", ws, req);
     });
   });
@@ -359,10 +380,13 @@ function createFixedWindowRateLimiter({ windowMs, maxRequests, now = () => Date.
 }
 
 if (require.main === module) {
-  const port = Number(process.env.PORT || 9000);
+  const port = Number(process.env.PORT || 9820);
   const trustProxy = readOptionalBooleanEnv(["REMODEX_TRUST_PROXY", "PHODEX_TRUST_PROXY"]) ?? false;
   const bindHost = process.env.RELAY_BIND_HOST || "127.0.0.1";
-  const { server } = createRelayServer({ trustProxy });
+  const { createProductionAccess } = require('./production-access');
+  const accessControl = createProductionAccess();
+  const { server } = createRelayServer({ trustProxy, accessControl });
+  server.on('close', () => accessControl.close());
   server.listen(port, bindHost, () => {
     console.log(`[relay] listening on ${bindHost}:${port}`);
   });

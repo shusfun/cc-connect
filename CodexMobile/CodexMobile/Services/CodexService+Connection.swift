@@ -12,8 +12,8 @@ extension CodexService {
     // Only close codes that prove the saved pairing/session can no longer be reused
     // should force a QR reset. A `4003` replaces an older mobile socket with a newer one,
     // so it must preserve pairing and follow the reconnect path.
-    private static let permanentRelayCloseCodeRawValues: Set<UInt16> = [4000, 4001]
-    private static let retryableRelayCloseCodeRawValues: Set<UInt16> = [4002, 4003]
+    private static let permanentRelayCloseCodeRawValues: Set<UInt16> = [4000, 4001, 4003]
+    private static let retryableRelayCloseCodeRawValues: Set<UInt16> = [4002]
     private static let explicitRelayDropCloseCodeRawValues: Set<UInt16> = [4004]
     private static let maxTrustedReconnectFailures = 3
     private static let connectionBootstrapRequestTimeoutNanoseconds: UInt64 = 12_000_000_000

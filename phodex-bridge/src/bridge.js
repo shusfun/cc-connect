@@ -689,7 +689,10 @@ function startBridge({
   printPairingQr = true,
   onPairingSession = null,
   onBridgeStatus = null,
+  deviceAccess = null,
+  pairingInvitation = null,
 } = {}) {
+  if (!deviceAccess || !pairingInvitation) throw new Error('activation_required');
   const config = explicitConfig || readBridgeConfig();
   const relayBaseUrl = config.relayUrl.replace(/\/+$/, "");
   if (!relayBaseUrl) {
@@ -700,7 +703,12 @@ function startBridge({
 
   let deviceState;
   try {
-    deviceState = loadOrCreateBridgeDeviceState();
+    deviceState = {
+      macDeviceId: deviceAccess.credential.deviceId,
+      macIdentityPublicKey: deviceAccess.publicKey,
+      macIdentityPrivateKey: deviceAccess.privateKey,
+      trustedPhones: deviceAccess.trustedPhone ? { [deviceAccess.trustedPhone.id]: deviceAccess.trustedPhone.public_key } : {},
+    };
   } catch (error) {
     console.error(`[remodex] ${(error && error.message) || "Failed to load the saved bridge pairing state."}`);
     process.exit(1);
@@ -772,7 +780,8 @@ function startBridge({
     sessionId,
     relayUrl: relayBaseUrl,
     deviceState,
-    displayName: os.hostname(),
+    displayName: deviceAccess.credential.device.remark,
+    persistTrustedPhone: false,
     onTrustedPhoneUpdate(nextDeviceState) {
       deviceState = nextDeviceState;
       sendRelayRegistrationUpdate(nextDeviceState);
@@ -1040,6 +1049,7 @@ function startBridge({
         concurrencyLimit: 4,
       },
       headers: {
+        ...deviceAccess.headers('GET', new URL(relaySessionUrl).pathname),
         "x-role": "mac",
         ...buildMacRegistrationHeaders(deviceState, pairingSession),
       },
@@ -1103,7 +1113,14 @@ function startBridge({
     });
   }
 
-  const pairingPayload = secureTransport.createPairingPayload();
+  const pairingPayload = {
+    ...secureTransport.createPairingPayload(),
+    invitation: pairingInvitation.invitation,
+    expiresAt: pairingInvitation.expiresAt,
+    accountId: deviceAccess.credential.accountId,
+    instanceId: deviceAccess.credential.instanceId,
+    platform: deviceAccess.credential.device.platform,
+  };
   const pairingSession = {
     pairingPayload,
     pairingCode: createShortPairingCode({ length: SHORT_PAIRING_CODE_LENGTH }),

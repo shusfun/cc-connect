@@ -14,6 +14,14 @@ services:
       - no-new-privileges:true
     ports:
       - "127.0.0.1:9820:9820"
+    environment:
+      REMODEX_DATABASE: /data/remodex.sqlite
+      REMODEX_MASTER_KEY_FILE: /run/secrets/remodex_master_key
+      REMODEX_SETUP_TOKEN_FILE: /run/secrets/remodex_setup_token
+    volumes:
+      - remodex-control-data:/data
+      - ./secrets/master-key:/run/secrets/remodex_master_key:ro
+      - ./secrets/setup-token:/run/secrets/remodex_setup_token:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m,uid=10001,gid=10001
     healthcheck:
@@ -31,3 +39,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  remodex-control-data:

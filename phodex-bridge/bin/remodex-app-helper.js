@@ -19,6 +19,7 @@ const {
 } = require("../src/daemon-state");
 const { resetBridgeTrustState } = require("../src/secure-device-state");
 const { openLastActiveThread } = require("../src/session-state");
+const { DeviceAccess } = require('../src/device-access');
 
 const command = process.argv[2] || "run";
 
@@ -60,14 +61,30 @@ process.stdin.resume();
 process.stdin.once("end", stopWithParent);
 process.stdin.once("close", stopWithParent);
 
-startBridge({
-  config,
-  printPairingQr: false,
-  onPairingSession(pairingSession) {
-    writePairingSession(pairingSession);
-  },
-  onBridgeStatus(status) {
-    const previous = readBridgeStatus() || {};
-    writeBridgeStatus({ ...previous, ...status });
-  },
+let bootstrap = '';
+let started = false;
+const bootstrapTimeout = setTimeout(() => { console.error('[remodex] activation_required'); process.exit(1); }, 10000);
+process.stdin.on('data', async chunk => {
+  if (started) return;
+  bootstrap += chunk.toString('utf8');
+  if (bootstrap.length > 16384) { process.exit(1); return; }
+  if (!bootstrap.includes('\n')) return;
+  started = true;
+  clearTimeout(bootstrapTimeout);
+  try {
+    const deviceAccess = new DeviceAccess(JSON.parse(bootstrap.slice(0, bootstrap.indexOf('\n'))));
+    bootstrap = '';
+    const current = await deviceAccess.request('/v1/access/device');
+    deviceAccess.credential.device = current.device;
+    deviceAccess.trustedPhone = current.trustedPhone;
+    const pairingInvitation = await deviceAccess.request('/v1/access/pairing/invite');
+    startBridge({
+      config, deviceAccess, pairingInvitation, printPairingQr: false,
+      onPairingSession(pairingSession) { writePairingSession(pairingSession); },
+      onBridgeStatus(status) { writeBridgeStatus({ ...(readBridgeStatus() || {}), ...status }); },
+    });
+  } catch (error) {
+    console.error(`[remodex] ${error.code || 'activation_failed'}`);
+    process.exit(1);
+  }
 });

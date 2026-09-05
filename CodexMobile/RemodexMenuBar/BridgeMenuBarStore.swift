@@ -42,6 +42,7 @@ final class BridgeMenuBarStore: ObservableObject {
 
     func refresh() {
         snapshot = service.loadSnapshot(relayOverride: relayOverride)
+        Task { await DeviceAccessService.shared.refresh() }
     }
 
     func saveRelayOverride(_ value: String) {
@@ -133,6 +134,7 @@ final class BridgeMenuBarStore: ObservableObject {
     }
 
     private func startOnLaunch() async {
+        guard DeviceAccessService.shared.isActivated else { refresh(); return }
         isRefreshing = true
         defer { isRefreshing = false }
         do {
