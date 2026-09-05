@@ -5,6 +5,7 @@
 AppId={{67B6BDB0-F52B-4F15-BDDE-6B2728EED154}
 AppName=Remodex
 AppVersion={#AppVersion}
+VersionInfoVersion=0.5.0.0
 AppPublisher=Remodex
 DefaultDirName={localappdata}\Programs\Remodex
 DefaultGroupName=Remodex

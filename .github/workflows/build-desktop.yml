@@ -6,35 +6,103 @@ permissions: { contents: read }
 jobs:
   macos:
     runs-on: macos-26
-    strategy: { matrix: { arch: [x86_64] } }
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            node-arch: x64
+          - arch: arm64
+            node-arch: arm64
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
+      - name: Prepare portable Bridge
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm --filter remodex deploy --legacy --prod build/bridge-bundle
+          node CodexMobile/scripts/validate-bridge-bundle.cjs build/bridge-bundle
+          node -e "require('./build/bridge-bundle/src'); require('./build/bridge-bundle/node_modules/@remodex/protocol')"
+          echo "REMODEX_VERSION=$(node -p 'require("./package.json").version')" >> "$GITHUB_ENV"
       - name: Build macOS DMG
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/build/macos/${{ matrix.arch }}"; rm -rf "$out"; mkdir -p "$out/dmg-root"
-          xcodebuild -quiet -project CodexMobile/CodexMobile.xcodeproj -scheme RemodexMenuBar -configuration Debug -destination 'generic/platform=macOS' -archivePath "$out/Remodex.xcarchive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
+          xcodebuild -quiet -project CodexMobile/CodexMobile.xcodeproj -scheme RemodexMenuBar -configuration Debug -destination 'generic/platform=macOS' -archivePath "$out/Remodex.xcarchive" archive ARCHS=${{ matrix.arch }} ONLY_ACTIVE_ARCH=NO REMODEX_NODE_ARCH=${{ matrix.node-arch }} MACOSX_DEPLOYMENT_TARGET=14.0 MARKETING_VERSION="${REMODEX_VERSION%%-*}" CURRENT_PROJECT_VERSION=1 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" 2>&1 | tee "$out/xcodebuild.log"
           app="$(find "$out/Remodex.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"; test -n "$app"; ditto "$app" "$out/dmg-root/Remodex.app"
+          app="$out/dmg-root/Remodex.app"
+          /usr/libexec/PlistBuddy -c "Add :RemodexSourceSHA string $GITHUB_SHA" "$app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :RemodexReleaseVersion string $REMODEX_VERSION" "$app/Contents/Info.plist"
+          lipo -verify_arch ${{ matrix.arch }} "$app/Contents/MacOS/Remodex"
+          lipo -verify_arch ${{ matrix.arch }} "$app/Contents/Resources/RemodexRuntime/node/bin/node"
+          node -e "require(process.argv[1]+'/Contents/Resources/RemodexRuntime/bridge/src')" "$app"
+          codesign --force --sign - "$app/Contents/Resources/RemodexRuntime/node/bin/node"
+          codesign --force --sign - "$app"
+          codesign --verify --deep --strict "$app"
           ln -s /Applications "$out/dmg-root/拖到应用程序安装"; printf '将 Remodex.app 拖到“拖到应用程序安装”即可。\n' > "$out/dmg-root/安装说明.txt"
-          hdiutil create -volname Remodex -srcfolder "$out/dmg-root" -ov -format UDZO "$out/Remodex-${{ matrix.arch }}.dmg"
-      - uses: actions/upload-artifact@v4
+          hdiutil create -volname Remodex -srcfolder "$out/dmg-root" -ov -format UDZO "$out/Remodex-$REMODEX_VERSION-macos-${{ matrix.arch }}-Debug.dmg"
+      - uses: actions/upload-artifact@v7
         with:
           name: remodex-macos-${{ matrix.arch }}
-          path: build/macos/${{ matrix.arch }}/Remodex-${{ matrix.arch }}.dmg
+          path: build/macos/${{ matrix.arch }}/*.dmg
           compression-level: 0
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-${{ matrix.arch }}-build-log
+          path: build/macos/${{ matrix.arch }}/xcodebuild.log
   windows:
     runs-on: windows-2025
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
+      - name: Prepare portable Bridge
+        shell: pwsh
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency install failed' }
+          pnpm --filter remodex deploy --legacy --prod build/bridge-bundle
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge deployment failed' }
+          node CodexMobile/scripts/validate-bridge-bundle.cjs build/bridge-bundle
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge dependency verification failed' }
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          "REMODEX_VERSION=$version" >> $env:GITHUB_ENV
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - run: dotnet publish windows/Remodex/Remodex.csproj -c Release -r win-x64 --self-contained true -o build/windows/app
+      - run: dotnet publish windows/Remodex/Remodex.csproj -c Release -r win-x64 --self-contained true -p:Version=${{ env.REMODEX_VERSION }} -p:InformationalVersion=${{ env.REMODEX_VERSION }}+${{ github.sha }} -o build/windows/app
+      - name: Bundle Node and Bridge
+        shell: pwsh
+        run: |
+          $runtime = 'build/windows/app/RemodexRuntime'
+          New-Item -ItemType Directory -Force "$runtime/node" | Out-Null
+          Invoke-WebRequest https://nodejs.org/dist/v26.6.0/node-v26.6.0-win-x64.zip -OutFile build/node-win.zip
+          if ((Get-FileHash build/node-win.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'aa81c8552f251ff280134985ccdaf16d336e2961b1e2c3eeb7b7b2221509f723') { throw 'Node checksum mismatch' }
+          Expand-Archive build/node-win.zip build/node-win
+          Copy-Item build/node-win/node-v26.6.0-win-x64/* "$runtime/node" -Recurse
+          node -e "require('node:fs').cpSync('build/bridge-bundle','build/windows/app/RemodexRuntime/bridge',{recursive:true,dereference:true})"
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge copy failed' }
+          @{ version=$env:REMODEX_VERSION; sourceSHA=$env:GITHUB_SHA; architecture='win-x64'; configuration='Release' } | ConvertTo-Json | Set-Content build/windows/app/build-info.json
+          & "$runtime/node/node.exe" -e "require('./build/windows/app/RemodexRuntime/bridge/src');require('./build/windows/app/RemodexRuntime/bridge/node_modules/@remodex/protocol')"
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled Bridge could not load' }
       - uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: windows/installer.iss
-      - uses: actions/upload-artifact@v4
+          options: /DAppVersion=${{ env.REMODEX_VERSION }}
+      - uses: actions/upload-artifact@v7
         with:
           name: remodex-windows-x64
           path: build/windows/*.exe
           compression-level: 0
+          archive: false
+          if-no-files-found: error

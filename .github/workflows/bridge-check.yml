@@ -1,6 +1,7 @@
 name: Node Package Tests
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/bridge-check.yml"
@@ -9,6 +10,7 @@ on:
       - "pnpm-workspace.yaml"
       - "phodex-bridge/**"
       - "relay/**"
+      - "packages/**"
   pull_request:
     paths:
       - ".github/workflows/bridge-check.yml"
@@ -17,6 +19,7 @@ on:
       - "pnpm-workspace.yaml"
       - "phodex-bridge/**"
       - "relay/**"
+      - "packages/**"
 
 jobs:
   bridge-check:
@@ -33,10 +36,7 @@ jobs:
           node-version: 26.6.0
 
       - name: Setup pnpm
-        run: |
-          export COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
-          corepack enable
-          corepack prepare pnpm@11.18.0 --activate
+        uses: pnpm/action-setup@v4
 
       - name: Resolve pnpm cache
         id: pnpm-cache
@@ -74,10 +74,7 @@ jobs:
           node-version: 26.6.0
 
       - name: Setup pnpm
-        run: |
-          export COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
-          corepack enable
-          corepack prepare pnpm@11.18.0 --activate
+        uses: pnpm/action-setup@v4
 
       - name: Resolve pnpm cache
         id: pnpm-cache

@@ -802,7 +802,22 @@ function loadBridgeWithTestDoubles({
   };
 
   try {
-    return require("../src/bridge");
+    const implementation = require("../src/bridge");
+    return {
+      ...implementation,
+      startBridge(options) {
+        return implementation.startBridge({
+          ...options,
+          deviceAccess: {
+            credential: { deviceId: "mac-test", accountId: "test-account", instanceId: "test-relay", device: { remark: "Test host", platform: "macos" } },
+            publicKey: "mac-key-test",
+            privateKey: "test-private-key",
+            headers() { return {}; },
+          },
+          pairingInvitation: { invitation: "test-invitation", expiresAt: Date.now() + 60000 },
+        });
+      },
+    };
   } finally {
     Module._load = originalLoad;
     delete require.cache[bridgePath];

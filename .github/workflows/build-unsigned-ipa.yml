@@ -36,7 +36,8 @@ jobs:
 
           output_dir="$GITHUB_WORKSPACE/build/unsigned-ipa"
           archive_path="$output_dir/CodexMobile.xcarchive"
-          ipa_path="$output_dir/remodex-unsigned-release.ipa"
+          release_version="$(node -p 'require("./package.json").version')"
+          ipa_path="$output_dir/Remodex-$release_version-unsigned.ipa"
           build_log_path="$output_dir/xcodebuild.log"
 
           rm -rf "$output_dir"
@@ -50,6 +51,8 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "$archive_path" \
             archive \
+            MARKETING_VERSION="${release_version%%-*}" \
+            CURRENT_PROJECT_VERSION=1 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -68,6 +71,8 @@ jobs:
 
           mkdir -p "$payload_root/Payload"
           ditto "$app_path" "$payload_root/Payload/$(basename "$app_path")"
+          /usr/libexec/PlistBuddy -c "Add :RemodexSourceSHA string $GITHUB_SHA" "$payload_root/Payload/$(basename "$app_path")/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :RemodexReleaseVersion string $release_version" "$payload_root/Payload/$(basename "$app_path")/Info.plist"
           ditto -c -k --sequesterRsrc --keepParent "$payload_root/Payload" "$ipa_path"
 
           echo "Unsigned IPA created at $ipa_path"
@@ -82,9 +87,10 @@ jobs:
           retention-days: 7
 
       - name: Upload unsigned IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: remodex-unsigned-ipa
-          path: build/unsigned-ipa/remodex-unsigned-release.ipa
+          path: build/unsigned-ipa/*.ipa
           if-no-files-found: error
           compression-level: 0
+          archive: false

@@ -695,7 +695,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/scripts/prepare-macos-runtime.sh\"\n";
+			shellScript = "/bin/sh \"${SRCROOT}/scripts/prepare-macos-runtime.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
