@@ -70,7 +70,7 @@ extension CodexService {
         )
         guard serverHello.protocolVersion == codexSecureProtocolVersion else {
             presentBridgeUpdatePrompt(
-                message: "This bridge is using a different secure transport version. Update the Remodex package on your device and try again."
+                message: L10n.string("This bridge is using a different secure transport version. Update the Remodex package on your device and try again.")
             )
             throw CodexSecureTransportError.incompatibleVersion(
                 "This bridge is using a different secure transport version. Update Remodex on the iPhone or paired device and try again."

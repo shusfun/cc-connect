@@ -163,14 +163,14 @@ extension CodexService {
 
         guard let resultObject = response.result?.objectValue,
               let historyObject = resultObject["history"]?.objectValue else {
-            throw CodexServiceError.invalidResponse("sync/thread/read 历史分页缺少 payload。")
+            throw CodexServiceError.invalidResponse(L10n.string("sync/thread/read 历史分页缺少 payload。"))
         }
         let turns =
             historyObject["data"]?.arrayValue
             ?? historyObject["items"]?.arrayValue
             ?? historyObject["turns"]?.arrayValue
         guard let turns else {
-            throw CodexServiceError.invalidResponse("sync/thread/read 历史分页缺少 turns。")
+            throw CodexServiceError.invalidResponse(L10n.string("sync/thread/read 历史分页缺少 turns。"))
         }
 
         return ThreadTurnsHistoryPage(

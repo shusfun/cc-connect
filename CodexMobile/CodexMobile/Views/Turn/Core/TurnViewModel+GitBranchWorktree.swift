@@ -660,6 +660,30 @@ extension TurnViewModel {
         clearPendingGitBranchOperationState()
     }
 
+    // 状态检查不直接改写工作区；确认按钮才进入现有 pull/rebase 执行路径。
+    func makeGitSyncAlert(for result: GitRepoSyncResult) -> TurnGitSyncAlert? {
+        let title: String
+        let message: String
+        let confirm: String
+        switch result.state {
+        case "behind_only":
+            title = L10n.string("Remote Update Available")
+            message = L10n.string("The remote branch has new commits. Confirm to update this device's checkout.")
+            confirm = L10n.string("Update Now")
+        case "diverged":
+            title = L10n.string("Remote History Diverged")
+            message = L10n.string("Local and remote commits diverged. Confirm to pull and rebase; conflicts may require your attention.")
+            confirm = L10n.string("Try Update")
+        case "dirty_and_behind":
+            return TurnGitSyncAlert(title: L10n.string("Local Changes + Remote Update"), message: L10n.string("Commit or safely resolve local changes before updating from the remote."), action: .dismissOnly)
+        default: return nil
+        }
+        return TurnGitSyncAlert(title: title, message: message, buttons: [
+            TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
+            TurnGitSyncAlertButton(title: confirm, role: nil, action: .pullRebase)
+        ])
+    }
+
     func confirmGitSyncAlertAction(
         _ alertAction: TurnGitSyncAlertAction,
         codex: CodexService,

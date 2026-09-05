@@ -884,9 +884,9 @@ nonisolated final class CodexDerivedCache: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .encoding(let object):
-                return "无法编码派生缓存对象：\(object)"
+                return L10n.format("无法编码派生缓存对象：%@", object)
             case .revisionRegression(let current, let proposed):
-                return "同步 revision 回退：当前为 \(current)，收到 \(proposed)"
+                return L10n.format("同步 revision 回退：当前为 %@，收到 %@", String(current), String(proposed))
             }
         }
     }

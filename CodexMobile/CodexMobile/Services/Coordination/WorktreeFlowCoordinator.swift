@@ -44,7 +44,7 @@ enum WorktreeFlowCoordinator {
     ) async throws -> CodexThread {
         let normalizedPreferredProjectPath = try requiredProjectPath(
             preferredProjectPath,
-            message: "A valid local project path is required."
+            message: L10n.string("A valid local project path is required.")
         )
         let gitService = GitActionsService(codex: codex, workingDirectory: normalizedPreferredProjectPath)
         let baseBranch: String
@@ -95,7 +95,7 @@ enum WorktreeFlowCoordinator {
     ) async throws -> WorktreeFlowHandoffOutcome {
         let normalizedSourceProjectPath = try requiredProjectPath(
             sourceProjectPath,
-            message: "The current handoff source is not available on this device."
+            message: L10n.string("The current handoff source is not available on this device.")
         )
 
         if let associatedWorktreePath,
@@ -149,7 +149,7 @@ enum WorktreeFlowCoordinator {
     ) async throws -> WorktreeFlowHandoffMove {
         let sourceProjectPath = try requiredProjectPath(
             thread.gitWorkingDirectory,
-            message: "The current handoff source is not available on this device."
+            message: L10n.string("The current handoff source is not available on this device.")
         )
 
         let gitService = GitActionsService(codex: codex, workingDirectory: sourceProjectPath)
@@ -238,7 +238,7 @@ enum WorktreeFlowCoordinator {
     ) async throws -> CodexThread {
         let normalizedSourceProjectPath = try requiredProjectPath(
             sourceProjectPath,
-            message: "A valid local project path is required."
+            message: L10n.string("A valid local project path is required.")
         )
         let trimmedBaseBranch = baseBranch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedBaseBranch.isEmpty else {

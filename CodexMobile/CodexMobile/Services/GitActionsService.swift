@@ -298,7 +298,7 @@ final class GitActionsService {
         guard let workingDirectory else {
             throw GitActionsError.bridgeError(
                 code: "missing_working_directory",
-                message: "The selected local folder is not available on this device."
+                message: L10n.string("The selected local folder is not available on this device.")
             )
         }
 

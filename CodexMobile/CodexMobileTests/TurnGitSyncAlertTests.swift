@@ -9,69 +9,61 @@ import XCTest
 
 @MainActor
 final class TurnGitSyncAlertTests: XCTestCase {
-    func testBehindOnlyOffersSafeRemoteUpdate() {
+    private static var retainedServices: [CodexService] = []
+
+    func testCheckingRemoteStateDoesNotPullBeforeConfirmation() async {
+        let viewModel = TurnViewModel()
+        let defaults = UserDefaults(suiteName: "GitSyncAlertTests.\(UUID().uuidString)")!
+        let service = CodexService(defaults: defaults)
+        Self.retainedServices.append(service)
+        service.isConnected = true
+        service.isInitialized = true
+        var methods: [String] = []
+        service.requestTransportOverride = { method, _ in
+            methods.append(method)
+            return RPCMessage(id: .string(UUID().uuidString), result: .object(["state": .string("behind_only"), "branch": .string("feature/test"), "behind": .integer(2)]), includeJSONRPC: false)
+        }
+        viewModel.triggerGitAction(.syncNow, codex: service, workingDirectory: "/fixture/repo", threadID: "fixture", activeTurnID: nil)
+        let deadline = Date().addingTimeInterval(2)
+        while viewModel.isRunningGitAction && Date() < deadline { await Task.yield() }
+        XCTAssertFalse(viewModel.isRunningGitAction)
+        XCTAssertEqual(methods, ["git/status"])
+        XCTAssertEqual(viewModel.gitSyncAlert?.buttons.map(\.action), [.dismissOnly, .pullRebase])
+    }
+
+    func testBehindOnlyOffersSafeRemoteUpdate() throws {
         let viewModel = TurnViewModel()
 
-        let alert = viewModel.makeGitSyncAlert(
-            for: GitRepoSyncResult(
-                currentBranch: "feature/sync",
-                trackingBranch: "origin/feature/sync",
-                isDirty: false,
-                aheadCount: 0,
-                behindCount: 2,
-                state: "behind_only",
-                actionTaken: "none",
-                canPush: false,
-                lastFetchAt: nil
-            )
-        )
+        let alert = try XCTUnwrap(viewModel.makeGitSyncAlert(
+            for: GitRepoSyncResult(from: ["branch": .string("feature/sync"), "tracking": .string("origin/feature/sync"), "dirty": .bool(false), "ahead": .integer(0), "behind": .integer(2), "state": .string("behind_only"), "canPush": .bool(false)])
+        ))
 
         XCTAssertEqual(alert.title, "Remote Update Available")
-        XCTAssertEqual(alert.confirmTitle, "Update Now")
-        XCTAssertEqual(alert.action, .update(confirmStrategy: .none))
+        XCTAssertEqual(alert.buttons.first(where: { $0.action != .dismissOnly })?.title, "Update Now")
+        XCTAssertEqual(alert.buttons.map(\.action), [.dismissOnly, .pullRebase])
     }
 
-    func testDivergedOffersConfirmedPullRebase() {
+    func testDivergedOffersConfirmedPullRebase() throws {
         let viewModel = TurnViewModel()
 
-        let alert = viewModel.makeGitSyncAlert(
-            for: GitRepoSyncResult(
-                currentBranch: "feature/rebase",
-                trackingBranch: "origin/feature/rebase",
-                isDirty: false,
-                aheadCount: 1,
-                behindCount: 1,
-                state: "diverged",
-                actionTaken: "none",
-                canPush: false,
-                lastFetchAt: nil
-            )
-        )
+        let alert = try XCTUnwrap(viewModel.makeGitSyncAlert(
+            for: GitRepoSyncResult(from: ["branch": .string("feature/rebase"), "tracking": .string("origin/feature/rebase"), "dirty": .bool(false), "ahead": .integer(1), "behind": .integer(1), "state": .string("diverged"), "canPush": .bool(false)])
+        ))
 
         XCTAssertEqual(alert.title, "Remote History Diverged")
-        XCTAssertEqual(alert.confirmTitle, "Try Update")
-        XCTAssertEqual(alert.action, .update(confirmStrategy: .rebaseIfDiverged))
+        XCTAssertEqual(alert.buttons.first(where: { $0.action != .dismissOnly })?.title, "Try Update")
+        XCTAssertEqual(alert.buttons.map(\.action), [.dismissOnly, .pullRebase])
     }
 
-    func testDirtyAndBehindStaysInformationalOnly() {
+    func testDirtyAndBehindStaysInformationalOnly() throws {
         let viewModel = TurnViewModel()
 
-        let alert = viewModel.makeGitSyncAlert(
-            for: GitRepoSyncResult(
-                currentBranch: "feature/dirty",
-                trackingBranch: "origin/feature/dirty",
-                isDirty: true,
-                aheadCount: 0,
-                behindCount: 3,
-                state: "dirty_and_behind",
-                actionTaken: "blocked",
-                canPush: false,
-                lastFetchAt: nil
-            )
-        )
+        let alert = try XCTUnwrap(viewModel.makeGitSyncAlert(
+            for: GitRepoSyncResult(from: ["branch": .string("feature/dirty"), "tracking": .string("origin/feature/dirty"), "dirty": .bool(true), "ahead": .integer(0), "behind": .integer(3), "state": .string("dirty_and_behind"), "canPush": .bool(false)])
+        ))
 
         XCTAssertEqual(alert.title, "Local Changes + Remote Update")
-        XCTAssertNil(alert.confirmTitle)
-        XCTAssertEqual(alert.action, .dismissOnly)
+        XCTAssertNil(alert.buttons.first(where: { $0.action != .dismissOnly })?.title)
+        XCTAssertEqual(alert.buttons.map(\.action), [.dismissOnly])
     }
 }

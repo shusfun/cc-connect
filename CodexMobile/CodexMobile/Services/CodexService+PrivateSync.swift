@@ -69,23 +69,23 @@ extension CodexService {
               let revision = syncRevision(result["revision"]),
               let upsertValues = result["upserts"]?.arrayValue,
               let tombstoneValues = result["tombstones"]?.arrayValue else {
-            throw CodexServiceError.invalidResponse("sync/catalog 返回了无效响应。")
+            throw CodexServiceError.invalidResponse(L10n.string("sync/catalog 返回了无效响应。"))
         }
         guard revision >= state.revision else {
             throw CodexServiceError.invalidResponse(
-                "sync/catalog revision 回退：本地为 \(state.revision)，远端为 \(revision)。"
+                L10n.format("sync/catalog revision 回退：本地为 %@，远端为 %@。", String(state.revision), String(revision))
             )
         }
 
         let decodedUpserts = upsertValues.compactMap { decodeModel(CodexThread.self, from: $0) }
         guard decodedUpserts.count == upsertValues.count else {
-            throw CodexServiceError.invalidResponse("sync/catalog 包含无法解析的任务。")
+            throw CodexServiceError.invalidResponse(L10n.string("sync/catalog 包含无法解析的任务。"))
         }
         let tombstoneIDs = try tombstoneValues.map { value -> String in
             guard let threadID = value.objectValue?["threadId"]?.stringValue?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
                   !threadID.isEmpty else {
-                throw CodexServiceError.invalidResponse("sync/catalog 包含无效 tombstone。")
+                throw CodexServiceError.invalidResponse(L10n.string("sync/catalog 包含无效 tombstone。"))
             }
             return threadID
         }
@@ -143,11 +143,11 @@ extension CodexService {
         guard let result = response.result?.objectValue,
               let revision = syncRevision(result["revision"]),
               let events = result["events"]?.arrayValue else {
-            throw CodexServiceError.invalidResponse("sync/thread/read 返回了无效响应。")
+            throw CodexServiceError.invalidResponse(L10n.string("sync/thread/read 返回了无效响应。"))
         }
         guard revision >= state.revision else {
             throw CodexServiceError.invalidResponse(
-                "sync/thread/read revision 回退：本地为 \(state.revision)，远端为 \(revision)。"
+                L10n.format("sync/thread/read revision 回退：本地为 %@，远端为 %@。", String(state.revision), String(revision))
             )
         }
 
@@ -161,7 +161,7 @@ extension CodexService {
             guard let event = eventValue.objectValue,
                   let method = event["method"]?.stringValue,
                   !method.isEmpty else {
-                throw CodexServiceError.invalidResponse("sync/thread/read 包含无效事件。")
+                throw CodexServiceError.invalidResponse(L10n.string("sync/thread/read 包含无效事件。"))
             }
             handleNotification(method: normalizedIncomingMethodName(method), params: event["params"])
         }
@@ -196,7 +196,7 @@ extension CodexService {
         guard let result = response.result?.objectValue,
               let revision = syncRevision(result["revision"]),
               revision >= expectedRevision else {
-            throw CodexServiceError.invalidResponse("sync/thread/reset 返回了无效 revision。")
+            throw CodexServiceError.invalidResponse(L10n.string("sync/thread/reset 返回了无效 revision。"))
         }
 
         var threadObject = result["thread"]?.objectValue ?? ["id": .string(threadId)]

@@ -22,7 +22,7 @@ extension CodexService {
 
         presentTurnPaginationUpgradePrompt()
         throw CodexServiceError.invalidInput(
-            "Mac 上的 Codex 版本过旧。Remodex 当前要求 codex-cli 0.147.0 或更高版本。"
+            L10n.string("Mac 上的 Codex 版本过旧。Remodex 当前要求 codex-cli 0.147.0 或更高版本。")
         )
     }
 

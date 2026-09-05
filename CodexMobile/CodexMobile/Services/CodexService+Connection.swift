@@ -398,7 +398,7 @@ extension CodexService {
         }
 
         bridgeUpdatePrompt = CodexBridgeUpdatePrompt(
-            title: "Update Remodex on your iPhone to reconnect",
+            title: L10n.string("Update Remodex on your iPhone to reconnect"),
             message: promptMessage,
             command: nil
         )

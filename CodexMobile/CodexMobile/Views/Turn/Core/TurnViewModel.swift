@@ -3222,18 +3222,7 @@ final class TurnViewModel {
                 case .syncNow:
                     let result = try await gitService.status()
                     applyGitRepoSync(result)
-                    if result.state == "behind_only" {
-                        let pullResult = try await gitService.pull()
-                        if let status = pullResult.status {
-                            applyGitRepoSync(status)
-                        }
-                    } else if result.state == "dirty_and_behind" {
-                        gitSyncAlert = TurnGitSyncAlert(
-                            title: L10n.string("Local changes need attention"),
-                            message: L10n.string("You have local changes and the remote branch moved ahead. Pull with rebase only if you're ready to reconcile those changes."),
-                            action: .pullRebase
-                        )
-                    }
+                    gitSyncAlert = makeGitSyncAlert(for: result)
 
                 case .commit:
                     let result = try await runStackedGitAction(

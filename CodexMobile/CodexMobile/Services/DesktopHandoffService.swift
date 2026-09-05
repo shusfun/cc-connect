@@ -46,7 +46,7 @@ final class DesktopHandoffService {
         guard !trimmedThreadID.isEmpty else {
             throw DesktopHandoffError.bridgeError(
                 code: "missing_thread_id",
-                message: "This chat does not have a valid thread id yet."
+                message: L10n.string("This chat does not have a valid thread id yet.")
             )
         }
 
@@ -83,14 +83,14 @@ final class DesktopHandoffService {
         guard codex.canWakePreferredMacDisplay else {
             throw DesktopHandoffError.bridgeError(
                 code: "saved_pair_required",
-                message: "Reconnect to your paired device first."
+                message: L10n.string("Reconnect to your paired device first.")
             )
         }
 
         guard let reconnectURL = try await preferredReconnectURLForWake() else {
             throw DesktopHandoffError.bridgeError(
                 code: "saved_pair_required",
-                message: "Reconnect to your paired device or scan a new QR code first."
+                message: L10n.string("Reconnect to your paired device or scan a new QR code first.")
             )
         }
 

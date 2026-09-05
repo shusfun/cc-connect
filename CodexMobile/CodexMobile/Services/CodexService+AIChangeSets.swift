@@ -84,55 +84,55 @@ extension CodexService {
         case .ready:
             if !hasWorkingDirectory {
                 return AssistantRevertPresentation(
-                    title: "Cannot undo",
+                    title: L10n.string("Cannot undo"),
                     isEnabled: false,
-                    helperText: "The selected local folder is not available on this device.",
+                    helperText: L10n.string("The selected local folder is not available on this device."),
                     riskLevel: .blocked
                 )
             }
             // Keep undo blocked while the repo is still live so preview/apply cannot race new writes.
             if repoBusy {
                 return AssistantRevertPresentation(
-                    title: "Cannot undo",
+                    title: L10n.string("Cannot undo"),
                     isEnabled: false,
-                    helperText: "Finish the active run in this repo before undoing this response.",
+                    helperText: L10n.string("Finish the active run in this repo before undoing this response."),
                     riskLevel: .blocked
                 )
             }
             if overlapAnalysis.hasOverlap {
                 let warningText = L10n.format("Other chats also changed %@ of these file%@.", String(describing: overlapAnalysis.overlappingFiles.count), String(describing: overlapAnalysis.overlappingFiles.count == 1 ? "" : "s"))
                 return AssistantRevertPresentation(
-                    title: "Undo changes",
+                    title: L10n.string("Undo changes"),
                     isEnabled: true,
-                    helperText: "Review overlapping files before undoing this response.",
+                    helperText: L10n.string("Review overlapping files before undoing this response."),
                     riskLevel: .warning,
                     warningText: warningText,
                     overlappingFiles: overlapAnalysis.overlappingFiles
                 )
             }
             return AssistantRevertPresentation(
-                title: "Undo changes",
+                title: L10n.string("Undo changes"),
                 isEnabled: true,
-                helperText: "Only changes from this response will be reverted unless later edits overlap.",
+                helperText: L10n.string("Only changes from this response will be reverted unless later edits overlap."),
                 riskLevel: .safe
             )
         case .collecting:
             return AssistantRevertPresentation(
-                title: "Undo changes",
+                title: L10n.string("Undo changes"),
                 isEnabled: false,
-                helperText: "This response is still collecting its final patch.",
+                helperText: L10n.string("This response is still collecting its final patch."),
                 riskLevel: .blocked
             )
         case .reverted:
             return AssistantRevertPresentation(
-                title: "Already undone",
+                title: L10n.string("Already undone"),
                 isEnabled: false,
                 helperText: nil,
                 riskLevel: .blocked
             )
         case .failed, .notRevertable:
             return AssistantRevertPresentation(
-                title: "Cannot undo",
+                title: L10n.string("Cannot undo"),
                 isEnabled: false,
                 helperText: changeSet.unsupportedReasons.first,
                 riskLevel: .blocked
@@ -173,7 +173,7 @@ extension CodexService {
         do {
             let response = try await sendRequest(method: request.previewMethod, params: request.params)
             guard let result = response.result?.objectValue else {
-                throw AIChangeSetError.bridgeError(code: nil, message: "Invalid response from bridge.")
+                throw AIChangeSetError.bridgeError(code: nil, message: L10n.string("Invalid response from bridge."))
             }
             return RevertPreviewResult(from: result)
         } catch let error as CodexServiceError {
@@ -197,7 +197,7 @@ extension CodexService {
         do {
             let response = try await sendRequest(method: request.applyMethod, params: request.params)
             guard let result = response.result?.objectValue else {
-                throw AIChangeSetError.bridgeError(code: nil, message: "Invalid response from bridge.")
+                throw AIChangeSetError.bridgeError(code: nil, message: L10n.string("Invalid response from bridge."))
             }
 
             let applyResult = RevertApplyResult(from: result)
