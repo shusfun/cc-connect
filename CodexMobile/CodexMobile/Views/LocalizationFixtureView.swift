@@ -4,7 +4,6 @@ import SwiftUI
 /// 仅测试启动参数可达，使用实际页面；不连接 Relay，不审批或下载模型。
 struct LocalizationFixtureView: View {
     @Environment(CodexService.self) private var codex
-    @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.system.rawValue
     @State private var draft = "User draft / 用户草稿"
     private var route: String { UserDefaults.standard.string(forKey: "FixtureRoute") ?? "settings" }
     private var device: CodexPairingQRPayload {
@@ -20,6 +19,7 @@ struct LocalizationFixtureView: View {
                 case "devices": MyDevicesSettingsSheet(isSwitchingMac: false, switchingDeviceId: nil, switchNotice: nil, onSelectDevice: { _ in }, onForgetDevice: { _ in }, onAddConnection: {}, onPairWithCode: {}, onCancelSwitch: {})
                 case "chat": TurnTimelineRunningEmptyState()
                 case "loading": TurnTimelineLoadingOverlay()
+                case "approval": ApprovalBanner(request: .init(id: "fixture-approval", requestID: .string("fixture-request"), method: "item/commandExecution/requestApproval", command: "git status --short", reason: nil, threadId: "fixture", turnId: "fixture-turn", params: nil), isLoading: false, onApprove: {}, onDecline: {})
                 case "questions": StructuredUserInputCardView(questions: [.init(id: "fixture-question", header: "User question", question: "Preserve original question / 保留问题原文", isOther: true, isSecret: false, options: [])], isSubmitting: false, hasSubmittedResponse: false, isInteractionLocked: false, onSelectOption: { _, _ in }, secondaryActionTitle: nil, onSecondaryAction: nil, onSubmit: { _ in })
                 case "git": AssistantRevertSheet(state: .init(changeSet: .init(threadId: "fixture", turnId: "fixture-turn", source: .turnDiff), presentation: .init(title: L10n.string("Cannot undo"), isEnabled: false, helperText: nil, riskLevel: .blocked), preview: nil, isLoadingPreview: true, isApplying: false, errorMessage: nil), onClose: {}, onConfirm: {})
                 case "errors": VStack(spacing: 20) {
@@ -35,10 +35,6 @@ struct LocalizationFixtureView: View {
                     Text(verbatim: "TEST FIXTURE — NOT A LIVE CONNECTION").font(.caption2)
                     TextField("Draft", text: $draft).accessibilityIdentifier("fixture.draft")
                     Text(verbatim: String(describing: ObjectIdentifier(codex))).accessibilityIdentifier("fixture.service")
-                    HStack {
-                        Button("简体中文") { language = AppLanguage.simplifiedChinese.rawValue }.accessibilityIdentifier("fixture.zh")
-                        Button("English") { language = AppLanguage.english.rawValue }.accessibilityIdentifier("fixture.en")
-                    }
                 }.padding(8).background(.regularMaterial)
             }
         }

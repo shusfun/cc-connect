@@ -86,11 +86,13 @@ jobs:
         with: { node-version-file: .node-version }
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - uses: actions/download-artifact@v5
+      # archive:false 使用实际文件名作为制品名；IPA 本身是 ZIP，不得自动解包。
+      - uses: actions/download-artifact@v8
         with:
-          pattern: remodex-*
+          pattern: Remodex-*
           path: build/release-clients
           merge-multiple: true
+          skip-decompress: true
       - name: Build signed publication unit
         if: needs.contracts.outputs.prerelease == 'false'
         env:

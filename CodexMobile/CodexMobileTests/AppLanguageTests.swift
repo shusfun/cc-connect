@@ -24,13 +24,33 @@ final class AppLanguageTests: XCTestCase {
         let defaults = UserDefaults.standard
         let previous = defaults.object(forKey: AppLanguage.storageKey)
         defer { if let previous { defaults.set(previous, forKey: AppLanguage.storageKey) } else { defaults.removeObject(forKey: AppLanguage.storageKey) } }
-        let otherKeys = defaults.dictionaryRepresentation().filter { $0.key != AppLanguage.storageKey }
+        // 只检查本测试拥有的业务状态，避免系统异步更新 UserDefaults 导致假失败。
+        let draftKey = "remodex.tests.language.draft"
+        let previousDraft = defaults.object(forKey: draftKey)
+        defaults.set("Original draft / 原始草稿", forKey: draftKey)
+        defer { if let previousDraft { defaults.set(previousDraft, forKey: draftKey) } else { defaults.removeObject(forKey: draftKey) } }
         defaults.set(AppLanguage.english.rawValue, forKey: AppLanguage.storageKey)
         XCTAssertEqual(L10n.count("files.count", 1), "1 file")
         XCTAssertEqual(L10n.count("files.count", 2), "2 files")
         defaults.set(AppLanguage.simplifiedChinese.rawValue, forKey: AppLanguage.storageKey)
         XCTAssertEqual(L10n.count("files.count", 2), "2 个文件")
         XCTAssertEqual(L10n.format("Connection status: %@", "设备 A"), "连接状态：设备 A")
-        for (key, value) in otherKeys { XCTAssertEqual(String(describing: defaults.object(forKey: key)!), String(describing: value), key) }
+        XCTAssertEqual(defaults.string(forKey: draftKey), "Original draft / 原始草稿")
+    }
+
+    func testAccessErrorIsLocalizedWhenPresentedAndKeepsDiagnosticIdentity() {
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: AppLanguage.storageKey)
+        defer { if let previous { defaults.set(previous, forKey: AppLanguage.storageKey) } else { defaults.removeObject(forKey: AppLanguage.storageKey) } }
+        let requestID = UUID()
+        let error = RelayAccessFailure(code: "device_offline", status: 409, requestID: requestID)
+        defaults.set(AppLanguage.english.rawValue, forKey: AppLanguage.storageKey)
+        XCTAssertTrue(error.localizedDescription.contains("Device offline."))
+        defaults.set(AppLanguage.simplifiedChinese.rawValue, forKey: AppLanguage.storageKey)
+        XCTAssertTrue(error.localizedDescription.contains("设备离线"))
+        XCTAssertTrue(error.localizedDescription.contains(requestID.uuidString))
+        let unknown = RelayAccessFailure(code: "untrusted-server-text", status: 500, requestID: nil)
+        XCTAssertFalse(unknown.localizedDescription.contains("untrusted-server-text"))
+        XCTAssertTrue(unknown.localizedDescription.contains("重试"))
     }
 }

@@ -144,7 +144,7 @@ struct VoiceModelSetupSheet: View {
         }
     }
 
-    private func primaryButton(title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
+    private func primaryButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
                 .frame(maxWidth: .infinity, minHeight: 44)
@@ -152,7 +152,7 @@ struct VoiceModelSetupSheet: View {
         .buttonStyle(.borderedProminent)
     }
 
-    private func progressLine(title: LocalizedStringKey, fraction: Double?) -> some View {
+    private func progressLine(title: String, fraction: Double?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(AppFont.subheadline(weight: .medium))
@@ -167,7 +167,7 @@ struct VoiceModelSetupSheet: View {
         }
     }
 
-    private func detailRow(title: LocalizedStringKey, value: String) -> some View {
+    private func detailRow(title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .foregroundStyle(.secondary)

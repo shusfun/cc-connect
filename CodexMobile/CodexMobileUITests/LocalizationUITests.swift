@@ -16,6 +16,7 @@ final class LocalizationUITests: XCTestCase {
             ("devices", "No paired devices yet.", "尚未配对任何设备。"),
             ("chat", "Working on it...", "正在处理…"),
             ("loading", "Loading chat...", "正在加载任务…"),
+            ("approval", "Approval request", "审批请求"),
             ("questions", "Questions", "问题"),
             ("git", "Checking whether the reverse patch applies cleanly...", "正在检查反向补丁能否无冲突应用…"),
             ("voice", "On-device offline voice", "设备端离线语音"),
@@ -35,11 +36,14 @@ final class LocalizationUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
         let identity = app.staticTexts["fixture.service"].label
         let draft = app.textFields["fixture.draft"].value as? String
-        app.buttons["fixture.zh"].tap()
+        // 从真实设置 Picker 切换，不用测试专用按钮绕过生产交互。
+        app.buttons["settings.language"].tap()
+        app.buttons["简体中文"].tap()
         XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["fixture.service"].label, identity)
         XCTAssertEqual(app.textFields["fixture.draft"].value as? String, draft)
-        app.buttons["fixture.en"].tap()
+        app.buttons["settings.language"].tap()
+        app.buttons["English"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["fixture.service"].label, identity)
     }
