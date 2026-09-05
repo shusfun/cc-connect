@@ -53,6 +53,14 @@ jobs:
             test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM="" \
             2>&1 | tee "$RUNNER_TEMP/remodex-ios-tests.log"
 
+      - name: Export simulator screenshots and test summary
+        if: always()
+        run: |
+          if [[ -d "$RUNNER_TEMP/remodex-ios-tests.xcresult" ]]; then
+            xcrun xcresulttool export attachments --path "$RUNNER_TEMP/remodex-ios-tests.xcresult" --output-path "$RUNNER_TEMP/remodex-ios-screenshots"
+            xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/remodex-ios-tests.xcresult" > "$RUNNER_TEMP/remodex-ios-summary.json"
+          fi
+
       - name: Upload simulator evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -61,6 +69,8 @@ jobs:
           path: |
             ${{ runner.temp }}/remodex-ios-tests.xcresult
             ${{ runner.temp }}/remodex-ios-tests.log
+            ${{ runner.temp }}/remodex-ios-screenshots
+            ${{ runner.temp }}/remodex-ios-summary.json
           if-no-files-found: warn
 
       - name: Build unsigned IPA
