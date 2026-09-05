@@ -13,7 +13,7 @@ jobs:
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/build/macos/${{ matrix.arch }}"; rm -rf "$out"; mkdir -p "$out/dmg-root"
-          xcodebuild -quiet -project CodexMobile/CodexMobile.xcodeproj -scheme RemodexMenuBar -configuration Release -destination 'generic/platform=macOS' -archivePath "$out/Remodex.xcarchive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
+          xcodebuild -quiet -project CodexMobile/CodexMobile.xcodeproj -scheme RemodexMenuBar -configuration Debug -destination 'generic/platform=macOS' -archivePath "$out/Remodex.xcarchive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
           app="$(find "$out/Remodex.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"; test -n "$app"; ditto "$app" "$out/dmg-root/Remodex.app"
           ln -s /Applications "$out/dmg-root/拖到应用程序安装"; printf '将 Remodex.app 拖到“拖到应用程序安装”即可。\n' > "$out/dmg-root/安装说明.txt"
           hdiutil create -volname Remodex -srcfolder "$out/dmg-root" -ov -format UDZO "$out/Remodex-${{ matrix.arch }}.dmg"
