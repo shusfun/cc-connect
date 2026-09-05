@@ -367,7 +367,7 @@ extension CodexService {
 
     private func checkpointResultObject(from response: RPCMessage) throws -> RPCObject {
         guard let result = response.result?.objectValue else {
-            throw CodexServiceError.invalidResponse("Workspace checkpoint response was missing a result.")
+            throw CodexServiceError.invalidResponse(L10n.string("Workspace checkpoint response was missing a result."))
         }
         return result
     }

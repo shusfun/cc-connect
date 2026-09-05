@@ -58,17 +58,17 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
     var statusLabel: String {
         switch status {
         case .unknown:
-            return "Unknown"
+            return L10n.string("Unknown")
         case .unavailable:
-            return "Unavailable"
+            return L10n.string("Unavailable")
         case .notLoggedIn:
-            return "Not logged in"
+            return L10n.string("Not logged in")
         case .loginPending:
-            return "Login pending"
+            return L10n.string("Login pending")
         case .authenticated:
-            return needsReauth ? "Needs reauth" : "Authenticated"
+            return needsReauth ? L10n.string("Needs reauth") : L10n.string("Authenticated")
         case .expired:
-            return "Expired"
+            return L10n.string("Expired")
         }
     }
 
@@ -108,11 +108,11 @@ enum CodexBridgeHostPlatform: String, Codable, Sendable {
     var displayName: String {
         switch self {
         case .macOS:
-            return "Device"
+            return L10n.string("Device")
         case .linux:
-            return "Linux device"
+            return L10n.string("Linux device")
         case .windows:
-            return "Windows device"
+            return L10n.string("Windows device")
         case .unknown:
             return "device"
         }
@@ -819,10 +819,10 @@ extension CodexService {
         if let currentVersion = currentVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
            !currentVersion.isEmpty {
             message =
-                "Mac 上的 Remodex.app 内置 Bridge 版本为 \(currentVersion)，iPhone 端要求 \(CodexService.minimumSupportedBridgePackageVersion) 或更高版本。请更新 Mac App 后重新连接。"
+                L10n.format("Mac 上的 Remodex.app 内置 Bridge 版本为 %@，iPhone 端要求 %@ 或更高版本。请更新 Mac App 后重新连接。", String(describing: currentVersion), String(describing: CodexService.minimumSupportedBridgePackageVersion))
         } else {
             message =
-                "Mac 上的 Remodex.app 版本过旧。请更新到内置 Bridge \(CodexService.minimumSupportedBridgePackageVersion) 或更高版本的 Mac App 后重新连接。"
+                L10n.format("Mac 上的 Remodex.app 版本过旧。请更新到内置 Bridge %@ 或更高版本的 Mac App 后重新连接。", String(describing: CodexService.minimumSupportedBridgePackageVersion))
         }
 
         return CodexBridgeUpdatePrompt(
@@ -888,7 +888,7 @@ extension CodexService {
     ) -> CodexBridgeUpdatePrompt {
         CodexBridgeUpdatePrompt(
             title: "Mac 上有较新的 Remodex.app 可用",
-            message: "当前内置 Bridge 为 \(currentVersion)，最新版本为 \(latestVersion)。更新 Mac App 后重新连接即可使用新版本。",
+            message: L10n.format("当前内置 Bridge 为 %@，最新版本为 %@。更新 Mac App 后重新连接即可使用新版本。", String(describing: currentVersion), String(describing: latestVersion)),
             command: minimumBridgePackageUpdateCommand
         )
     }
@@ -896,7 +896,7 @@ extension CodexService {
     private func forcedBridgePackageUpdatePrompt(currentVersion: String) -> CodexBridgeUpdatePrompt {
         CodexBridgeUpdatePrompt(
             title: "请更新 Mac 上的 Remodex.app",
-            message: "当前内置 Bridge 为 \(currentVersion)。请更新到内置 Bridge \(forcedBridgeUpgradeTargetVersion) 的 Mac App 后重新连接。",
+            message: L10n.format("当前内置 Bridge 为 %@。请更新到内置 Bridge %@ 的 Mac App 后重新连接。", String(describing: currentVersion), String(describing: forcedBridgeUpgradeTargetVersion)),
             command: forcedBridgeUpgradeCommand
         )
     }

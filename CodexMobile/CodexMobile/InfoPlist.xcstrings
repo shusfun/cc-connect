@@ -1,0 +1,41 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSCameraUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Remodex uses the camera to scan device pairing codes and attach photos to your messages."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "Remodex 使用相机扫描设备配对二维码，并拍摄照片作为消息附件。"}}
+      }
+    },
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Remodex uses your local network to connect to your development devices."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "Remodex 使用本地网络连接你的开发设备。"}}
+      }
+    },
+    "NSMicrophoneUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Remodex uses the microphone for offline speech transcription on this iPhone. Audio is not sent to a server."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "Remodex 使用麦克风在此 iPhone 上离线转写语音，音频不会发送到服务器。"}}
+      }
+    },
+    "NSPhotoLibraryUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Remodex accesses photos you choose to attach to your messages."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "Remodex 访问你选择的照片，以添加消息附件。"}}
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Remodex saves diagrams and attachments to Photos when you choose to save them."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "当你选择保存时，Remodex 将图表和附件存入照片图库。"}}
+      }
+    }
+  },
+  "version": "1.0"
+}

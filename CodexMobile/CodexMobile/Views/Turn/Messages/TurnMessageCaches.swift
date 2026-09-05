@@ -431,7 +431,7 @@ enum FileChangeGroupingCache {
             var order: [String] = []
             var dict: [String: [TurnFileChangeSummaryEntry]] = [:]
             for entry in entries {
-                let groupKey = entry.action?.rawValue ?? "Edited"
+                let groupKey = entry.action?.rawValue ?? L10n.string("Edited")
                 if dict[groupKey] == nil { order.append(groupKey) }
                 dict[groupKey, default: []].append(entry)
             }

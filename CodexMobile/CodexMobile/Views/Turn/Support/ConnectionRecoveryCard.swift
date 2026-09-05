@@ -15,13 +15,13 @@ enum ConnectionRecoveryStatus: Equatable {
     var label: String {
         switch self {
         case .interrupted:
-            return "Interrupted"
+            return L10n.string("Interrupted")
         case .reconnecting:
-            return "Reconnecting"
+            return L10n.string("Reconnecting")
         case .actionRequired:
-            return "Action Needed"
+            return L10n.string("Action Needed")
         case .syncing:
-            return "Syncing"
+            return L10n.string("Syncing")
         }
     }
 
@@ -53,7 +53,7 @@ struct ConnectionRecoverySnapshot: Equatable {
     let trailingStyle: ConnectionRecoveryTrailingStyle
 
     init(
-        title: String = "Connection",
+        title: String = L10n.string("Connection"),
         summary: String,
         detail: String? = nil,
         status: ConnectionRecoveryStatus,
@@ -75,11 +75,14 @@ struct ConnectionRecoverySnapshot: Equatable {
 }
 
 struct ConnectionRecoveryCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let snapshot: ConnectionRecoverySnapshot
     let onTap: () -> Void
     var onDismiss: (() -> Void)? = nil
 
     var body: some View {
+        let _ = _localizationLocale
         GlassAccessoryCard(onTap: {
             guard snapshot.isActionable else { return }
             onTap()
@@ -100,7 +103,7 @@ struct ConnectionRecoveryCard: View {
         .opacity(snapshot.isActionable ? 1 : 0.94)
         .accessibilityLabel(snapshot.title)
         .accessibilityValue(snapshot.status.label)
-        .accessibilityHint(snapshot.isActionable ? "Opens the suggested recovery action" : "Shows the current recovery status")
+        .accessibilityHint(snapshot.isActionable ? L10n.string("Opens the suggested recovery action") : L10n.string("Shows the current recovery status"))
     }
 
     private var leadingMarker: some View {

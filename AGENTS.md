@@ -19,6 +19,9 @@
 - 缓存按 Relay 实例／账号／开发设备隔离，HMAC 索引、AES-GCM 正文、ThisDeviceOnly Keychain 密钥、1 GB LRU。
 - 账号须审核；设备须激活；手机须逐设备配对。一台开发设备只信任一台手机，手机一次只操作一台设备。
 - main 是唯一日常开发与发布分支；不强推、不自动删除历史分支。
+- 网页管理端使用 React、React Router、Tailwind CSS v4；静态构建随业务镜像发布。
+- 业务 Relay 不得挂 Docker Socket。独立更新执行器仅接收固定 Remodex 操作；正式 Release 签名与镜像 digest 是更新身份，检查不等于安装授权。
+- 更新提交前允许恢复冻结时备份；提交恢复业务写入后不得自动回退旧数据库。普通历史恢复撤销旧会话和设备访问凭据。
 
 ## 实施边界
 

@@ -28,7 +28,8 @@ internal sealed class DeviceForm : Form
     private readonly TextBox relay = new() { Width = 480, AccessibleName = "Relay 地址" };
     private readonly TextBox remark = new() { Width = 480, AccessibleName = "设备备注" };
     private readonly Label status = new() { AutoSize = true, MaximumSize = new Size(480, 0), Text = "未登录" };
-    private readonly PictureBox qr = new() { Width = 220, Height = 220, SizeMode = PictureBoxSizeMode.Zoom, AccessibleName = "手机配对二维码" };
+    private string? qrText;
+    private readonly PictureBox qr = new() { Width = 300, Height = 300, BackColor = Color.White, SizeMode = PictureBoxSizeMode.CenterImage, AccessibleName = "手机配对二维码" };
     private readonly FlowLayoutPanel requests = new() { Width = 480, AutoSize = true, FlowDirection = FlowDirection.TopDown };
     private JsonNode? device;
     private bool busy;
@@ -45,6 +46,8 @@ internal sealed class DeviceForm : Form
         AddButton("停止 Bridge", () => { bridge.Dispose(); status.Text = "Bridge 已停止，设备登录保留"; return Task.CompletedTask; });
         AddButton("重启并刷新二维码", () => { bridge.Dispose(); bridge.Start(access); return Task.CompletedTask; });
         layout.Controls.Add(qr); layout.Controls.Add(requests);
+        AddButton("刷新配对码", () => { bridge.RefreshPairing(); status.Text = "正在申请新配对码…"; return Task.CompletedTask; });
+        AddButton("复制配对码", () => { if (qrText is not null) Clipboard.SetText(qrText); return Task.CompletedTask; });
         var startup = new CheckBox { Text = "登录 Windows 时启动", AutoSize = true, MinimumSize = new Size(0, 44) };
         using (var registry = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) startup.Checked = registry.GetValue("Remodex") is not null;
         startup.CheckedChanged += (_, _) => { using var registry = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"); if (startup.Checked) registry.SetValue("Remodex", $"\"{Application.ExecutablePath}\""); else registry.DeleteValue("Remodex", false); };
@@ -80,14 +83,22 @@ internal sealed class DeviceForm : Form
         if (!remark.Focused) remark.Text = device["remark"]!.GetValue<string>();
         status.Text = $"已激活 · {(bridge.Running ? "Bridge 运行中" : "Bridge 已停止")}";
         var pairingFile = Path.Combine(DeviceAccess.StateDirectory, "bridge", "pairing-session.json");
+        var runtimeFile = Path.Combine(DeviceAccess.StateDirectory, "bridge", "bridge-status.json");
+        var runtime = File.Exists(runtimeFile) ? JsonNode.Parse(await File.ReadAllTextAsync(runtimeFile, lifetime.Token)) : null;
+        var connected = runtime?["connectionStatus"]?.GetValue<string>() == "connected" && runtime?["pid"]?.GetValue<int>() == bridge.ProcessId;
         if (File.Exists(pairingFile))
         {
-            var pairing = JsonNode.Parse(await File.ReadAllTextAsync(pairingFile, lifetime.Token))?["pairingPayload"];
-            if (pairing is not null)
+            var session = JsonNode.Parse(await File.ReadAllTextAsync(pairingFile, lifetime.Token));
+            var text = session?["qrText"]?.GetValue<string>();
+            var expiry = session?["pairingPayload"]?["expiresAt"]?.GetValue<long>() ?? 0;
+            if (!bridge.Running || !connected || expiry <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) { qr.Image?.Dispose(); qr.Image = null; qrText = null; }
+            else if (text is not null && text != qrText)
             {
-                var bytes = PngByteQRCodeHelper.GetQRCode(pairing.ToJsonString(), QRCodeGenerator.ECCLevel.M, 8);
+                using var data = QRCodeGenerator.GenerateQrCode(text, QRCodeGenerator.ECCLevel.M);
+                using var generator = new PngByteQRCode(data);
+                var bytes = generator.GetGraphic(Math.Max(1, 300 / data.ModuleMatrix.Count));
                 using var stream = new MemoryStream(bytes); using var image = Image.FromStream(stream);
-                var previous = qr.Image; qr.Image = new Bitmap(image); previous?.Dispose();
+                var previous = qr.Image; qr.Image = new Bitmap(image); previous?.Dispose(); qrText = text;
             }
         }
         requests.Controls.Clear();

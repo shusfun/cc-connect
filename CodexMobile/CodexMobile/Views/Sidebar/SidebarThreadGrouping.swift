@@ -22,9 +22,9 @@ enum SidebarContentScope: String, CaseIterable, Hashable, Identifiable {
     var title: String {
         switch self {
         case .projects:
-            return "Projects"
+            return L10n.string("Projects")
         case .chats:
-            return "Chats"
+            return L10n.string("Chats")
         }
     }
 }
@@ -86,7 +86,7 @@ enum SidebarThreadGrouping {
             groups.append(
                 SidebarThreadGroup(
                     id: "pinned",
-                    label: "Pinned",
+                    label: L10n.string("Pinned"),
                     kind: .pinned,
                     sortDate: firstPinned.updatedAt ?? firstPinned.createdAt ?? .distantPast,
                     projectPath: nil,
@@ -252,7 +252,7 @@ enum SidebarThreadGrouping {
 
         return SidebarThreadGroup(
             id: "chats:rootless",
-            label: "Chats",
+            label: L10n.string("Chats"),
             kind: .chat,
             sortDate: liveThreads
                 .compactMap { $0.updatedAt ?? $0.createdAt }

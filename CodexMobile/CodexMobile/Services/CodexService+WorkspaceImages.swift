@@ -91,7 +91,7 @@ extension CodexService {
 
         let response = try await sendRequest(method: "workspace/readFile", params: .object(params))
         guard let result = response.result?.objectValue else {
-            throw CodexServiceError.invalidResponse("File preview response was missing a result.")
+            throw CodexServiceError.invalidResponse(L10n.string("File preview response was missing a result."))
         }
         let metadata = parseWorkspaceTextFileMetadata(result: result, fallbackPath: path)
         if result["notModified"]?.boolValue == true {
@@ -108,7 +108,7 @@ extension CodexService {
         }
 
         guard let content = result["content"]?.stringValue else {
-            throw CodexServiceError.invalidResponse("File preview response did not include file content.")
+            throw CodexServiceError.invalidResponse(L10n.string("File preview response did not include file content."))
         }
         return WorkspaceTextFileReadResult(
             path: metadata.path,
@@ -150,7 +150,7 @@ extension CodexService {
         }
 
         guard let dataBase64 = result["dataBase64"]?.stringValue else {
-            throw CodexServiceError.invalidResponse("Image preview response did not include image data.")
+            throw CodexServiceError.invalidResponse(L10n.string("Image preview response did not include image data."))
         }
         let data = try await WorkspaceImageBase64Decoder.decode(dataBase64)
 
@@ -195,7 +195,7 @@ extension CodexService {
 
         let response = try await sendRequest(method: "workspace/readImage", params: .object(params))
         guard let result = response.result?.objectValue else {
-            throw CodexServiceError.invalidResponse("Image preview response was missing a result.")
+            throw CodexServiceError.invalidResponse(L10n.string("Image preview response was missing a result."))
         }
         return result
     }
@@ -226,7 +226,7 @@ private enum WorkspaceImageBase64Decoder {
     static func decode(_ dataBase64: String) async throws -> Data {
         try await Task.detached(priority: .userInitiated) {
             guard let data = Data(base64Encoded: dataBase64) else {
-                throw CodexServiceError.invalidResponse("Image preview response did not include valid image data.")
+                throw CodexServiceError.invalidResponse(L10n.string("Image preview response did not include valid image data."))
             }
             return data
         }.value

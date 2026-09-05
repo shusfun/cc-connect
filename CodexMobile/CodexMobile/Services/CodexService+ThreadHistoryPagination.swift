@@ -148,7 +148,7 @@ extension CodexService {
         _ = limit
         _ = requireCanonical
         guard let cursor, cursorHasValue(cursor) else {
-            throw CodexServiceError.invalidInput("首次任务历史必须通过 sync/thread/reset 加载。")
+            throw CodexServiceError.invalidInput(L10n.string("首次任务历史必须通过 sync/thread/reset 加载。"))
         }
         let params: RPCObject = [
             "threadId": .string(threadId),

@@ -9,6 +9,7 @@ internal sealed class BridgeOwner : IDisposable
     private Process? process;
     private IntPtr job;
     public bool Running => process is { HasExited: false };
+    public int? ProcessId => Running ? process!.Id : null;
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr CreateJobObject(IntPtr attributes, string? name);
     [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref ExtendedLimits info, uint length);
     [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
@@ -42,6 +43,11 @@ internal sealed class BridgeOwner : IDisposable
             process.StandardInput.WriteLine(access.State.ToJsonString()); process.StandardInput.Flush();
         }
         catch { if (process is { HasExited: false }) process.Kill(entireProcessTree: true); Dispose(); throw; }
+    }
+    public void RefreshPairing()
+    {
+        if (!Running || process is null) throw new IOException("请先启动 Bridge。");
+        process.StandardInput.WriteLine("{\"command\":\"refresh-pairing\"}"); process.StandardInput.Flush();
     }
     public void Dispose()
     {

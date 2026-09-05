@@ -1,0 +1,113 @@
+name: Publish verified Remodex release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: remodex-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.channel.outputs.version }}
+      prerelease: ${{ steps.channel.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .node-version }
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Validate release channel and source version
+        id: channel
+        run: node packages/updater/publication-contract.js
+      - run: node CodexMobile/scripts/check-localization.cjs
+      - run: pnpm --filter @remodex/control run build
+      - run: pnpm -r test
+      - run: bash -n deploy/install.sh deploy/remodex.sh
+  desktop:
+    needs: contracts
+    uses: ./.github/workflows/build-desktop.yml
+  ios:
+    needs: contracts
+    uses: ./.github/workflows/build-unsigned-ipa.yml
+  images:
+    needs: contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      relay: ${{ steps.relay.outputs.digest }}
+      updater: ${{ steps.updater.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: relay
+        with:
+          context: .
+          file: relay/Dockerfile
+          target: relay
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/shusfun/cc-connect-relay:${{ github.ref_name }}
+          build-args: |
+            RELEASE_VERSION=${{ needs.contracts.outputs.version }}
+            SOURCE_SHA=${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        id: updater
+        with:
+          context: .
+          file: relay/Dockerfile
+          target: updater
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/shusfun/cc-connect-updater:${{ github.ref_name }}
+          build-args: |
+            RELEASE_VERSION=${{ needs.contracts.outputs.version }}
+            SOURCE_SHA=${{ github.sha }}
+  release:
+    needs: [contracts, desktop, ios, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .node-version }
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: remodex-*
+          path: build/release-clients
+          merge-multiple: true
+      - name: Build signed publication unit
+        if: needs.contracts.outputs.prerelease == 'false'
+        env:
+          RELAY_DIGEST: ${{ needs.images.outputs.relay }}
+          UPDATER_DIGEST: ${{ needs.images.outputs.updater }}
+        run: node packages/updater/publish.js
+      - name: Build isolated test publication unit
+        if: needs.contracts.outputs.prerelease == 'true'
+        env:
+          RELAY_DIGEST: ${{ needs.images.outputs.relay }}
+          UPDATER_DIGEST: ${{ needs.images.outputs.updater }}
+        run: node packages/updater/publish-prerelease.js
+      - name: Publish complete release only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ needs.contracts.outputs.prerelease }}
+        run: |
+          args=(--verify-tag --title "Remodex $GITHUB_REF_NAME" --generate-notes)
+          if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease --latest=false --notes-file Docs/PRERELEASE-NOTES.md); fi
+          gh release create "$GITHUB_REF_NAME" build/release/* "${args[@]}"

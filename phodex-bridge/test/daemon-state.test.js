@@ -47,6 +47,16 @@ test("daemon-state stores config, pairing payloads, and status under the remodex
   });
 });
 
+test("pairing state publication is atomic and preserves the old state on rename failure", () => {
+  withTempDaemonEnv(() => {
+    writePairingSession({ pairingPayload: { invitation: 'old' }, qrText: 'old' });
+    const fsImpl = { ...fs, renameSync() { throw new Error('disk_write_failed'); } };
+    assert.throws(() => writePairingSession({ pairingPayload: { invitation: 'new' }, qrText: 'new' }, { fsImpl }), /disk_write_failed/);
+    assert.equal(readPairingSession().qrText, 'old');
+    assert.equal(fs.readdirSync(resolveRemodexStateDir()).some(name => name.endsWith('.tmp')), false);
+  });
+});
+
 test("daemon-state clears stale runtime files without touching the config", () => {
   withTempDaemonEnv(() => {
     writeDaemonConfig({ relayUrl: "ws://127.0.0.1:9000/relay" });

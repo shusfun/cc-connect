@@ -763,7 +763,7 @@ final class GhosttyTerminalView: UIView, UITextFieldDelegate, UIGestureRecognize
         suggestedActions: [UIMenuElement]
     ) -> UIMenu? {
         guard !selectedTextForEditMenu.isEmpty else { return nil }
-        let copyAction = UIAction(title: "Copy", image: RemodexIcon.menuUIImage(systemName: "doc.on.doc")) { [weak self] _ in
+        let copyAction = UIAction(title: L10n.string("Copy"), image: RemodexIcon.menuUIImage(systemName: "doc.on.doc")) { [weak self] _ in
             self?.copyCurrentSelectionToPasteboard()
         }
         return AppMenuPresentation.style(UIMenu(children: [copyAction]))

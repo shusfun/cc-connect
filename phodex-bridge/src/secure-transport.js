@@ -59,8 +59,9 @@ function createBridgeSecureTransport({
   let outboundBufferBytes = 0;
   const outboundBuffer = [];
 
-  function createPairingPayload() {
-    currentPairingExpiresAt = Date.now() + MAX_PAIRING_AGE_MS;
+  function createPairingPayload({ expiresAt = Date.now() + MAX_PAIRING_AGE_MS } = {}) {
+    if (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now() || expiresAt > Date.now() + MAX_PAIRING_AGE_MS + 30000) throw new Error('invalid_pairing_expiry');
+    currentPairingExpiresAt = expiresAt;
     return {
       v: PAIRING_QR_VERSION,
       relay: relayUrl,

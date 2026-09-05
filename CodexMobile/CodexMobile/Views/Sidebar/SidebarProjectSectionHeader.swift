@@ -15,6 +15,8 @@ import SwiftUI
 import UIKit
 
 struct SidebarProjectSectionHeader: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let group: SidebarThreadGroup
     let isExpanded: Bool
     let isConnected: Bool
@@ -25,6 +27,7 @@ struct SidebarProjectSectionHeader: View {
     var onDelete: (() -> Void)? = nil
 
     var body: some View {
+        let _ = _localizationLocale
         SidebarSectionHeader(
             label: group.label,
             onToggle: onToggle,
@@ -82,7 +85,7 @@ struct SidebarProjectSectionHeader: View {
         if let onArchive {
             children.append(
                 UIAction(
-                    title: "Archive Project",
+                    title: L10n.string("Archive Project"),
                     image: RemodexIcon.menuUIImage(systemName: "archivebox")
                 ) { _ in
                     HapticFeedback.shared.triggerImpactFeedback(style: .light)
@@ -94,7 +97,7 @@ struct SidebarProjectSectionHeader: View {
         if let onDelete {
             children.append(
                 UIAction(
-                    title: "Remove from Phone",
+                    title: L10n.string("Remove from Phone"),
                     image: RemodexIcon.menuUIImage(systemName: "trash"),
                     attributes: .destructive
                 ) { _ in

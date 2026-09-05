@@ -39,7 +39,7 @@ enum MyDevicesPresentation {
 
     static func compactDisplayName(_ rawName: String) -> String {
         let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "Device" }
+        guard !trimmed.isEmpty else { return L10n.string("Device") }
 
         if trimmed.lowercased().hasSuffix(".local") {
             return String(trimmed.dropLast(6))
@@ -95,7 +95,7 @@ enum MyDevicesPresentation {
             return (systemName, nil)
         }
 
-        return ("Device", nil)
+        return (L10n.string("Device"), nil)
     }
 
     private static func statusLabel(
@@ -104,18 +104,18 @@ enum MyDevicesPresentation {
         switchingDeviceId: String?
     ) -> String {
         if trustedMac.macDeviceId == switchingDeviceId {
-            return "Switching"
+            return L10n.string("Switching")
         }
         if trustedMac.macDeviceId == codex.normalizedRelayMacDeviceId && codex.isConnected {
-            return "Connected"
+            return L10n.string("Connected")
         }
         if trustedMac.macDeviceId == codex.normalizedCurrentTrustedMacDeviceId {
-            return "Selected"
+            return L10n.string("Selected")
         }
         if trustedMac.macDeviceId == codex.normalizedPreviousTrustedMacDeviceId {
-            return "Previous"
+            return L10n.string("Previous")
         }
-        return "Saved"
+        return L10n.string("Saved")
     }
 
     private static func detailLabel(
@@ -123,10 +123,11 @@ enum MyDevicesPresentation {
         switchingDeviceId: String?
     ) -> String? {
         if trustedMac.macDeviceId == switchingDeviceId {
-            return "Reloading chats"
+            return L10n.string("Reloading chats")
         }
 
         let formatter = RelativeDateTimeFormatter()
+        formatter.locale = L10n.locale
         formatter.unitsStyle = .short
         let referenceDate = trustedMac.lastUsedAt ?? trustedMac.lastPairedAt
         return formatter.localizedString(for: referenceDate, relativeTo: Date())

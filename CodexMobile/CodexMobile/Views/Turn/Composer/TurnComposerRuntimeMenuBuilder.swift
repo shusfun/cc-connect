@@ -26,7 +26,7 @@ struct TurnComposerRuntimeMenuBuilder {
         }
 
         return UIMenu(
-            title: "Chat Runtime",
+            title: L10n.string("Chat Runtime"),
             image: RemodexIcon.menuUIImage(systemName: "slider.horizontal.3"),
             children: children
         )
@@ -48,7 +48,7 @@ struct TurnComposerRuntimeMenuBuilder {
         }
 
         return UIMenu(
-            title: "Reasoning",
+            title: L10n.string("Reasoning"),
             image: RemodexIcon.menuUIImage(systemName: "brain"),
             children: children
         )
@@ -61,7 +61,7 @@ struct TurnComposerRuntimeMenuBuilder {
 
         var children: [UIMenuElement] = [
             UIAction(
-                title: "Normal",
+                title: L10n.string("Normal"),
                 state: runtimeState.isSelectedServiceTier(nil) ? .on : .off
             ) { _ in
                 runtimeActions.selectServiceTier(nil)
@@ -81,7 +81,7 @@ struct TurnComposerRuntimeMenuBuilder {
         )
 
         return UIMenu(
-            title: "Speed",
+            title: L10n.string("Speed"),
             image: RemodexIcon.menuUIImage(systemName: "bolt.fill"),
             children: children
         )

@@ -41,12 +41,13 @@ function normalizePairingSession(pairingSessionOrPayload) {
 
 function printQR(pairingSessionOrPayload, options = {}) {
   const { pairingPayload, pairingCode } = normalizePairingSession(pairingSessionOrPayload);
-  const payload = JSON.stringify(pairingPayload);
+  const payload = require('@remodex/protocol').compactPairingCode(pairingPayload);
   const sessionId = typeof pairingPayload?.sessionId === "string" ? pairingPayload.sessionId.trim() : "";
   const sessionIdShort = sessionId.length > 12 ? `${sessionId.slice(0, 8)}…` : sessionId;
   const env = options.env || process.env;
 
   console.log("\nScan this QR with the iPhone:\n");
+  qrcode.setErrorLevel('M');
   qrcode.generate(payload, { small: true });
   if (pairingCode) {
     console.log("Or enter this pairing code in the iPhone app:\n");

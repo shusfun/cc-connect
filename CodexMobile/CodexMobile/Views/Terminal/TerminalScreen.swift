@@ -9,6 +9,8 @@ import SwiftUI
 import UIKit
 
 struct TerminalScreen: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @Environment(\.colorScheme) private var colorScheme
     @State private var draftProfile = RemodexTerminalProfileStore.load()
@@ -89,12 +91,12 @@ struct TerminalScreen: View {
             profileResolvedFromConnection.nickname,
             codex.trustedPairPresentation?.name,
             profileResolvedFromConnection.displayTarget,
-        ]) ?? "Terminal"
+        ]) ?? L10n.string("Terminal")
     }
 
     private var navigationTopLine: String {
         let trimmed = terminalHostTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Terminal" : trimmed
+        return trimmed.isEmpty ? L10n.string("Terminal") : trimmed
     }
 
     // Keep the subtitle short and stable; long cwd/user-host strings are already
@@ -104,23 +106,23 @@ struct TerminalScreen: View {
            !project.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return project
         }
-        return "Terminal"
+        return L10n.string("Terminal")
     }
 
     private var statusLabel: String {
         switch activeSnapshot.status {
         case .running:
-            return "Running"
+            return L10n.string("Running")
         case .starting:
-            return "Starting"
+            return L10n.string("Starting")
         case .error:
-            return "Error"
+            return L10n.string("Error")
         case .exited:
-            return "Exited"
+            return L10n.string("Exited")
         case .closed:
-            return "Closed"
+            return L10n.string("Closed")
         case .idle:
-            return "Idle"
+            return L10n.string("Idle")
         }
     }
 
@@ -204,6 +206,7 @@ struct TerminalScreen: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             Color(hexString: theme.background)
                 .ignoresSafeArea()
@@ -301,8 +304,8 @@ struct TerminalScreen: View {
     private var terminalRouteBody: some View {
         if !hasConnectionConfiguration {
             TerminalRouteUnavailableView(
-                title: "Terminal unavailable",
-                detail: "SSH connection and key are required before opening a shell.",
+                title: L10n.string("Terminal unavailable"),
+                detail: L10n.string("SSH connection and key are required before opening a shell."),
                 theme: theme,
                 action: showConnectionEditor
             )
@@ -658,8 +661,8 @@ struct TerminalScreen: View {
 
     private func terminalDisplayLabel(_ terminalId: String) -> String {
         let index = terminalIndex(terminalId)
-        guard index > 1 else { return "Terminal" }
-        return "Terminal \(index)"
+        guard index > 1 else { return L10n.string("Terminal") }
+        return L10n.format("Terminal %@", String(describing: index))
     }
 
     private func nextOpenTerminalId() -> String {

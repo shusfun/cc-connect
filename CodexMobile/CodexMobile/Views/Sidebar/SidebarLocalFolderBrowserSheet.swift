@@ -8,6 +8,8 @@ import Foundation
 import SwiftUI
 
 struct SidebarLocalFolderBrowserSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @Environment(\.dismiss) private var dismiss
 
@@ -38,6 +40,7 @@ struct SidebarLocalFolderBrowserSheet: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             List {
                 SidebarLocalFolderErrorSection(errorMessage: errorMessage)
@@ -123,7 +126,7 @@ struct SidebarLocalFolderBrowserSheet: View {
             if let startPath {
                 await loadDirectory(startPath)
             } else {
-                errorMessage = "No local folders are available from this device."
+                errorMessage = L10n.string("No local folders are available from this device.")
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -220,9 +223,12 @@ struct SidebarLocalFolderBrowserSheet: View {
 }
 
 private struct SidebarLocalFolderErrorSection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let errorMessage: String?
 
     var body: some View {
+        let _ = _localizationLocale
         if let errorMessage {
             Section {
                 Text(errorMessage)
@@ -235,10 +241,13 @@ private struct SidebarLocalFolderErrorSection: View {
 }
 
 private struct SidebarLocalFolderLocationsSection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let locations: [CodexProjectLocation]
     let onSelect: (String) -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         if !locations.isEmpty {
             Section("Locations") {
                 ForEach(locations) { location in
@@ -258,9 +267,12 @@ private struct SidebarLocalFolderLocationsSection: View {
 }
 
 private struct SidebarLocalFolderCurrentSection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let currentPath: String?
 
     var body: some View {
+        let _ = _localizationLocale
         Section("Current Folder") {
             if let currentPath {
                 SidebarLocalFolderRow(
@@ -279,6 +291,8 @@ private struct SidebarLocalFolderCurrentSection: View {
 }
 
 private struct SidebarLocalFolderEntriesSection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let parentPath: String?
     let entries: [CodexProjectDirectoryEntry]
     let isLoading: Bool
@@ -289,7 +303,8 @@ private struct SidebarLocalFolderEntriesSection: View {
     let onSelect: (String) -> Void
 
     var body: some View {
-        Section(searchQuery.isEmpty ? "Folders" : "Matching Folders") {
+        let _ = _localizationLocale
+        Section(searchQuery.isEmpty ? L10n.string("Folders") : L10n.string("Matching Folders")) {
             if searchQuery.isEmpty {
                 folderBrowserRows
             } else {
@@ -306,7 +321,7 @@ private struct SidebarLocalFolderEntriesSection: View {
             } label: {
                 SidebarLocalFolderRow(
                     iconSystemName: "arrow.uturn.left",
-                    title: "Parent Folder",
+                    title: L10n.string("Parent Folder"),
                     subtitle: parentPath
                 )
             }
@@ -369,11 +384,14 @@ private struct SidebarLocalFolderEntriesSection: View {
 }
 
 private struct SidebarLocalFolderRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let iconSystemName: String
     let title: String
     let subtitle: String
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(alignment: .top, spacing: 12) {
             RemodexIcon.image(systemName: iconSystemName)
                 .font(AppFont.body(weight: .medium))

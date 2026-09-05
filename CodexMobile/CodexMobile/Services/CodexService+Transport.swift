@@ -268,7 +268,7 @@ extension CodexService {
                   let continuation = self.pendingRequests.removeValue(forKey: requestKey) else {
                 return
             }
-            let message = timeoutMessage ?? "\(method) timed out while loading this chat."
+            let message = timeoutMessage ?? L10n.format("%@ timed out while loading this chat.", String(describing: method))
             continuation.resume(
                 throwing: CodexServiceError.invalidInput(message)
             )
@@ -305,7 +305,7 @@ extension CodexService {
     func sendMessage(_ message: RPCMessage) async throws {
         let payload = try encoder.encode(message)
         guard let plaintext = String(data: payload, encoding: .utf8) else {
-            throw CodexServiceError.invalidResponse("Unable to encode outgoing JSON-RPC payload")
+            throw CodexServiceError.invalidResponse(L10n.string("Unable to encode outgoing JSON-RPC payload"))
         }
 
         let secureText = try secureWireText(for: plaintext)
@@ -806,7 +806,7 @@ extension CodexService {
             guard !Task.isCancelled else { return }
             task?.cancel(with: .goingAway, reason: nil)
             delegate?.resolveOpen(
-                with: .failure(CodexServiceError.invalidInput("Connection timed out after 12s"))
+                with: .failure(CodexServiceError.invalidInput(L10n.string("Connection timed out after 12s")))
             )
         }
         defer { timeoutTask.cancel() }
@@ -914,7 +914,7 @@ extension CodexService {
                     waitState.recordWaitingError(error)
                 case .failed(let error):
                     codexLogPairingTransport(
-                        "\(configuration.logLabel) failed: \(error)",
+                        L10n.format("%@ failed: %@", String(describing: configuration.logLabel), String(describing: error)),
                         isFailure: true
                     )
                     waitState.finish(.failure(error))
@@ -984,7 +984,7 @@ extension CodexService {
             }
             headerBytes.append(chunk)
             if headerBytes.count > 65_536 {
-                throw CodexServiceError.invalidInput("Relay handshake response was too large")
+                throw CodexServiceError.invalidInput(L10n.string("Relay handshake response was too large"))
             }
         }
     }
@@ -1023,12 +1023,12 @@ extension CodexService {
 
     func validateManualWebSocketHandshakeResponse(headerData: Data, key: String) throws {
         guard let headerText = String(data: headerData, encoding: .utf8) else {
-            throw CodexServiceError.invalidInput("Relay handshake response could not be decoded")
+            throw CodexServiceError.invalidInput(L10n.string("Relay handshake response could not be decoded"))
         }
 
         let lines = headerText.components(separatedBy: "\r\n")
         guard let status = lines.first, status.contains(" 101 ") else {
-            throw CodexServiceError.invalidInput("Relay rejected websocket upgrade")
+            throw CodexServiceError.invalidInput(L10n.string("Relay rejected websocket upgrade"))
         }
 
         var headers: [String: String] = [:]
@@ -1042,7 +1042,7 @@ extension CodexService {
         let acceptSeed = "\(key)258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
         let expectedAccept = Data(Insecure.SHA1.hash(data: Data(acceptSeed.utf8))).base64EncodedString()
         guard headers["sec-websocket-accept"] == expectedAccept else {
-            throw CodexServiceError.invalidInput("Relay returned an invalid websocket accept key")
+            throw CodexServiceError.invalidInput(L10n.string("Relay returned an invalid websocket accept key"))
         }
     }
 

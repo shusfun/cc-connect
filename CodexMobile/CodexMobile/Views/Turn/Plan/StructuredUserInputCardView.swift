@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct StructuredUserInputCardView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let questions: [CodexStructuredUserInputQuestion]
     let isSubmitting: Bool
     let hasSubmittedResponse: Bool
@@ -21,6 +23,7 @@ struct StructuredUserInputCardView: View {
     @State private var currentQuestionIndex = 0
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 14) {
             headerRow
 
@@ -195,7 +198,7 @@ struct StructuredUserInputCardView: View {
 
     private var progressHeader: some View {
         HStack(alignment: .center, spacing: 8) {
-            Text("\(currentQuestionIndex + 1) of \(questions.count)")
+            Text(L10n.format("%@ of %@", String(describing: currentQuestionIndex + 1), String(describing: questions.count)))
                 .font(AppFont.caption2())
                 .foregroundStyle(.secondary)
 
@@ -342,7 +345,7 @@ struct StructuredUserInputCardView: View {
                         .controlSize(.small)
                         .tint(Color.white)
                 }
-                Text(isSubmitting ? "Sending..." : "Send")
+                Text(isSubmitting ? "Sending..." : L10n.string("Send"))
                     .font(AppFont.subheadline(weight: .medium))
             }
             .padding(.horizontal, 20)
@@ -427,6 +430,8 @@ private struct QuestionSignature: Hashable {
 // MARK: - Card container (shared with PlanSystemCard)
 
 struct PlanModeCardContainer<Content: View>: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let showsProgress: Bool
     let content: Content
@@ -442,6 +447,7 @@ struct PlanModeCardContainer<Content: View>: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Text(title)
@@ -480,14 +486,14 @@ extension CodexStructuredUserInputQuestion {
     }
 
     var answerFieldPlaceholder: String {
-        isOther ? "Other answer" : "Your answer"
+        isOther ? L10n.string("Other answer") : L10n.string("Your answer")
     }
 
     var selectionLimitDescription: String? {
         guard let selectionLimit, selectionLimit > 1 else {
             return nil
         }
-        return "Select up to \(selectionLimit)"
+        return L10n.format("Select up to %@", String(describing: selectionLimit))
     }
 }
 

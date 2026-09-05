@@ -8,6 +8,8 @@ import SwiftUI
 import UIKit
 
 struct BridgeUpdateSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let prompt: CodexBridgeUpdatePrompt
     let isRetrying: Bool
     let onRetry: () -> Void
@@ -17,6 +19,7 @@ struct BridgeUpdateSheet: View {
     @State private var didCopyCommand = false
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             VStack(spacing: 0) {
                 ScrollView {
@@ -26,8 +29,8 @@ struct BridgeUpdateSheet: View {
                         updateInstructions
 
                         Text(prompt.command == nil
-                            ? "After the app finishes updating on your iPhone, reconnect to the device bridge."
-                            : "After the package finishes updating, restart the bridge on your device and come back here."
+                            ? L10n.string("After the app finishes updating on your iPhone, reconnect to the device bridge.")
+                            : L10n.string("After the package finishes updating, restart the bridge on your device and come back here.")
                         )
                             .font(AppFont.caption())
                             .foregroundStyle(.secondary)
@@ -93,7 +96,7 @@ struct BridgeUpdateSheet: View {
                     } label: {
                         HStack(spacing: 6) {
                             RemodexIcon.image(systemName: didCopyCommand ? "checkmark" : "doc.on.doc", size: 13, weight: .semibold)
-                            Text(didCopyCommand ? "Copied" : "Copy")
+                            Text(didCopyCommand ? L10n.string("Copied") : L10n.string("Copy"))
                                 .font(AppFont.caption(weight: .semibold))
                         }
                         .padding(.horizontal, 12)
@@ -125,7 +128,7 @@ struct BridgeUpdateSheet: View {
                         ProgressView()
                             .tint(.white)
                     }
-                    Text(isRetrying ? "Reconnecting..." : "I Updated It")
+                    Text(isRetrying ? "Reconnecting..." : L10n.string("I Updated It"))
                         .font(AppFont.body(weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)

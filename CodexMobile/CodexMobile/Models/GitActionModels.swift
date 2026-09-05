@@ -402,14 +402,14 @@ enum TurnGitActionKind: CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .initialize: return "Initialize Git"
-        case .syncNow: return "Update"
-        case .commit: return "Commit"
-        case .push: return "Push"
+        case .initialize: return L10n.string("Initialize Git")
+        case .syncNow: return L10n.string("Update")
+        case .commit: return L10n.string("Commit")
+        case .push: return L10n.string("Push")
         case .commitAndPush: return "Commit & Push"
         case .commitPushCreatePR: return "Commit, Push & PR"
-        case .createPR: return "Create PR"
-        case .discardRuntimeChangesAndSync: return "Discard Local Changes"
+        case .createPR: return L10n.string("Create PR")
+        case .discardRuntimeChangesAndSync: return L10n.string("Discard Local Changes")
         }
     }
 
@@ -460,11 +460,11 @@ enum TurnGitActionKind: CaseIterable, Sendable {
     var standaloneTitle: String? {
         switch self {
         case .initialize:
-            return "Initializing Git..."
+            return L10n.string("Initializing Git...")
         case .syncNow:
             return "Updating..."
         case .discardRuntimeChangesAndSync:
-            return "Discarding changes..."
+            return L10n.string("Discarding changes...")
         default:
             return nil
         }
@@ -480,31 +480,31 @@ enum TurnGitActionPhase: String, CaseIterable, Sendable {
 
     var activeTitle: String {
         switch self {
-        case .branch: return "Preparing feature branch..."
-        case .generatingCommit: return "Generating commit message..."
+        case .branch: return L10n.string("Preparing feature branch...")
+        case .generatingCommit: return L10n.string("Generating commit message...")
         case .commit: return "Committing..."
         case .push: return "Pushing..."
-        case .createPR: return "Creating PR..."
+        case .createPR: return L10n.string("Creating PR...")
         }
     }
 
     var pendingTitle: String {
         switch self {
-        case .branch: return "Prepare feature branch"
-        case .generatingCommit: return "Generate commit message"
-        case .commit: return "Commit"
-        case .push: return "Push"
-        case .createPR: return "Create PR"
+        case .branch: return L10n.string("Prepare feature branch")
+        case .generatingCommit: return L10n.string("Generate commit message")
+        case .commit: return L10n.string("Commit")
+        case .push: return L10n.string("Push")
+        case .createPR: return L10n.string("Create PR")
         }
     }
 
     var completedTitle: String {
         switch self {
-        case .branch: return "Feature branch ready"
-        case .generatingCommit: return "Commit message ready"
-        case .commit: return "Committed"
-        case .push: return "Pushed"
-        case .createPR: return "PR created"
+        case .branch: return L10n.string("Feature branch ready")
+        case .generatingCommit: return L10n.string("Commit message ready")
+        case .commit: return L10n.string("Committed")
+        case .push: return L10n.string("Pushed")
+        case .createPR: return L10n.string("PR created")
         }
     }
 
@@ -638,27 +638,27 @@ struct TurnGitSyncAlertButton: Identifiable, Sendable {
         switch action {
         case .dismissOnly:
             return [
-                TurnGitSyncAlertButton(title: "OK", role: .cancel, action: .dismissOnly)
+                TurnGitSyncAlertButton(title: L10n.string("OK"), role: .cancel, action: .dismissOnly)
             ]
         case .pullRebase:
             return [
-                TurnGitSyncAlertButton(title: "Cancel", role: .cancel, action: .dismissOnly),
+                TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
                 TurnGitSyncAlertButton(title: "Pull & Rebase", role: nil, action: .pullRebase)
             ]
         case .continueGitBranchOperation:
             return [
-                TurnGitSyncAlertButton(title: "Cancel", role: .cancel, action: .dismissOnly),
-                TurnGitSyncAlertButton(title: "Continue", role: nil, action: .continueGitBranchOperation)
+                TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
+                TurnGitSyncAlertButton(title: L10n.string("Continue"), role: nil, action: .continueGitBranchOperation)
             ]
         case .commitAndContinueGitBranchOperation:
             return [
-                TurnGitSyncAlertButton(title: "Cancel", role: .cancel, action: .dismissOnly),
+                TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
                 TurnGitSyncAlertButton(title: "Commit & Continue", role: nil, action: .commitAndContinueGitBranchOperation)
             ]
         case .discardRuntimeChanges:
             return [
-                TurnGitSyncAlertButton(title: "Cancel", role: .cancel, action: .dismissOnly),
-                TurnGitSyncAlertButton(title: "Discard Local Changes", role: .destructive, action: .discardRuntimeChanges)
+                TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
+                TurnGitSyncAlertButton(title: L10n.string("Discard Local Changes"), role: .destructive, action: .discardRuntimeChanges)
             ]
         }
     }

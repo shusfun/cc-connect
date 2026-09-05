@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct OnboardingView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let onScanQRCode: () -> Void
     let onPairWithCode: () -> Void
     @State private var currentPage = 0
@@ -14,6 +16,7 @@ struct OnboardingView: View {
     private let pageCount = 3
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             Color.black.ignoresSafeArea()
 
@@ -28,8 +31,8 @@ struct OnboardingView: View {
                     OnboardingStepPage(
                         stepNumber: 1,
                         icon: "macbook",
-                        title: "在 Mac 打开 Remodex",
-                        description: "Mac App 会启动内置 Bridge 并显示配对二维码。Codex、Git、项目和任务始终运行在 Mac。"
+                        title: L10n.string("在 Mac 打开 Remodex"),
+                        description: L10n.string("Mac App 会启动内置 Bridge 并显示配对二维码。Codex、Git、项目和任务始终运行在 Mac。")
                     )
                     .tag(2)
                 }
@@ -80,13 +83,13 @@ struct OnboardingView: View {
         if currentPage == pageCount - 1 {
             VStack(spacing: 10) {
                 PrimaryCapsuleButton(
-                    title: "Scan with QR Code",
+                    title: L10n.string("Scan with QR Code"),
                     systemImage: "qrcode",
                     action: handleContinue
                 )
 
                 secondaryCapsuleButton(
-                    title: "Pair with Code",
+                    title: L10n.string("Pair with Code"),
                     systemImage: "keyboard",
                     action: onPairWithCode
                 )
@@ -126,9 +129,9 @@ struct OnboardingView: View {
 
     private var buttonTitle: String {
         switch currentPage {
-        case 0: return "Get Started"
-        case 1: return "Set Up"
-        default: return "Continue"
+        case 0: return L10n.string("Get Started")
+        case 1: return L10n.string("Set Up")
+        default: return L10n.string("Continue")
         }
     }
 

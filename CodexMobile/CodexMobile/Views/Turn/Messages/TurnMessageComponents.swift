@@ -18,11 +18,11 @@ let enablesInlineMarkdownSelectionInTimeline = true
 
 private let timelineStreamingPlaceholderTexts: Set<String> = [
     "...",
-    "Applying file changes...",
+    L10n.string("Applying file changes..."),
     "Updating...",
-    "Coordinating agents...",
+    L10n.string("Coordinating agents..."),
     "Planning...",
-    "Waiting for input...",
+    L10n.string("Waiting for input..."),
 ]
 private let timelinePlaceholderCheckByteLimit = 128
 private let timelineFullTrimByteLimit = 64_000
@@ -247,10 +247,13 @@ private struct MessageRowStructuredInputOptionSignature: Equatable {
 }
 
 private struct TimelineShowMoreTextButton: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let hiddenByteCount: Int
     let onTap: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
             onTap()
@@ -425,6 +428,7 @@ struct MessageRow: View, Equatable {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         let window = displayWindow
         let text = displayText(from: window)
         let actionText = timelineActionText(for: message)
@@ -782,7 +786,7 @@ struct MessageRow: View, Equatable {
 
         return UIMenu(children: [
             UIAction(
-                title: "Select Text",
+                title: L10n.string("Select Text"),
                 image: RemodexIcon.menuUIImage(systemName: "text.cursor")
             ) { _ in
                 HapticFeedback.shared.triggerImpactFeedback(style: .light)
@@ -792,7 +796,7 @@ struct MessageRow: View, Equatable {
                 )
             },
             UIAction(
-                title: "Copy",
+                title: L10n.string("Copy"),
                 image: RemodexIcon.menuUIImage(systemName: "doc.on.doc")
             ) { _ in
                 HapticFeedback.shared.triggerImpactFeedback(style: .light)

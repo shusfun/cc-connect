@@ -5,6 +5,7 @@
 // Depends on: ws, crypto, os, ./bridge-status, ./codex-desktop-refresher, ./codex-transport, ./rollout-watch
 
 const WebSocket = require("ws");
+const { relayOrigin, relaySessionURL, compactPairingCode } = require('@remodex/protocol');
 const { constants: bufferConstants } = require("buffer");
 const { createHash, randomBytes } = require("crypto");
 const { execFile } = require("child_process");
@@ -64,7 +65,6 @@ const { createThreadRuntimeSettingsStore } = require("./thread-runtime-settings-
 const { createThreadListProvenanceEnricher } = require("./thread-list-provenance");
 const { createWorktreeOriginEnricher } = require("./worktree-origin");
 const { forEachThreadRowInResponse } = require("./thread-row-enrichment");
-const { createShortPairingCode, SHORT_PAIRING_CODE_LENGTH } = require("./qr");
 const {
   JSONL_OLDER_HANDOFF_CURSOR,
   parseSessionJsonlTurns,
@@ -689,12 +689,13 @@ function startBridge({
   printPairingQr = true,
   onPairingSession = null,
   onBridgeStatus = null,
+  onControlReady = null,
   deviceAccess = null,
   pairingInvitation = null,
 } = {}) {
   if (!deviceAccess || !pairingInvitation) throw new Error('activation_required');
   const config = explicitConfig || readBridgeConfig();
-  const relayBaseUrl = config.relayUrl.replace(/\/+$/, "");
+  const relayBaseUrl = relayOrigin(config.relayUrl);
   if (!relayBaseUrl) {
     console.error("[remodex] No relay URL configured.");
     console.error("[remodex] In a source checkout, run ./run-local-remodex.sh or set REMODEX_RELAY.");
@@ -716,7 +717,7 @@ function startBridge({
   const relaySession = resolveBridgeRelaySession(deviceState);
   deviceState = relaySession.deviceState;
   const sessionId = relaySession.sessionId;
-  const relaySessionUrl = `${relayBaseUrl}/${sessionId}`;
+  const relaySessionUrl = relaySessionURL(relayBaseUrl, sessionId);
   const desktopRefresher = new CodexDesktopRefresher({
     // IPC snapshots are accepted only after Codex mounts the route and
     // announces itself as a follower. Auto-follow performs that one-time
@@ -991,6 +992,16 @@ function startBridge({
   }
 
   // Keeps npm start output compact by emitting only high-signal connection states.
+  let relayFailure = '';
+  let relayDiagnostic = null;
+  function reportRelayFailure(code, status = null, requestId = null) {
+    const safeCode = /^[a-z][a-z_]{0,63}$/.test(code || '') ? code : 'relay_connection_failed';
+    relayFailure = safeCode;
+    const diagnostic = { route: 'relay/upgrade', stage: 'connection', code: safeCode, status, requestId: /^[a-f0-9-]{36}$/i.test(requestId || '') ? requestId : null };
+    relayDiagnostic = diagnostic;
+    console.error(JSON.stringify(diagnostic));
+    publishBridgeStatus({ state: 'running', connectionStatus: 'error', pid: process.pid, lastError: safeCode, relayDiagnostic: diagnostic });
+  }
   function logConnectionStatus(status) {
     if (lastConnectionStatus === status) {
       return;
@@ -1004,20 +1015,20 @@ function startBridge({
       state: "running",
       connectionStatus: status,
       pid: process.pid,
-      lastError: "",
+      lastError: relayFailure,
+      relayDiagnostic,
     });
     console.log(`[remodex] ${status}`);
   }
 
   // Retries the relay socket while preserving the active Codex process and session id.
-  function scheduleRelayReconnect(closeCode) {
+  function scheduleRelayReconnect(closeCode, minimumDelay = 0) {
     if (isShuttingDown) {
       return;
     }
 
-    if (closeCode === 4000 || closeCode === 4001) {
-      logConnectionStatus("disconnected");
-      shutdown(codex, () => socket, prepareBridgeShutdown);
+    if ([4000,4001,4003].includes(closeCode)) {
+      reportRelayFailure(closeCode === 4003 ? 'access_revoked' : 'connection_replaced');
       return;
     }
 
@@ -1028,7 +1039,7 @@ function startBridge({
     reconnectAttempt += 1;
     const baseDelayMs = Math.min(1_000 * reconnectAttempt, 5_000);
     const jitterMs = Math.floor(Math.random() * Math.min(baseDelayMs, 2_000));
-    const delayMs = baseDelayMs + jitterMs;
+    const delayMs = Math.max(baseDelayMs + jitterMs, minimumDelay);
     logConnectionStatus("connecting");
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
@@ -1055,8 +1066,20 @@ function startBridge({
       },
     });
     socket = nextSocket;
+    let terminalFailure = false, retryAfter = 0, reportedFailure = false;
+    nextSocket.on('unexpected-response', (request, response) => {
+      if (socket !== nextSocket) { response.resume(); request.destroy(); return; }
+      terminalFailure = [400,401,403,404,410,426].includes(response.statusCode);
+      retryAfter = Math.min(300, Math.max(1, Number(response.headers['retry-after']) || 1)) * 1000;
+      reportedFailure = true;
+      reportRelayFailure(response.headers['x-remodex-error'] || (response.statusCode === 404 ? 'invalid_relay_path' : 'relay_handshake_rejected'), response.statusCode, response.headers['x-remodex-request-id']);
+      response.resume(); request.destroy(); nextSocket.terminate();
+    });
 
     nextSocket.on("open", () => {
+      if (socket !== nextSocket) return;
+      relayFailure = '';
+      relayDiagnostic = null;
       markRelayActivity();
       clearReconnectTimer();
       reconnectAttempt = 0;
@@ -1092,6 +1115,7 @@ function startBridge({
     });
 
     nextSocket.on("close", (code) => {
+      if (socket !== nextSocket) return;
       if (socket === nextSocket) {
         clearRelayWatchdog();
       }
@@ -1102,19 +1126,23 @@ function startBridge({
       stopContextUsageWatcher();
       // Relay reconnects are transport-only: keep local live observers running
       // so their output can enter secure replay and catch up on the next resume.
-      scheduleRelayReconnect(code);
+      if (!terminalFailure) scheduleRelayReconnect(code, retryAfter);
     });
 
-    nextSocket.on("error", () => {
+    nextSocket.on("error", error => {
+      if (socket !== nextSocket) return;
       if (socket === nextSocket) {
         clearRelayWatchdog();
       }
-      logConnectionStatus("disconnected");
+      if (!reportedFailure) {
+        const networkCodes = { ENOTFOUND: 'relay_dns_failed', ECONNREFUSED: 'relay_connection_refused', ETIMEDOUT: 'relay_timeout', CERT_HAS_EXPIRED: 'relay_tls_failed', UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'relay_tls_failed' };
+        reportRelayFailure(networkCodes[error.code] || 'relay_network_failed');
+      }
     });
   }
 
-  const pairingPayload = {
-    ...secureTransport.createPairingPayload(),
+  let pairingPayload = {
+    ...secureTransport.createPairingPayload({ expiresAt: pairingInvitation.expiresAt }),
     invitation: pairingInvitation.invitation,
     expiresAt: pairingInvitation.expiresAt,
     accountId: deviceAccess.credential.accountId,
@@ -1123,9 +1151,24 @@ function startBridge({
   };
   const pairingSession = {
     pairingPayload,
-    pairingCode: createShortPairingCode({ length: SHORT_PAIRING_CODE_LENGTH }),
+    qrText: compactPairingCode(pairingPayload),
+    pairingCode: "",
   };
   onPairingSession?.(pairingSession);
+  let refreshingInvitation = false;
+  onControlReady?.(async () => {
+    if (refreshingInvitation || isShuttingDown) throw new Error('pairing_refresh_busy');
+    refreshingInvitation = true;
+    try {
+      const invitation = await deviceAccess.request('/v1/access/pairing/invite');
+      const nextPayload = { ...pairingPayload, ...secureTransport.createPairingPayload({ expiresAt: invitation.expiresAt }), invitation: invitation.invitation };
+      const qrText = compactPairingCode(nextPayload);
+      pairingPayload = nextPayload;
+      Object.assign(pairingSession, { pairingPayload, qrText });
+      onPairingSession?.(pairingSession);
+      sendRelayRegistrationUpdate(deviceState);
+    } finally { refreshingInvitation = false; }
+  });
   if (printPairingQr) {
     printQR(pairingSession);
   }

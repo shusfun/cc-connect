@@ -34,7 +34,7 @@ enum CodexSecureConnectionState: Equatable, Sendable {
 struct CodexPairingQRPayload: Codable, Sendable {
     let v: Int
     let relay: String
-    let sessionId: String
+    var sessionId: String
     let macDeviceId: String
     let macIdentityPublicKey: String
     let expiresAt: Int64
@@ -258,7 +258,7 @@ enum CodexSecureTransportError: LocalizedError {
              .timedOut(let message):
             return message
         case .decryptFailed:
-            return "Unable to decrypt the secure Remodex payload."
+            return L10n.string("Unable to decrypt the secure Remodex payload.")
         }
     }
 }
@@ -274,9 +274,9 @@ enum CodexTrustedSessionResolveError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noTrustedMac:
-            return "No trusted device is available to reconnect."
+            return L10n.string("No trusted device is available to reconnect.")
         case .unsupportedRelay:
-            return "This relay does not support trusted reconnect yet."
+            return L10n.string("This relay does not support trusted reconnect yet.")
         case .macOffline(let message),
              .rePairRequired(let message),
              .invalidResponse(let message),
@@ -290,21 +290,21 @@ extension CodexSecureConnectionState {
     var statusLabel: String {
         switch self {
         case .notPaired:
-            return "Not paired"
+            return L10n.string("Not paired")
         case .trustedMac:
-            return "Trusted Device"
+            return L10n.string("Trusted Device")
         case .liveSessionUnresolved:
-            return "Trusted Device ready"
+            return L10n.string("Trusted Device ready")
         case .handshaking:
-            return "Secure handshake in progress"
+            return L10n.string("Secure handshake in progress")
         case .encrypted:
-            return "End-to-end encrypted"
+            return L10n.string("End-to-end encrypted")
         case .reconnecting:
-            return "Reconnecting securely"
+            return L10n.string("Reconnecting securely")
         case .rePairRequired:
-            return "Re-pair required"
+            return L10n.string("Re-pair required")
         case .updateRequired:
-            return "Update required"
+            return L10n.string("Update required")
         }
     }
 }

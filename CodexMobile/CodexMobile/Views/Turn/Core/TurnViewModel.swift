@@ -291,33 +291,33 @@ final class TurnViewModel {
     // Keeps PR creation tied to live Git state instead of chat-local remembered branch state.
     var createPullRequestValidationMessage: String? {
         guard let repoSync = gitRepoSync else {
-            return "Git status is still loading. Wait a moment and retry."
+            return L10n.string("Git status is still loading. Wait a moment and retry.")
         }
 
         let branch = (repoSync.currentBranch ?? currentGitBranch).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !branch.isEmpty else {
-            return "No current branch found."
+            return L10n.string("No current branch found.")
         }
 
         let defaultBranch = gitDefaultBranch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !defaultBranch.isEmpty else {
-            return "Could not determine the repository default branch."
+            return L10n.string("Could not determine the repository default branch.")
         }
 
         guard branch != defaultBranch else {
-            return "Switch to a feature branch before creating a PR."
+            return L10n.string("Switch to a feature branch before creating a PR.")
         }
 
         guard !repoSync.isDirty else {
-            return "Commit local changes before creating a PR."
+            return L10n.string("Commit local changes before creating a PR.")
         }
 
         guard repoSync.hasPushRemote else {
-            return "Add a Git remote before creating a PR."
+            return L10n.string("Add a Git remote before creating a PR.")
         }
 
         guard repoSync.behindCount == 0 else {
-            return "Pull remote changes before creating a PR."
+            return L10n.string("Pull remote changes before creating a PR.")
         }
 
         return nil
@@ -1348,11 +1348,11 @@ final class TurnViewModel {
 
     func openCamera(codex: CodexService) {
         guard remainingAttachmentSlots > 0 else {
-            codex.lastErrorMessage = "You can attach up to \(maxComposerImages) images per message."
+            codex.lastErrorMessage = L10n.format("You can attach up to %@ images per message.", String(describing: maxComposerImages))
             return
         }
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            codex.lastErrorMessage = "Camera is not available on this device."
+            codex.lastErrorMessage = L10n.string("Camera is not available on this device.")
             return
         }
         isCameraPresented = true
@@ -1364,7 +1364,7 @@ final class TurnViewModel {
 
     func openPhotoLibraryPicker(codex: CodexService) {
         guard remainingAttachmentSlots > 0 else {
-            codex.lastErrorMessage = "You can attach up to \(maxComposerImages) images per message."
+            codex.lastErrorMessage = L10n.format("You can attach up to %@ images per message.", String(describing: maxComposerImages))
             return
         }
 
@@ -1383,13 +1383,13 @@ final class TurnViewModel {
         )
 
         guard intakePlan.acceptedCount > 0 else {
-            codex.lastErrorMessage = "You can attach up to \(maxComposerImages) images per message."
+            codex.lastErrorMessage = L10n.format("You can attach up to %@ images per message.", String(describing: maxComposerImages))
             return
         }
 
         let acceptedItems = Array(items.prefix(intakePlan.acceptedCount))
         if intakePlan.hasOverflow {
-            codex.lastErrorMessage = "Only \(maxComposerImages) images are allowed per message."
+            codex.lastErrorMessage = L10n.format("Only %@ images are allowed per message.", String(describing: maxComposerImages))
         }
 
         clearComposerReviewSelectionIfNeededForNonReviewContent()
@@ -1435,13 +1435,13 @@ final class TurnViewModel {
         )
 
         guard intakePlan.acceptedCount > 0 else {
-            codex.lastErrorMessage = "You can attach up to \(maxComposerImages) images per message."
+            codex.lastErrorMessage = L10n.format("You can attach up to %@ images per message.", String(describing: maxComposerImages))
             return
         }
 
         let acceptedItems = Array(imageDataItems.prefix(intakePlan.acceptedCount))
         if intakePlan.hasOverflow {
-            codex.lastErrorMessage = "Only \(maxComposerImages) images are allowed per message."
+            codex.lastErrorMessage = L10n.format("Only %@ images are allowed per message.", String(describing: maxComposerImages))
         }
 
         clearComposerReviewSelectionIfNeededForNonReviewContent()
@@ -1785,7 +1785,7 @@ final class TurnViewModel {
         }
 
         if reviewSelection != nil, hasComposerContentConflictingWithReview {
-            codex.lastErrorMessage = "Clear text, files, skills, and images before starting a code review."
+            codex.lastErrorMessage = L10n.string("Clear text, files, skills, and images before starting a code review.")
             return nil
         }
 
@@ -1973,7 +1973,7 @@ final class TurnViewModel {
                 let queueErrorMessage = codex.userFacingTurnErrorMessage(from: error)
                 setQueuePauseState(.paused(errorMessage: queueErrorMessage), codex: codex, threadID: threadID)
                 if let footerMessage = codex.userFacingTurnErrorMessageForFooter(from: error) {
-                    codex.lastErrorMessage = "Queue paused: \(footerMessage)"
+                    codex.lastErrorMessage = L10n.format("Queue paused: %@", String(describing: footerMessage))
                 } else {
                     codex.lastErrorMessage = nil
                 }
@@ -2822,7 +2822,7 @@ final class TurnViewModel {
         if pendingSend.rawReviewSelection != nil {
             restoreComposerState(from: pendingSend)
             isAwaitingAssistantResponse = false
-            codex.lastErrorMessage = "Wait for the current run to finish before starting a code review."
+            codex.lastErrorMessage = L10n.string("Wait for the current run to finish before starting a code review.")
             return
         }
 
@@ -3229,8 +3229,8 @@ final class TurnViewModel {
                         }
                     } else if result.state == "dirty_and_behind" {
                         gitSyncAlert = TurnGitSyncAlert(
-                            title: "Local changes need attention",
-                            message: "You have local changes and the remote branch moved ahead. Pull with rebase only if you're ready to reconcile those changes.",
+                            title: L10n.string("Local changes need attention"),
+                            message: L10n.string("You have local changes and the remote branch moved ahead. Pull with rebase only if you're ready to reconcile those changes."),
                             action: .pullRebase
                         )
                     }
@@ -3244,7 +3244,7 @@ final class TurnViewModel {
                     if let status = result.status { applyGitRepoSync(status) }
                     presentGitActionSuccess(.init(
                         kind: .commit,
-                        title: "Committed",
+                        title: L10n.string("Committed"),
                         subtitle: result.status?.currentBranch
                     ))
 
@@ -3262,7 +3262,7 @@ final class TurnViewModel {
                     )
                     presentGitActionSuccess(.init(
                         kind: .push,
-                        title: "Pushed",
+                        title: L10n.string("Pushed"),
                         subtitle: result.status?.currentBranch
                     ))
 
@@ -3270,7 +3270,7 @@ final class TurnViewModel {
                     guard gitRepoSync?.hasPushRemote == true else {
                         throw GitActionsError.bridgeError(
                             code: "no_remote",
-                            message: "Add a Git remote before using Commit & Push."
+                            message: L10n.string("Add a Git remote before using Commit & Push.")
                         )
                     }
                     let result = try await runStackedGitAction(
@@ -3281,7 +3281,7 @@ final class TurnViewModel {
                     handleSuccessfulStackedGitAction(result, codex: codex, workingDirectory: workingDirectory, threadID: threadID)
                     presentGitActionSuccess(.init(
                         kind: .push,
-                        title: "Commit & push complete",
+                        title: L10n.string("Commit & push complete"),
                         subtitle: result.status?.currentBranch
                     ))
 
@@ -3294,7 +3294,7 @@ final class TurnViewModel {
                     handleSuccessfulStackedGitAction(result, codex: codex, workingDirectory: workingDirectory, threadID: threadID)
                     presentGitActionSuccess(.init(
                         kind: .pullRequest(url: result.pullRequest.url),
-                        title: "Pull request opened",
+                        title: L10n.string("Pull request opened"),
                         subtitle: result.pullRequest.url
                     ))
 
@@ -3310,24 +3310,24 @@ final class TurnViewModel {
                     handleSuccessfulStackedGitAction(result, codex: codex, workingDirectory: workingDirectory, threadID: threadID)
                     presentGitActionSuccess(.init(
                         kind: .pullRequest(url: result.pullRequest.url),
-                        title: "Pull request opened",
+                        title: L10n.string("Pull request opened"),
                         subtitle: result.pullRequest.url
                     ))
 
                 case .discardRuntimeChangesAndSync:
                     let unpushedCommitWarning: String
                     if let repoSync = gitRepoSync, repoSync.aheadCount > 0 {
-                        let commitLabel = repoSync.aheadCount == 1 ? "1 local commit" : "\(repoSync.aheadCount) local commits"
+                        let commitLabel = repoSync.aheadCount == 1 ? L10n.string("1 local commit") : L10n.format("%@ local commits", String(describing: repoSync.aheadCount))
                         unpushedCommitWarning = " This also deletes \(commitLabel) that have not been pushed."
                     } else {
                         unpushedCommitWarning = ""
                     }
                     gitSyncAlert = TurnGitSyncAlert(
-                        title: "Discard local changes?",
-                        message: "This resets the current branch to match the remote and removes local uncommitted changes.\(unpushedCommitWarning) This cannot be undone from the app.",
+                        title: L10n.string("Discard local changes?"),
+                        message: L10n.format("This resets the current branch to match the remote and removes local uncommitted changes.%@ This cannot be undone from the app.", String(describing: unpushedCommitWarning)),
                         buttons: [
-                            TurnGitSyncAlertButton(title: "Cancel", role: .cancel, action: .dismissOnly),
-                            TurnGitSyncAlertButton(title: "Discard Changes", role: .destructive, action: .discardRuntimeChanges)
+                            TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
+                            TurnGitSyncAlertButton(title: L10n.string("Discard Changes"), role: .destructive, action: .discardRuntimeChanges)
                         ]
                     )
                 }
@@ -3337,14 +3337,14 @@ final class TurnViewModel {
                     isShowingNothingToCommitAlert = true
                 default:
                     gitSyncAlert = TurnGitSyncAlert(
-                        title: "Git Error",
-                        message: error.errorDescription ?? "Operation failed.",
+                        title: L10n.string("Git Error"),
+                        message: error.errorDescription ?? L10n.string("Operation failed."),
                         action: .dismissOnly
                     )
                 }
             } catch {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Git Error",
+                    title: L10n.string("Git Error"),
                     message: error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -3382,7 +3382,7 @@ final class TurnViewModel {
                 )
                 presentGitActionSuccess(.init(
                     kind: .push,
-                    title: "Commit & push complete",
+                    title: L10n.string("Commit & push complete"),
                     subtitle: result.status?.currentBranch
                 ))
             } catch let error as GitActionsError {
@@ -3391,14 +3391,14 @@ final class TurnViewModel {
                     isShowingNothingToCommitAlert = true
                 default:
                     gitSyncAlert = TurnGitSyncAlert(
-                        title: "Git Error",
-                        message: error.errorDescription ?? "Operation failed.",
+                        title: L10n.string("Git Error"),
+                        message: error.errorDescription ?? L10n.string("Operation failed."),
                         action: .dismissOnly
                     )
                 }
             } catch {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Git Error",
+                    title: L10n.string("Git Error"),
                     message: error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -3414,7 +3414,7 @@ final class TurnViewModel {
         model: String?
     ) async throws -> GitStackedActionResult {
         guard let actionIdentifier = action.stackedActionIdentifier else {
-            throw GitActionsError.bridgeError(code: "invalid_git_action", message: "Unsupported Git action.")
+            throw GitActionsError.bridgeError(code: "invalid_git_action", message: L10n.string("Unsupported Git action."))
         }
 
         let baseBranch = gitDefaultBranch.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty

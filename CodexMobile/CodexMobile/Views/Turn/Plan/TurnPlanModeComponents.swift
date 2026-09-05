@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct PlanSystemCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
 
     let message: CodexMessage
@@ -63,7 +65,8 @@ struct PlanSystemCard: View {
             .min()
     }
     var body: some View {
-        PlanModeCardContainer(title: "Plan", showsProgress: message.isStreaming) {
+        let _ = _localizationLocale
+        PlanModeCardContainer(title: L10n.string("Plan"), showsProgress: message.isStreaming) {
             if let inferredQuestionnaire {
                 if let introText = inferredQuestionnaire.introText {
                     MarkdownTextView(text: introText, profile: .assistantProse)
@@ -181,6 +184,8 @@ private func normalizedQuestionSignature(
 }
 
 struct InferredPlanQuestionnaireCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
 
     let message: CodexMessage
@@ -190,6 +195,7 @@ struct InferredPlanQuestionnaireCard: View {
     @State private var hasSubmittedResponse = false
 
     var body: some View {
+        let _ = _localizationLocale
         StructuredUserInputCardView(
             questions: questionnaire.questions,
             isSubmitting: isSubmitting,
@@ -229,6 +235,8 @@ struct InferredPlanQuestionnaireCard: View {
 }
 
 struct ProposedPlanResultCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
 
     let threadId: String
@@ -262,6 +270,7 @@ struct ProposedPlanResultCard: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 8) {
                 Text("Proposed plan")
@@ -277,7 +286,7 @@ struct ProposedPlanResultCard: View {
                     }
                 } label: {
                     HStack(spacing: 5) {
-                        Text(isPlanExpanded ? "Collapse" : "Expand")
+                        Text(isPlanExpanded ? L10n.string("Collapse") : L10n.string("Expand"))
                             .font(AppFont.footnote(weight: .semibold))
                         RemodexIcon.image(systemName: isPlanExpanded ? "chevron.up" : "chevron.down")
                             .font(AppFont.system(size: 10, weight: .semibold))
@@ -288,7 +297,7 @@ struct ProposedPlanResultCard: View {
                     .adaptiveGlass(.regular, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isPlanExpanded ? "Collapse plan" : "Expand plan")
+                .accessibilityLabel(isPlanExpanded ? L10n.string("Collapse plan") : L10n.string("Expand plan"))
             }
 
             MarkdownTextView(text: visiblePlanBody, profile: .assistantProse)
@@ -299,7 +308,7 @@ struct ProposedPlanResultCard: View {
             HStack(spacing: 10) {
                 if canRenderImplementationAction {
                     PlanResultActionButton(
-                        title: isImplementationLocked ? "Starting..." : "Implement",
+                        title: isImplementationLocked ? "Starting..." : L10n.string("Implement"),
                         systemName: "arrow.right.circle.fill",
                         isPrimary: true,
                         isLoading: isImplementationLocked
@@ -345,6 +354,8 @@ struct ProposedPlanResultCard: View {
 }
 
 private struct PlanResultActionButton: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let systemName: String
     let isPrimary: Bool
@@ -352,6 +363,7 @@ private struct PlanResultActionButton: View {
     let action: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             guard !isLoading else { return }
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
@@ -386,11 +398,14 @@ private struct PlanResultActionButton: View {
 }
 
 struct PlanExecutionSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.dismiss) private var dismiss
 
     let message: CodexMessage
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -415,6 +430,8 @@ struct PlanExecutionSheet: View {
 }
 
 struct StructuredUserInputCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
 
     let request: CodexStructuredUserInputRequest
@@ -438,6 +455,7 @@ struct StructuredUserInputCard: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         StructuredUserInputCardView(
             questions: request.questions,
             isSubmitting: isSubmitting,
@@ -476,6 +494,8 @@ struct StructuredUserInputCard: View {
 }
 
 struct StructuredUserInputAccessory: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let message: CodexMessage
     let onTap: () -> Void
 
@@ -484,11 +504,12 @@ struct StructuredUserInputAccessory: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         Button(action: onTap) {
-            PlanModeCardContainer(title: "Input needed", showsProgress: false) {
+            PlanModeCardContainer(title: L10n.string("Input needed"), showsProgress: false) {
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(questionCount == 1 ? "Codex needs one answer" : "Codex needs \(questionCount) answers")
+                        Text(questionCount == 1 ? L10n.string("Codex needs one answer") : L10n.format("Codex needs %@ answers", String(describing: questionCount)))
                             .font(AppFont.subheadline(weight: .medium))
                             .foregroundStyle(.primary)
 
@@ -510,12 +531,15 @@ struct StructuredUserInputAccessory: View {
 }
 
 struct StructuredUserInputSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.dismiss) private var dismiss
 
     let requestMessage: CodexMessage
     let planMessage: CodexMessage?
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -546,9 +570,12 @@ struct StructuredUserInputSheet: View {
 }
 
 private struct PlanStepList: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let steps: [CodexPlanStep]
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 8) {
             ForEach(steps) { step in
                 PlanStepRow(step: step)
@@ -558,9 +585,12 @@ private struct PlanStepList: View {
 }
 
 private struct PlanStepRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let step: CodexPlanStep
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(alignment: .top, spacing: 10) {
             RemodexIcon.image(systemName: statusSymbol)
                 .font(AppFont.system(size: 12, weight: .semibold))
@@ -585,11 +615,11 @@ private struct PlanStepRow: View {
     private var statusLabel: String {
         switch step.status {
         case .pending:
-            return "Pending"
+            return L10n.string("Pending")
         case .inProgress:
-            return "In progress"
+            return L10n.string("In progress")
         case .completed:
-            return "Completed"
+            return L10n.string("Completed")
         }
     }
 
@@ -885,8 +915,8 @@ nonisolated enum InferredPlanQuestionnaireParser {
             questions: [
                 CodexStructuredUserInputQuestion(
                     id: "inferred_plan_next_step",
-                    header: "Next step",
-                    question: "What should Codex produce next?",
+                    header: L10n.string("Next step"),
+                    question: L10n.string("What should Codex produce next?"),
                     isOther: false,
                     isSecret: false,
                     options: options

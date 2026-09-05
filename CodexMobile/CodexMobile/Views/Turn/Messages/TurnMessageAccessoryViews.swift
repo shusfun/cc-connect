@@ -8,10 +8,13 @@ import SwiftUI
 
 /// Compact `+N -M` label in green/red. Caller applies `.font()`.
 struct DiffCountsLabel: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let additions: Int
     let deletions: Int
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 4) {
             Text("+\(additions)")
                 .foregroundStyle(Color.green)
@@ -22,14 +25,17 @@ struct DiffCountsLabel: View {
 }
 
 struct ApprovalBanner: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let request: CodexApprovalRequest
     let isLoading: Bool
     let onApprove: () -> Void
     let onDecline: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 10) {
-            RemodexIcon.label("Approval request", systemName: "checkmark.shield")
+            RemodexIcon.label(L10n.string("Approval request"), systemName: "checkmark.shield")
                 .font(AppFont.subheadline())
 
             if let command = request.command, !command.isEmpty {

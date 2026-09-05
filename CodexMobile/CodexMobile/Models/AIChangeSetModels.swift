@@ -256,7 +256,7 @@ struct RevertPreviewResult: Sendable, Hashable {
             guard let object = value.objectValue else { return nil }
             return RevertConflict(
                 path: object["path"]?.stringValue ?? "unknown",
-                message: object["message"]?.stringValue ?? "Patch conflict."
+                message: object["message"]?.stringValue ?? L10n.string("Patch conflict.")
             )
         } ?? []
         self.unsupportedReasons = json["unsupportedReasons"]?.arrayValue?.compactMap(\.stringValue) ?? []
@@ -295,7 +295,7 @@ struct RevertApplyResult: Sendable {
             guard let object = value.objectValue else { return nil }
             return RevertConflict(
                 path: object["path"]?.stringValue ?? "unknown",
-                message: object["message"]?.stringValue ?? "Patch conflict."
+                message: object["message"]?.stringValue ?? L10n.string("Patch conflict.")
             )
         } ?? []
         self.unsupportedReasons = json["unsupportedReasons"]?.arrayValue?.compactMap(\.stringValue) ?? []
@@ -361,12 +361,12 @@ enum AIUnifiedPatchParser {
     static func analyze(_ rawPatch: String) -> AIUnifiedPatchAnalysis {
         let patch = rawPatch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !patch.isEmpty else {
-            return AIUnifiedPatchAnalysis(fileChanges: [], unsupportedReasons: ["No exact patch was captured."])
+            return AIUnifiedPatchAnalysis(fileChanges: [], unsupportedReasons: [L10n.string("No exact patch was captured.")])
         }
 
         let chunks = splitIntoChunks(patch)
         guard !chunks.isEmpty else {
-            return AIUnifiedPatchAnalysis(fileChanges: [], unsupportedReasons: ["No exact patch was captured."])
+            return AIUnifiedPatchAnalysis(fileChanges: [], unsupportedReasons: [L10n.string("No exact patch was captured.")])
         }
 
         var fileChanges: [AIFileChange] = []
@@ -381,7 +381,7 @@ enum AIUnifiedPatchParser {
         }
 
         if fileChanges.isEmpty {
-            unsupportedReasons.insert("This response cannot be auto-reverted because no exact patch was captured.")
+            unsupportedReasons.insert(L10n.string("This response cannot be auto-reverted because no exact patch was captured."))
         }
 
         return AIUnifiedPatchAnalysis(
@@ -458,17 +458,17 @@ enum AIUnifiedPatchParser {
 
         var unsupportedReasons: Set<String> = []
         if isBinary {
-            unsupportedReasons.insert("Binary changes are not auto-revertable in v1.")
+            unsupportedReasons.insert(L10n.string("Binary changes are not auto-revertable in v1."))
         }
         if isRenameOrModeOnly {
-            unsupportedReasons.insert("Rename, mode-only, or symlink changes are not auto-revertable in v1.")
+            unsupportedReasons.insert(L10n.string("Rename, mode-only, or symlink changes are not auto-revertable in v1."))
         }
 
         let kind: AIFileChangeKind = isCreate ? .create : (isDelete ? .delete : .update)
         let hasPatchBody = additions > 0 || deletions > 0 || isCreate || isDelete
         guard !path.isEmpty, hasPatchBody else {
             if !isBinary && !isRenameOrModeOnly {
-                unsupportedReasons.insert("This response cannot be auto-reverted because no exact patch was captured.")
+                unsupportedReasons.insert(L10n.string("This response cannot be auto-reverted because no exact patch was captured."))
             }
             return (nil, unsupportedReasons)
         }

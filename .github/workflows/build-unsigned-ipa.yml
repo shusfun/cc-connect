@@ -5,6 +5,7 @@ on:
     branches:
       - main
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,7 +18,7 @@ jobs:
   build-unsigned-ipa:
     name: Build unsigned release IPA
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     defaults:
       run:
@@ -29,6 +30,38 @@ jobs:
 
       - name: Show Xcode version
         run: xcodebuild -version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+
+      - name: Verify localization sources
+        run: node CodexMobile/scripts/check-localization.cjs
+
+      - name: Select iOS 26 simulator
+        id: simulator
+        run: |
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/remodex-simulators.json"
+          node -e 'const fs=require("fs"),list=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/remodex-simulators.json"));const device=Object.entries(list.devices).filter(([runtime])=>runtime.includes("iOS-26")).flatMap(([,devices])=>devices).find(d=>d.name.startsWith("iPhone"));if(!device)throw Error("iOS 26 iPhone simulator required");fs.appendFileSync(process.env.GITHUB_OUTPUT,"id="+device.udid+"\n")'
+
+      - name: Run iOS unit and real-page localization UI tests
+        run: |
+          set -euo pipefail
+          xcodebuild -quiet -project CodexMobile/CodexMobile.xcodeproj -scheme CodexMobile -configuration Debug \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/remodex-ios-tests.xcresult" \
+            test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM="" \
+            2>&1 | tee "$RUNNER_TEMP/remodex-ios-tests.log"
+
+      - name: Upload simulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remodex-ios-test-evidence
+          path: |
+            ${{ runner.temp }}/remodex-ios-tests.xcresult
+            ${{ runner.temp }}/remodex-ios-tests.log
+          if-no-files-found: warn
 
       - name: Build unsigned IPA
         run: |
@@ -52,7 +85,7 @@ jobs:
             -archivePath "$archive_path" \
             archive \
             MARKETING_VERSION="${release_version%%-*}" \
-            CURRENT_PROJECT_VERSION=1 \
+            CURRENT_PROJECT_VERSION="$(node -p 'require("./package.json").iosBuildNumber')" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -73,6 +106,7 @@ jobs:
           ditto "$app_path" "$payload_root/Payload/$(basename "$app_path")"
           /usr/libexec/PlistBuddy -c "Add :RemodexSourceSHA string $GITHUB_SHA" "$payload_root/Payload/$(basename "$app_path")/Info.plist"
           /usr/libexec/PlistBuddy -c "Add :RemodexReleaseVersion string $release_version" "$payload_root/Payload/$(basename "$app_path")/Info.plist"
+          node CodexMobile/scripts/verify-ios-localization.cjs "$payload_root/Payload/$(basename "$app_path")"
           ditto -c -k --sequesterRsrc --keepParent "$payload_root/Payload" "$ipa_path"
 
           echo "Unsigned IPA created at $ipa_path"

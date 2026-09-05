@@ -30,12 +30,12 @@ enum TurnSessionDiffResetMarker {
         let normalizedRemote = remote?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let normalizedRemote, !normalizedRemote.isEmpty, !normalizedBranch.isEmpty {
-            return "Push completed on \(normalizedRemote)/\(normalizedBranch)."
+            return L10n.format("Push completed on %@/%@.", String(describing: normalizedRemote), String(describing: normalizedBranch))
         }
         if !normalizedBranch.isEmpty {
-            return "Push completed on \(normalizedBranch)."
+            return L10n.format("Push completed on %@.", String(describing: normalizedBranch))
         }
-        return "Push completed on remote."
+        return L10n.string("Push completed on remote.")
     }
 
     // Keeps reset detection stable across persisted hidden markers and legacy visible messages.

@@ -122,7 +122,7 @@ final class CodexURLSessionWebSocketDelegate: NSObject, URLSessionWebSocketDeleg
 
         resolveOpen(
             with: .failure(
-                CodexServiceError.invalidInput("WebSocket closed during connect (\(closeCode.rawValue))")
+                CodexServiceError.invalidInput(L10n.format("WebSocket closed during connect (%@)", String(describing: closeCode.rawValue)))
             )
         )
     }
@@ -1113,15 +1113,15 @@ final class CodexService {
     var connectionPhaseDisplayLabel: String {
         switch connectionPhase {
         case .offline:
-            return "Offline"
+            return L10n.string("Offline")
         case .connecting:
-            return "Connecting"
+            return L10n.string("Connecting")
         case .loadingChats:
-            return "Loading chats"
+            return L10n.string("Loading chats")
         case .syncing:
-            return "Syncing"
+            return L10n.string("Syncing")
         case .connected:
-            return "Connected"
+            return L10n.string("Connected")
         }
     }
 

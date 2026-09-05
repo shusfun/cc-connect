@@ -7,6 +7,8 @@ import SwiftUI
 import UIKit
 
 struct SidebarThreadRowView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let thread: CodexThread
     let isSelected: Bool
     let runBadgeState: CodexThreadRunBadgeState?
@@ -35,6 +37,7 @@ struct SidebarThreadRowView: View {
     @State private var renamePrompt = ThreadRenamePromptState()
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             if thread.isSubagent {
                 subagentRow
@@ -189,7 +192,7 @@ struct SidebarThreadRowView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isSubagentExpanded ? "Collapse subagents" : "Expand subagents")
+            .accessibilityLabel(isSubagentExpanded ? L10n.string("Collapse subagents") : L10n.string("Expand subagents"))
         }
     }
 }
@@ -199,16 +202,19 @@ struct SidebarThreadRowView: View {
 /// Owns the `@Environment(CodexService.self)` so parent thread rows
 /// never observe `subagentIdentityVersion` changes.
 private struct SidebarSubagentNameLabel: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let thread: CodexThread
     @Environment(CodexService.self) private var codex
 
     var body: some View {
+        let _ = _localizationLocale
         let _ = codex.subagentIdentityVersion
         let source = thread.preferredSubagentLabel
             ?? codex.resolvedSubagentDisplayLabel(threadId: thread.id, agentId: thread.agentId)
-            ?? "Subagent"
+            ?? L10n.string("Subagent")
         let parsed = SubagentLabelParser.parse(source)
-        let nickname = parsed.nickname.isEmpty || CodexThread.isGenericPlaceholderTitle(parsed.nickname) ? "Subagent" : parsed.nickname
+        let nickname = parsed.nickname.isEmpty || CodexThread.isGenericPlaceholderTitle(parsed.nickname) ? L10n.string("Subagent") : parsed.nickname
         SubagentLabelParser.styledText(nickname: nickname, roleSuffix: parsed.roleSuffix)
             .font(AppFont.caption(weight: .medium))
             .lineLimit(1)

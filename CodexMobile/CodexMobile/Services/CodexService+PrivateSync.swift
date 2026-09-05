@@ -29,7 +29,7 @@ extension CodexService {
                   result["capabilities"]?.objectValue?["threadReset"]?.boolValue == true,
                   result["capabilities"]?.objectValue?["acknowledgements"]?.boolValue == true else {
                 throw CodexServiceError.invalidResponse(
-                    "Bridge 不支持 Remodex 私有增量同步协议 v\(Self.requiredPrivateSyncProtocolVersion)，请升级 Mac App。"
+                    L10n.format("Bridge 不支持 Remodex 私有增量同步协议 v%@，请升级 Mac App。", String(describing: Self.requiredPrivateSyncProtocolVersion))
                 )
             }
 
@@ -39,7 +39,7 @@ extension CodexService {
                let remoteMacID,
                !remoteMacID.isEmpty,
                expectedMacID != remoteMacID {
-                throw CodexServiceError.invalidResponse("Bridge 身份与当前已配对 Mac 不一致，请重新配对。")
+                throw CodexServiceError.invalidResponse(L10n.string("Bridge 身份与当前已配对 Mac 不一致，请重新配对。"))
             }
             return Int(version)
         }

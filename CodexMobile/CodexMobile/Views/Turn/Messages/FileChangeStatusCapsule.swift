@@ -15,7 +15,7 @@ struct FileChangeStatusSnapshot: Equatable {
     let messageID: String
 
     var compactTitle: String {
-        fileCount == 1 ? "1 file" : "\(fileCount) files"
+        fileCount == 1 ? "1 file" : L10n.format("%@ files", String(describing: fileCount))
     }
 
     var hasChanges: Bool {
@@ -115,6 +115,8 @@ struct FileChangeStatusSnapshot: Equatable {
 }
 
 struct FileChangeStatusCapsule: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     var additions: Int? = nil
     var deletions: Int? = nil
@@ -136,6 +138,7 @@ struct FileChangeStatusCapsule: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             if let snapshot {
                 Button {
@@ -148,7 +151,7 @@ struct FileChangeStatusCapsule: View {
                 .accessibilityLabel("Open file changes diff")
                 .sheet(isPresented: $isShowingDiffSheet) {
                     TurnDiffSheet(
-                        title: "Changes",
+                        title: L10n.string("Changes"),
                         entries: snapshot.entries,
                         bodyText: snapshot.detailBodyText,
                         messageID: snapshot.messageID
@@ -178,10 +181,13 @@ struct FileChangeStatusCapsule: View {
 }
 
 private struct FileChangeStatusDiffCountsLabel: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let additions: Int
     let deletions: Int
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 5) {
             Text("+\(Self.compactCount(additions))")
                 .foregroundStyle(Color.green)

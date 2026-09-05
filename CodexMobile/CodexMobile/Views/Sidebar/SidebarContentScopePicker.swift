@@ -14,6 +14,8 @@
 import SwiftUI
 
 struct SidebarContentScopePicker: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var selection: SidebarContentScope
 
     @Environment(\.colorScheme) private var colorScheme
@@ -23,6 +25,7 @@ struct SidebarContentScopePicker: View {
     private static let selectionAnimation: Animation = .spring(response: 0.34, dampingFraction: 0.78)
 
     var body: some View {
+        let _ = _localizationLocale
         AdaptiveGlassContainer(spacing: 12) {
             HStack(spacing: 12) {
                 ForEach(SidebarContentScope.allCases) { scope in
@@ -83,11 +86,13 @@ struct SidebarContentScopePicker: View {
 
 // Icon-only companion to the scope chips; the parent owns the folder state.
 struct SidebarFolderExpansionToggleButton: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let areAllFoldersCollapsed: Bool
     let action: () -> Void
 
     private var title: String {
-        areAllFoldersCollapsed ? "Expand all" : "Collapse all"
+        areAllFoldersCollapsed ? L10n.string("Expand all") : L10n.string("Collapse all")
     }
 
     private var iconSystemName: String {
@@ -97,6 +102,7 @@ struct SidebarFolderExpansionToggleButton: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         HapticButton(hapticStyle: .light, action: action) {
             RemodexIcon.image(systemName: iconSystemName)
                 .font(AppFont.system(size: 13, weight: .semibold))
@@ -113,7 +119,7 @@ struct SidebarFolderExpansionToggleButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityHint(
-            areAllFoldersCollapsed ? "Expands all project folders" : "Collapses all project folders"
+            areAllFoldersCollapsed ? L10n.string("Expands all project folders") : L10n.string("Collapses all project folders")
         )
         .help(title)
     }
@@ -125,25 +131,28 @@ struct SidebarFolderExpansionToggleButton: View {
 // on plain background, on a tinted card, and over a photo-like gradient so the
 // Liquid Glass sampling region is visible while iterating.
 private struct SidebarContentScopePickerPreviewHost: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @State private var selection: SidebarContentScope = .projects
 
     var body: some View {
+        let _ = _localizationLocale
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                section("Interactive") {
+                section(L10n.string("Interactive")) {
                     HStack(spacing: 8) {
                         SidebarContentScopePicker(selection: $selection)
                         SidebarFolderExpansionToggleButton(areAllFoldersCollapsed: false, action: {})
                     }
                 }
 
-                section("Projects selected") {
+                section(L10n.string("Projects selected")) {
                     SidebarContentScopePicker(
                         selection: .constant(.projects)
                     )
                 }
 
-                section("Chats selected") {
+                section(L10n.string("Chats selected")) {
                     SidebarContentScopePicker(
                         selection: .constant(.chats)
                     )

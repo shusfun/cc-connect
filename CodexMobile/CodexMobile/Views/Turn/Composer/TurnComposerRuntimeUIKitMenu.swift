@@ -39,12 +39,12 @@ enum TurnComposerRuntimeUIKitMenuBuilder {
         let modelChildren: [UIMenuElement] = {
             if input.isLoadingModels {
                 return [
-                    disabledInfoAction(title: "Loading models…"),
+                    disabledInfoAction(title: L10n.string("Loading models…")),
                 ]
             }
             if input.orderedModelOptions.isEmpty {
                 return [
-                    disabledInfoAction(title: "No models available"),
+                    disabledInfoAction(title: L10n.string("No models available")),
                 ]
             }
 
@@ -59,7 +59,7 @@ enum TurnComposerRuntimeUIKitMenuBuilder {
             if hasOthers {
                 items.append(
                     UIAction(
-                        title: "Other models…",
+                        title: L10n.string("Other models…"),
                         image: RemodexIcon.menuUIImage(systemName: "ellipsis")
                     ) { _ in
                         HapticFeedback.shared.triggerImpactFeedback(style: .light)

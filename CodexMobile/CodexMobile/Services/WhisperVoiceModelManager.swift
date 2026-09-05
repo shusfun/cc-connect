@@ -30,17 +30,17 @@ enum WhisperVoiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .modelRequired:
-            return "请先下载设备端 Whisper small 多语言模型。"
+            return L10n.string("请先下载设备端 Whisper small 多语言模型。")
         case .cellularConfirmationRequired:
-            return "当前使用蜂窝网络，需要确认后才能下载语音模型。"
+            return L10n.string("当前使用蜂窝网络，需要确认后才能下载语音模型。")
         case .insufficientStorage(let requiredBytes, let availableBytes):
             let formatter = ByteCountFormatter()
             formatter.countStyle = .file
-            return "存储空间不足：至少需要 \(formatter.string(fromByteCount: requiredBytes))，当前可用 \(formatter.string(fromByteCount: availableBytes))。"
+            return L10n.format("存储空间不足：至少需要 %@，当前可用 %@。", String(describing: formatter.string(fromByteCount: requiredBytes)), String(describing: formatter.string(fromByteCount: availableBytes)))
         case .emptyTranscript:
-            return "没有识别到可插入的语音内容。"
+            return L10n.string("没有识别到可插入的语音内容。")
         case .retryClipUnavailable:
-            return "没有可重试的语音录音。"
+            return L10n.string("没有可重试的语音录音。")
         }
     }
 }

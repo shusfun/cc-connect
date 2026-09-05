@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct OnboardingStepPage: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let stepNumber: Int
     let icon: String
     let title: String
@@ -21,6 +23,7 @@ struct OnboardingStepPage: View {
     )
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             // Subtle ambient radial glow
             RadialGradient(
@@ -66,7 +69,7 @@ struct OnboardingStepPage: View {
 
                     VStack(spacing: 12) {
                         // Step label
-                        Text("STEP \(stepNumber)")
+                        Text(L10n.format("STEP %@", String(describing: stepNumber)))
                             .font(AppFont.caption2(weight: .bold))
                             .foregroundStyle(Color(.plan).opacity(0.7))
                             .kerning(1.5)

@@ -87,7 +87,7 @@ enum TurnComposerMetaMapper {
     ) -> TurnComposerRuntimeLabelParts {
         guard selectedModelID != nil else {
             return TurnComposerRuntimeLabelParts(
-                modelPart: isRuntimeSelectionLoading ? "Loading…" : "Select model",
+                modelPart: isRuntimeSelectionLoading ? "Loading…" : L10n.string("Select model"),
                 effortPart: nil
             )
         }
@@ -141,13 +141,13 @@ enum TurnComposerMetaMapper {
 
         switch normalized {
         case "minimal", "low":
-            return "Low"
+            return L10n.string("Low")
         case "medium":
-            return "Medium"
+            return L10n.string("Medium")
         case "high":
-            return "High"
+            return L10n.string("High")
         case "xhigh", "extra_high", "extra-high", "very_high", "very-high":
-            return "Extra High"
+            return L10n.string("Extra High")
         default:
             return normalized.split(separator: "_")
                 .map { $0.capitalized }

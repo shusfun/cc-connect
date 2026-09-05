@@ -270,7 +270,7 @@ extension CodexService {
                         forAnyKey: ["review"],
                         in: .object(itemObject)
                     ) ?? "changes"
-                    let message = "Reviewing \(normalizedReviewLabel)..."
+                    let message = L10n.format("Reviewing %@...", String(describing: normalizedReviewLabel))
                     appendHistoryMessage(
                         to: &result,
                         role: .system,
@@ -3955,7 +3955,7 @@ extension CodexService {
         let status = itemObject["status"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedStatus = (status?.isEmpty == false) ? status! : "completed"
 
-        var sections: [String] = ["Status: \(normalizedStatus)"]
+        var sections: [String] = [L10n.format("Status: %@", String(describing: normalizedStatus))]
         let changes = decodeHistoryFileChangeEntries(from: itemObject["changes"])
         let renderedChanges = changes.map { entry -> String in
             var body = "Path: \(entry.path)\nKind: \(entry.kind)"

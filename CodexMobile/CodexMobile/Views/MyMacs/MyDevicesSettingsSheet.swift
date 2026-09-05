@@ -11,6 +11,8 @@ import SwiftUI
 import UIKit
 
 struct MyDevicesSettingsSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @Environment(\.dismiss) private var dismiss
 
@@ -45,6 +47,7 @@ struct MyDevicesSettingsSheet: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             List {
                 if let switchNotice, !switchNotice.isEmpty {
@@ -59,7 +62,7 @@ struct MyDevicesSettingsSheet: View {
                     Section {
                         activeDeviceRow(currentDevice)
                     } header: {
-                        sectionHeader("Active device")
+                        sectionHeader(L10n.string("Active device"))
                     }
                 }
 
@@ -73,7 +76,7 @@ struct MyDevicesSettingsSheet: View {
                         }
                     }
                 } header: {
-                    sectionHeader("Devices")
+                    sectionHeader(L10n.string("Devices"))
                 }
 
                 Section {
@@ -98,17 +101,17 @@ struct MyDevicesSettingsSheet: View {
             }
         }
         .confirmationDialog(
-            "Switch device?",
+            L10n.string("Switch device?"),
             isPresented: pendingSwitchDialogBinding,
             titleVisibility: .visible
         ) {
             Button("Switch", role: .destructive, action: confirmPendingSwitch)
             Button("Cancel", role: .cancel, action: cancelPendingSwitch)
         } message: {
-            Text("This stops in-progress runs and reloads chats for the other device.")
+            Text("Switching disconnects this phone from the current device. Tasks keep running there while you connect to the selected device.")
         }
         .alert(
-            "Forget this device?",
+            L10n.string("Forget this device?"),
             isPresented: pendingForgetAlertBinding,
             actions: {
                 Button("Forget", role: .destructive, action: confirmPendingForget)
@@ -150,7 +153,7 @@ struct MyDevicesSettingsSheet: View {
             menu: { buildActiveDeviceSwitchMenu() }
         )
         .disabled(isSwitchingMac)
-        .accessibilityLabel("Active device, \(device.compactDisplayName)")
+        .accessibilityLabel(L10n.format("Active device, %@", String(describing: device.compactDisplayName)))
         .accessibilityHint("Opens device switcher")
     }
 
@@ -173,7 +176,7 @@ struct MyDevicesSettingsSheet: View {
         return UIMenu(
             title: "",
             children: [
-                UIMenu(title: "Switch to", options: [.displayInline], children: switchActions),
+                UIMenu(title: L10n.string("Switch to"), options: [.displayInline], children: switchActions),
             ]
         )
     }
@@ -347,11 +350,11 @@ struct MyDevicesSettingsSheet: View {
 
     private var switchingOverlay: some View {
         DeviceSwitchingOverlayView(
-            title: "Switching device…",
+            title: L10n.string("Switching device…"),
             primaryStatus: nil,
             secondaryStatus: nil,
             deviceName: devices.first(where: \.isSwitching)?.compactDisplayName,
-            cancelTitle: "Cancel",
+            cancelTitle: L10n.string("Cancel"),
             isCancelDisabled: false,
             onCancel: onCancelSwitch
         )
@@ -447,6 +450,8 @@ struct MyDevicesSettingsSheet: View {
 }
 
 struct DeviceSwitchingOverlayView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let primaryStatus: String?
     let secondaryStatus: String?
@@ -456,6 +461,7 @@ struct DeviceSwitchingOverlayView: View {
     let onCancel: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             Color.black.opacity(0.12)
                 .ignoresSafeArea()

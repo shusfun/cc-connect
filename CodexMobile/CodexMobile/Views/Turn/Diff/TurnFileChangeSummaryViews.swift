@@ -23,13 +23,16 @@ private enum FileChangeSummaryDiffPresentation: Identifiable, Equatable {
 // MARK: - FileChangeInlineActionRow
 // Keeps live file-change deltas as lightweight status rows while a turn is still streaming.
 struct FileChangeInlineActionRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let entry: TurnFileChangeSummaryEntry
     var showActionLabel: Bool = true
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 2) {
             if showActionLabel {
-                Text(entry.action?.rawValue ?? "Edited")
+                Text(entry.action?.rawValue ?? L10n.string("Edited"))
                     .font(AppFont.caption())
                     .foregroundStyle(.secondary.opacity(0.6))
             }
@@ -52,6 +55,8 @@ struct FileChangeInlineActionRow: View {
 // MARK: - FileChangeSummaryBox
 // Renders turn-end file edits as one compact recap instead of chat-like rows.
 struct FileChangeSummaryBox: View {
+    @Environment(\.locale) private var _localizationLocale
+
     private static let previewEntryLimit = 3
 
     let entries: [TurnFileChangeSummaryEntry]
@@ -80,6 +85,7 @@ struct FileChangeSummaryBox: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 0) {
             header
 
@@ -125,7 +131,7 @@ struct FileChangeSummaryBox: View {
                             }
                         } label: {
                             HStack(spacing: 6) {
-                                Text(showsAllEntries ? "Show less" : "Show more")
+                                Text(showsAllEntries ? L10n.string("Show less") : L10n.string("Show more"))
                                     .font(AppFont.subheadline(weight: .medium))
 
                                 RemodexIcon.image(systemName: "chevron.down")
@@ -141,8 +147,8 @@ struct FileChangeSummaryBox: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel(
                             showsAllEntries
-                                ? "Show fewer file changes"
-                                : "Show \(hiddenEntryCount) more file changes"
+                                ? L10n.string("Show fewer file changes")
+                                : L10n.format("Show %@ more file changes", String(describing: hiddenEntryCount))
                         )
                     }
                 } else if !fallbackText.isEmpty {
@@ -173,7 +179,7 @@ struct FileChangeSummaryBox: View {
                 )
             case .allEntries:
                 TurnDiffSheet(
-                    title: "Changes",
+                    title: L10n.string("Changes"),
                     entries: entries,
                     bodyText: detailBodyText,
                     messageID: messageID
@@ -244,7 +250,7 @@ struct FileChangeSummaryBox: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isExpanded ? "Collapse file changes" : "Expand file changes")
+                .accessibilityLabel(isExpanded ? L10n.string("Collapse file changes") : L10n.string("Expand file changes"))
             }
         }
         .padding(.leading, 12)

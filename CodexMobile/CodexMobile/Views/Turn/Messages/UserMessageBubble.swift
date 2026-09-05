@@ -8,6 +8,8 @@ import SwiftUI
 import UIKit
 
 struct UserMessageBubble: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(UserBubbleColor.storageKey) private var userBubbleColorRawValue = UserBubbleColor.defaultStoredRawValue
     private static let bubbleCornerRadius: CGFloat = 22
@@ -24,6 +26,7 @@ struct UserMessageBubble: View {
     @State private var previewImage: PreviewImagePayload?
 
     var body: some View {
+        let _ = _localizationLocale
         let bubbleColor = selectedUserBubbleColor
         let renderModel = UserBubbleRenderModelCache.model(for: message, text: text)
         UserBubbleTrailingColumn {
@@ -72,7 +75,7 @@ struct UserMessageBubble: View {
 
         if !actionText.isEmpty {
             actions.append(UIAction(
-                title: "Copy",
+                title: L10n.string("Copy"),
                 image: RemodexIcon.menuUIImage(systemName: "doc.on.doc")
             ) { _ in
                 HapticFeedback.shared.triggerImpactFeedback(style: .light)
@@ -82,7 +85,7 @@ struct UserMessageBubble: View {
 
         if isRetryAvailable, !actionText.isEmpty {
             actions.append(UIAction(
-                title: "Retry",
+                title: L10n.string("Retry"),
                 image: RemodexIcon.menuUIImage(systemName: "arrow.clockwise")
             ) { _ in
                 HapticFeedback.shared.triggerImpactFeedback(style: .light)
@@ -132,7 +135,7 @@ struct UserMessageBubble: View {
         case .pending:
             return "sending..."
         case .failed:
-            return "Failed"
+            return L10n.string("Failed")
         case .confirmed:
             return message.formattedTimelineTime()
         }
@@ -501,7 +504,10 @@ private enum UserBubbleMentionExtractor {
 // MARK: - Previews
 
 private struct UserBubblePreviewCatalog: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 previewSection("Inline skill + text") {
@@ -534,7 +540,7 @@ private struct UserBubblePreviewCatalog: View {
                     )
                 }
 
-                previewSection("Text only") {
+                previewSection(L10n.string("Text only")) {
                     bubblePreview(
                         text: "can you help me refactor this?",
                         actionText: "can you help me refactor this?"
@@ -550,7 +556,7 @@ private struct UserBubblePreviewCatalog: View {
                     )
                 }
 
-                previewSection("Block markdown") {
+                previewSection(L10n.string("Block markdown")) {
                     bubblePreview(
                         text: """
                         Fix this snippet:

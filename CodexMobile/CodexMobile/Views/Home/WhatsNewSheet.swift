@@ -13,76 +13,79 @@ private struct WhatsNewItem {
 
 private let whatsNewItems: [WhatsNewItem] = [
     .init(
-        title: "Live Desktop Sync",
-        detail: "Keep messages, models, queues, approvals, unread status, and active conversations synchronized between Remodex and Codex Desktop."
+        title: L10n.string("Live Desktop Sync"),
+        detail: L10n.string("Keep messages, models, queues, approvals, unread status, and active conversations synchronized between Remodex and Codex Desktop.")
     ),
     .init(
-        title: "Approve for Me",
-        detail: "Let Codex review approval requests automatically, see what access is needed, and retry denied actions with one tap."
+        title: L10n.string("Approve for Me"),
+        detail: L10n.string("Let Codex review approval requests automatically, see what access is needed, and retry denied actions with one tap.")
     ),
     .init(
-        title: "Goals",
-        detail: "Create long-running goals, track progress and token budgets, pause or resume work, and receive completion notifications."
+        title: L10n.string("Goals"),
+        detail: L10n.string("Create long-running goals, track progress and token budgets, pause or resume work, and receive completion notifications.")
     ),
     .init(
-        title: "Smarter Worktrees",
-        detail: "Choose any base branch, carry configured project files into new worktrees, and keep worktree chats grouped under their original project."
+        title: L10n.string("Smarter Worktrees"),
+        detail: L10n.string("Choose any base branch, carry configured project files into new worktrees, and keep worktree chats grouped under their original project.")
     ),
     .init(
-        title: "Better Model Controls",
-        detail: "Use the redesigned model and intelligence picker with Fast Mode, an all-models browser, and automatic reloading."
+        title: L10n.string("Better Model Controls"),
+        detail: L10n.string("Use the redesigned model and intelligence picker with Fast Mode, an all-models browser, and automatic reloading.")
     ),
     .init(
-        title: "Redesigned Composer",
-        detail: "Manage queued prompts, active plans, file changes, and skill mentions through cleaner, more compact controls."
+        title: L10n.string("Redesigned Composer"),
+        detail: L10n.string("Manage queued prompts, active plans, file changes, and skill mentions through cleaner, more compact controls.")
     ),
     .init(
-        title: "Better Markdown",
-        detail: "Enjoy Markdown in your own messages and faster, smoother streaming responses."
+        title: L10n.string("Better Markdown"),
+        detail: L10n.string("Enjoy Markdown in your own messages and faster, smoother streaming responses.")
     ),
     .init(
-        title: "Clearer Tool Activity",
-        detail: "Commands and tool calls are now grouped, expandable, and easier to follow with improved icons, statuses, history, and file changes."
+        title: L10n.string("Clearer Tool Activity"),
+        detail: L10n.string("Commands and tool calls are now grouped, expandable, and easier to follow with improved icons, statuses, history, and file changes.")
     ),
     .init(
-        title: "Smarter Sidebar",
-        detail: "Find active and unread chats faster with improved sorting, status indicators, and automation labels."
+        title: L10n.string("Smarter Sidebar"),
+        detail: L10n.string("Find active and unread chats faster with improved sorting, status indicators, and automation labels.")
     ),
     .init(
-        title: "Reliable Recovery",
-        detail: "Pairing, reconnects, and running chats now recover more reliably after sleep, relaunch, bridge restarts, or network loss."
+        title: L10n.string("Reliable Recovery"),
+        detail: L10n.string("Pairing, reconnects, and running chats now recover more reliably after sleep, relaunch, bridge restarts, or network loss.")
     ),
     .init(
-        title: "Cleaner Timelines",
-        detail: "Duplicate messages, reasoning, final answers, and stale tool activity have been reduced, with smoother scrolling and history restoration."
+        title: L10n.string("Cleaner Timelines"),
+        detail: L10n.string("Duplicate messages, reasoning, final answers, and stale tool activity have been reduced, with smoother scrolling and history restoration.")
     ),
     .init(
-        title: "Improved Terminal",
-        detail: "Select and copy terminal output, with refreshed native menus across Terminal, Settings, Git, and chat controls."
+        title: L10n.string("Improved Terminal"),
+        detail: L10n.string("Select and copy terminal output, with refreshed native menus across Terminal, Settings, Git, and chat controls.")
     ),
     .init(
-        title: "Better Voice Input",
-        detail: "Voice transcription is faster and more reliable, with smoother recording animations."
+        title: L10n.string("Better Voice Input"),
+        detail: L10n.string("Voice transcription is faster and more reliable, with smoother recording animations.")
     ),
     .init(
-        title: "Fresh New Look",
-        detail: "A new Remodex icon and unified visual identity, plus an SF Pro Rounded font option."
+        title: L10n.string("Fresh New Look"),
+        detail: L10n.string("A new Remodex icon and unified visual identity, plus an SF Pro Rounded font option.")
     ),
     .init(
-        title: "More Reliable Workflows",
-        detail: "Plan Mode, completed steps, message sending, attachments, and long-running sessions are now more dependable."
+        title: L10n.string("More Reliable Workflows"),
+        detail: L10n.string("Plan Mode, completed steps, message sending, attachments, and long-running sessions are now more dependable.")
     ),
     .init(
-        title: "Performance and Stability",
-        detail: "Cleaner Mac bridge removal, fixed service restart loops, and many additional synchronization, performance, and stability improvements."
+        title: L10n.string("Performance and Stability"),
+        detail: L10n.string("Cleaner Mac bridge removal, fixed service restart loops, and many additional synchronization, performance, and stability improvements.")
     ),
 ]
 
 struct WhatsNewSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let version: String
     let onDismiss: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ZStack(alignment: .bottom) {
                 ScrollView(.vertical, showsIndicators: false) {
@@ -161,7 +164,7 @@ struct WhatsNewSheet: View {
             .frame(height: 64)
             .allowsHitTesting(false)
 
-            PrimaryCapsuleButton(title: "Got It") {
+            PrimaryCapsuleButton(title: L10n.string("Got It")) {
                 onDismiss()
             }
             .padding(.horizontal, 24)

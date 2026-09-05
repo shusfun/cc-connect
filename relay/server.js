@@ -17,6 +17,11 @@ const {
 
 const relayLogIdentitySecret = randomBytes(32);
 const allowUpgrade = () => null;
+function rejectRelayUpgrade(socket, status, code) {
+  const requestId = require('node:crypto').randomUUID();
+  console.info(JSON.stringify({ route: 'relay/upgrade', stage: 'authorization', status, code, requestId, result: 'rejected' }));
+  socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nCache-Control: no-store\r\nx-remodex-request-id: ${requestId}\r\nx-remodex-error: ${code}\r\n${status === 429 ? 'Retry-After: 60\r\n' : ''}\r\n`);
+}
 
 function createRelayServer({
   exposeDetailedHealth = false,
@@ -55,33 +60,24 @@ function createRelayServer({
 
   server.on("upgrade", (req, socket, head) => {
     const pathname = safePathname(req.url);
-    const loggedPathname = redactRelayPathname(pathname);
-    console.log(
-      `[relay] upgrade request path=${loggedPathname} remote=${clientAddressLabel(req, { trustProxy })} `
-      + `role=${readUpgradeRole(req) || "missing"}`
-    );
+    const role = readUpgradeRole(req);
+    console.log(`[relay] upgrade request path=${pathname.startsWith('/relay/') ? '/relay/[session]' : '[invalid]'} remote=${clientAddressLabel(req, { trustProxy })} role=${['mac','iphone','android'].includes(role) ? role : 'unknown'}`);
     if (!pathname.startsWith("/relay/")) {
-      console.log(`[relay] rejecting upgrade for non-relay path: ${loggedPathname}`);
-      socket.destroy();
+      rejectRelayUpgrade(socket, 404, 'invalid_relay_path');
       return;
     }
 
     if (!upgradeRateLimiter.allow(clientAddressKey(req, { trustProxy }))) {
-      console.log(`[relay] rejecting upgrade due to rate limit: ${loggedPathname}`);
-      socket.write(
-        "HTTP/1.1 429 Too Many Requests\r\n" +
-        "Connection: close\r\n" +
-        "Retry-After: 60\r\n\r\n"
-      );
-      socket.destroy();
+      rejectRelayUpgrade(socket, 429, 'rate_limited');
       return;
     }
 
     try {
       req.remodexAccess = accessControl ? accessControl.authorizeUpgrade(req) : authorizeUpgrade(req);
     } catch (error) {
-      const status = error.status === 429 ? 429 : 401;
-      socket.end(`HTTP/1.1 ${status} Unauthorized\r\nConnection: close\r\n\r\n`);
+      const status = [400,401,403,410,429,503].includes(error.status) ? error.status : 401;
+      const code = error.status && /^[a-z][a-z_]{0,63}$/.test(error.code || '') ? error.code : 'access_denied';
+      rejectRelayUpgrade(socket, status, code);
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {

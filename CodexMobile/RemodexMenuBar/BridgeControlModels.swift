@@ -26,22 +26,23 @@ struct BridgeSnapshot: Equatable {
     }
 
     var statusHeadline: String {
-        if !runtimeAvailable { return "Runtime Missing" }
+        if !runtimeAvailable { return "运行时缺失" }
         if let value = bridgeStatus?.connectionStatus?.nonEmptyTrimmed {
-            return value.capitalized
+            return ["connected":"已连接", "disconnected":"已断开", "starting":"启动中", "error":"连接失败"][value] ?? "状态待确认"
         }
-        return isRunning ? "Running" : "Stopped"
+        return isRunning ? "运行中" : "已停止"
     }
 
     var statusFootnote: String {
         guard let date = bridgeStatus?.updatedDate else {
-            return isRunning ? "App-owned process" : "Not running"
+            return isRunning ? "由本 App 管理" : "未运行"
         }
         return Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     var codexStatusLabel: String {
-        bridgeStatus?.codexLaunchState?.nonEmptyTrimmed?.capitalized ?? (isRunning ? "Starting" : "Stopped")
+        guard let value = bridgeStatus?.codexLaunchState?.nonEmptyTrimmed else { return isRunning ? "启动中" : "已停止" }
+        return ["starting":"启动中", "ready":"就绪", "running":"运行中", "failed":"启动失败", "error":"错误", "stopped":"已停止"][value] ?? "状态待确认"
     }
 
     var connectionCount: Int {
@@ -80,6 +81,9 @@ struct BridgeDaemonConfig: Codable, Equatable {
 }
 
 struct BridgeRuntimeStatus: Codable, Equatable {
+    var relayDiagnostic: BridgeRelayDiagnostic? = nil
+    var ownerGeneration: String? = nil
+    func belongsTo(_ generation: UUID) -> Bool { ownerGeneration == generation.uuidString }
     let state: String?
     let connectionStatus: String?
     let pid: Int?
@@ -94,7 +98,14 @@ struct BridgeRuntimeStatus: Codable, Equatable {
     }
 }
 
+struct BridgeRelayDiagnostic: Codable, Equatable {
+    let code: String?
+    let status: Int?
+    let requestId: String?
+}
+
 struct BridgePairingSession: Codable, Equatable {
+    let qrText: String?
     let createdAt: String?
     let pairingPayload: BridgePairingPayload?
     let pairingCode: String?

@@ -7,12 +7,15 @@
 import SwiftUI
 
 struct SidebarProjectShowMoreButton: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let hiddenCount: Int
     let reveal: () -> Void
 
     @State private var chevronRotated = false
 
     var body: some View {
+        let _ = _localizationLocale
         HapticButton(action: {
             withAnimation(.easeInOut(duration: 0.2)) {
                 chevronRotated = true
@@ -20,7 +23,7 @@ struct SidebarProjectShowMoreButton: View {
             }
         }) {
             HStack(spacing: 6) {
-                Text(hiddenCount > 0 ? "Show \(hiddenCount) more" : "Show more")
+                Text(hiddenCount > 0 ? L10n.format("Show %@ more", String(describing: hiddenCount)) : L10n.string("Show more"))
                 RemodexIcon.image(systemName: "chevron.down")
                     .font(AppFont.system(size: 10, weight: .semibold))
                     .rotationEffect(.degrees(chevronRotated ? 180 : 0))

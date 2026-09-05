@@ -15,7 +15,7 @@ enum VoiceTranscriptionBackgroundTask {
     // Requests a short iOS background window, but callers still own cancellation policy.
     @MainActor
     static func run<T>(
-        named name: String = "Remodex voice transcription",
+        named name: String = L10n.string("Remodex voice transcription"),
         operation: @escaping () async throws -> T
     ) async throws -> T {
         let operationTask = Task { @MainActor in

@@ -43,6 +43,8 @@ private struct MacContextTransitionSnapshot {
 }
 
 struct ContentView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
@@ -55,6 +57,7 @@ struct ContentView: View {
     @State private var selectedThread: CodexThread?
     @State private var navigationPath: [ContentNavigationRoute] = []
     @State private var isShowingManualScanner = false
+    @State private var compactCodeToPreview: String?
     @State private var isShowingMyMacsScanner = false
     @State private var hasDismissedAutomaticScanner = false
     @State private var scannerCanReturnToOnboarding = false
@@ -106,6 +109,7 @@ struct ContentView: View {
     private static var isSidebarDebugLoggingEnabled: Bool { false }
 
     var body: some View {
+        let _ = _localizationLocale
         rootContentWithBannerOverlay
     }
 
@@ -244,7 +248,7 @@ struct ContentView: View {
                 }
             }
             .alert(
-                "Chat Deleted",
+                L10n.string("Chat Deleted"),
                 isPresented: missingNotificationThreadAlertIsPresented,
                 presenting: codex.missingNotificationThreadPrompt
             ) { _ in
@@ -267,12 +271,12 @@ struct ContentView: View {
             } message: {
                 Text(manualPairingErrorAlertMessage)
             }
-            .alert("Enter Pairing Code", isPresented: $isShowingManualPairingEntry) {
-                TextField("AB23CD34EF", text: $manualPairingCode)
+            .alert("粘贴配对码", isPresented: $isShowingManualPairingEntry) {
+                TextField("RDX2: 开头的完整配对码", text: $manualPairingCode)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
 
-                Button(isResolvingManualPairingCode ? "Connecting..." : "Enter") {
+                Button(isResolvingManualPairingCode ? "Connecting..." : L10n.string("Enter")) {
                     submitManualPairingCode()
                 }
 
@@ -280,7 +284,7 @@ struct ContentView: View {
                     manualPairingCode = ""
                 }
             } message: {
-                Text("Paste the pairing code shown in the terminal on your Mac.")
+                Text("在电脑应用的连接与配对页点击“复制配对码”，然后粘贴到这里。")
             }
             // Settings rides on a full-screen cover instead of `navigationPath`
             // so the gear tap inside the iOS 26 `safeAreaBar` header always
@@ -349,11 +353,11 @@ struct ContentView: View {
 
     private var deviceSwitchingOverlay: some View {
         DeviceSwitchingOverlayView(
-            title: "Switching device…",
+            title: L10n.string("Switching device…"),
             primaryStatus: switchingConnectionPhaseLabel,
             secondaryStatus: switchingSecureStatusLabel,
             deviceName: switchingDeviceName,
-            cancelTitle: viewModel.isCancellingMacSwitch ? "Cancelling..." : "Cancel",
+            cancelTitle: viewModel.isCancellingMacSwitch ? "Cancelling..." : L10n.string("Cancel"),
             isCancelDisabled: viewModel.isCancellingMacSwitch,
             onCancel: cancelMacSwitch
         )
@@ -425,8 +429,10 @@ struct ContentView: View {
 
     private var qrScannerBody: some View {
         QRScannerView(
+            initialCode: compactCodeToPreview,
             onBack: scannerBackAction,
             onScan: { pairingPayload in
+                compactCodeToPreview = nil
                 Task {
                     isShowingManualScanner = false
                     hasDismissedAutomaticScanner = false
@@ -443,7 +449,7 @@ struct ContentView: View {
                     }
                 }
             }
-        )
+        ).onDisappear { compactCodeToPreview = nil }
     }
 
     // Lets the drawer expand when search needs room; compact devices normally
@@ -624,7 +630,7 @@ struct ContentView: View {
             shouldOfferWakeAction: shouldOfferWakeSavedMacDisplayAction,
             isPreparingManualScanner: isPreparingManualScanner,
             isResolvingManualPairingCode: isResolvingManualPairingCode,
-            offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? "Reconnect" : "Scan QR Code",
+            offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? L10n.string("Reconnect") : L10n.string("Scan QR Code"),
             onPrimaryAction: {
                 if homeConnectionPhase == .offline && !codex.hasReconnectCandidate {
                     presentAutomaticScanner()
@@ -707,7 +713,7 @@ struct ContentView: View {
                 statusMessage: codex.lastErrorMessage,
                 securityLabel: codex.secureConnectionState.statusLabel,
                 trustedPairPresentation: codex.trustedPairPresentation,
-                offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? "Reconnect" : "Scan QR Code",
+                offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? L10n.string("Reconnect") : L10n.string("Scan QR Code"),
                 onPrimaryAction: {
                     if homeConnectionPhase == .offline && !codex.hasReconnectCandidate {
                         presentAutomaticScanner()
@@ -778,7 +784,7 @@ struct ContentView: View {
                 statusMessage: codex.lastErrorMessage,
                 securityLabel: codex.secureConnectionState.statusLabel,
                 trustedPairPresentation: codex.trustedPairPresentation,
-                offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? "Reconnect" : "Scan QR Code",
+                offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? L10n.string("Reconnect") : L10n.string("Scan QR Code"),
                 onPrimaryAction: {
                     if homeConnectionPhase == .offline && !codex.hasReconnectCandidate {
                         presentAutomaticScanner()
@@ -792,7 +798,7 @@ struct ContentView: View {
             ) {
                 if homeConnectionPhase == .connecting || (codex.hasReconnectCandidate && !codex.isConnected) {
                     if shouldOfferWakeSavedMacDisplayAction {
-                        Button(isWakingSavedMacDisplay ? "Waking Screen..." : "Wake Screen") {
+                        Button(isWakingSavedMacDisplay ? L10n.string("Waking Screen...") : L10n.string("Wake Screen")) {
                             wakeSavedMacDisplay()
                         }
                         .font(AppFont.subheadline(weight: .semibold))
@@ -845,7 +851,7 @@ struct ContentView: View {
     }
 
     private var manualPairingErrorAlertMessage: String {
-        manualPairingErrorMessage ?? "Could not resolve that pairing code."
+        manualPairingErrorMessage ?? L10n.string("无法获取配对设备，请检查网络后重试。")
     }
 
     // Offers a one-tap display wake for the best local-style relay we still know about, even if only the trusted record remains.
@@ -1813,12 +1819,12 @@ struct ContentView: View {
     // Keeps QR and code recovery as one quiet secondary row under the main reconnect CTA.
     private var reconnectSecondaryActions: some View {
         HStack(spacing: 10) {
-            secondaryReconnectActionButton("New QR Code") {
+            secondaryReconnectActionButton(L10n.string("New QR Code")) {
                 presentManualScannerAfterStoppingReconnect()
             }
             .disabled(isPreparingManualScanner)
 
-            secondaryReconnectActionButton("Pair with Code") {
+            secondaryReconnectActionButton(L10n.string("Pair with Code")) {
                 presentManualPairingEntryAfterStoppingReconnect()
             }
             .disabled(isPreparingManualScanner || isResolvingManualPairingCode)
@@ -1877,7 +1883,7 @@ struct ContentView: View {
 
         let pendingCode = manualPairingCode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !pendingCode.isEmpty else {
-            manualPairingErrorMessage = "Enter a valid pairing code."
+            manualPairingErrorMessage = L10n.string("请粘贴有效的完整配对码。")
             return
         }
         isResolvingManualPairingCode = true
@@ -1889,12 +1895,13 @@ struct ContentView: View {
             await viewModel.stopAutoReconnectForManualScan(codex: codex)
 
             do {
-                let pairingPayload: CodexPairingQRPayload
                 switch validatePairingQRCode(pendingCode) {
-                case .success(let payload):
-                    pairingPayload = payload
-                case .shortCode(let code):
-                    pairingPayload = try await codex.resolvePairingCode(code)
+                case .compact:
+                    compactCodeToPreview = pendingCode
+                    manualPairingCode = ""
+                    isShowingManualPairingEntry = false
+                    isShowingManualScanner = true
+                    return
                 case .scanError(let message):
                     throw CodexSecureTransportError.invalidQR(message)
                 case .bridgeUpdateRequired(let prompt):
@@ -1902,24 +1909,6 @@ struct ContentView: View {
                     return
                 }
 
-                isShowingManualPairingEntry = false
-                manualPairingCode = ""
-                withAnimation {
-                    hasSeenOnboarding = true
-                    isShowingManualScanner = false
-                    hasDismissedAutomaticScanner = true
-                    scannerCanReturnToOnboarding = false
-                }
-                if isShowingMyMacsScanner {
-                    isShowingMyMacsScanner = false
-                    prepareForMacContextTransition()
-                    startScannedMacSwitch(pairingPayload)
-                    return
-                }
-                await viewModel.connectToRelay(
-                    pairingPayload: pairingPayload,
-                    codex: codex
-                )
             } catch {
                 manualPairingErrorMessage = error.localizedDescription
             }
@@ -2106,7 +2095,10 @@ struct ContentView: View {
 }
 
 private struct NewChatOpeningStateView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         VStack(spacing: 14) {
             ProgressView()
                 .controlSize(.regular)
@@ -2129,7 +2121,10 @@ private struct NewChatOpeningStateView: View {
 }
 
 struct TwoLineHamburgerIcon: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 5) {
             RoundedRectangle(cornerRadius: 1)
                 .frame(width: 20, height: 2)

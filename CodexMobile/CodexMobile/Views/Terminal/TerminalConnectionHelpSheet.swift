@@ -54,6 +54,8 @@ private struct TerminalConnectionHelpStep: Identifiable {
 }
 
 struct TerminalConnectionHelpSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.dismiss) private var dismiss
     @State private var platform: TerminalConnectionHelpPlatform = .mac
 
@@ -62,6 +64,7 @@ struct TerminalConnectionHelpSheet: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -113,9 +116,12 @@ struct TerminalConnectionHelpSheet: View {
 }
 
 private struct TerminalWindowsConnectionGuide: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let steps: [TerminalConnectionHelpStep]
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Connect to Windows with SSH")
@@ -150,9 +156,12 @@ private struct TerminalWindowsConnectionGuide: View {
 }
 
 private struct TerminalWindowsConnectionStep: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let step: TerminalConnectionHelpStep
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 8) {
             Text("\(step.number). \(step.title)")
                 .font(AppFont.system(size: 16, weight: .semibold))
@@ -174,10 +183,13 @@ private struct TerminalWindowsConnectionStep: View {
 }
 
 private struct TerminalConnectionCommandBlock: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let command: String
     @State private var didCopy = false
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             UIPasteboard.general.string = command
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
@@ -207,15 +219,18 @@ private struct TerminalConnectionCommandBlock: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(didCopy ? "Command copied" : "Copy command")
+        .accessibilityLabel(didCopy ? L10n.string("Command copied") : L10n.string("Copy command"))
     }
 }
 
 private struct TerminalConnectionHelpPromptRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let prompt: String
     @State private var didCopy = false
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Need help?")
@@ -255,7 +270,7 @@ private struct TerminalConnectionHelpPromptRow: View {
                 .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(didCopy ? "Prompt copied" : "Copy setup prompt")
+            .accessibilityLabel(didCopy ? L10n.string("Prompt copied") : L10n.string("Copy setup prompt"))
         }
         .padding(12)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
@@ -263,10 +278,13 @@ private struct TerminalConnectionHelpPromptRow: View {
 }
 
 private struct TerminalConnectionHelpStepRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let step: TerminalConnectionHelpStep
     let isLast: Bool
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(alignment: .top, spacing: 12) {
             VStack(spacing: 0) {
                 ZStack {
@@ -317,47 +335,47 @@ private extension TerminalConnectionHelpStep {
             return [
                 TerminalConnectionHelpStep(
                     number: 1,
-                    title: "Choose the Mac",
+                    title: L10n.string("Choose the Mac"),
                     icon: "laptopcomputer",
-                    body: "Use the Mac where you want commands to run. It needs to be awake and reachable from your iPhone, usually on the same Wi‑Fi or through your VPN."
+                    body: L10n.string("Use the Mac where you want commands to run. It needs to be awake and reachable from your iPhone, usually on the same Wi‑Fi or through your VPN.")
                 ),
                 TerminalConnectionHelpStep(
                     number: 2,
-                    title: "Turn on Remote Login",
+                    title: L10n.string("Turn on Remote Login"),
                     icon: "lock.shield",
-                    body: "Open System Settings → General → Sharing and turn on Remote Login. This enables SSH so trusted devices can open a terminal session."
+                    body: L10n.string("Open System Settings → General → Sharing and turn on Remote Login. This enables SSH so trusted devices can open a terminal session.")
                 ),
                 TerminalConnectionHelpStep(
                     number: 3,
-                    title: "Create a Remodex key",
+                    title: L10n.string("Create a Remodex key"),
                     icon: "key",
-                    body: "Open Terminal and create a dedicated SSH key for Remodex. The public half is allowed on the Mac; the private half is pasted into Remodex and should not be shared anywhere else."
+                    body: L10n.string("Open Terminal and create a dedicated SSH key for Remodex. The public half is allowed on the Mac; the private half is pasted into Remodex and should not be shared anywhere else.")
                 ),
                 TerminalConnectionHelpStep(
                     number: 4,
-                    title: "Fill in the connection",
+                    title: L10n.string("Fill in the connection"),
                     icon: "terminal",
-                    body: "In Remodex, enter the connection as user@address, give it a nickname, paste the private key, and leave the port as 22 unless you changed it."
+                    body: L10n.string("In Remodex, enter the connection as user@address, give it a nickname, paste the private key, and leave the port as 22 unless you changed it.")
                 ),
                 TerminalConnectionHelpStep(
                     number: 5,
-                    title: "Connect and trust once",
+                    title: L10n.string("Connect and trust once"),
                     icon: "checkmark.seal.fill",
-                    body: "The first connection may ask you to trust the host key. Accept only when the computer is the one you intended. If you change machines later, reset the saved host key in the connection editor."
+                    body: L10n.string("The first connection may ask you to trust the host key. Accept only when the computer is the one you intended. If you change machines later, reset the saved host key in the connection editor.")
                 )
             ]
         case .windows:
             return [
                 TerminalConnectionHelpStep(
                     number: 1,
-                    title: "Install OpenSSH Server",
+                    title: L10n.string("Install OpenSSH Server"),
                     icon: "desktopcomputer",
                     body: "",
                     command: "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0"
                 ),
                 TerminalConnectionHelpStep(
                     number: 2,
-                    title: "Start SSH and enable it on boot",
+                    title: L10n.string("Start SSH and enable it on boot"),
                     icon: "lock.shield",
                     body: "",
                     command: """
@@ -367,16 +385,16 @@ private extension TerminalConnectionHelpStep {
                 ),
                 TerminalConnectionHelpStep(
                     number: 3,
-                    title: "Create a key on the device that will connect",
+                    title: L10n.string("Create a key on the device that will connect"),
                     icon: "key",
-                    body: "When asked, choose a passphrase for the recommended secure setup.",
+                    body: L10n.string("When asked, choose a passphrase for the recommended secure setup."),
                     command: "ssh-keygen -t ed25519 -f $HOME\\.ssh\\remodex_ed25519"
                 ),
                 TerminalConnectionHelpStep(
                     number: 4,
-                    title: "Add that public key for the Windows user you will log in as",
+                    title: L10n.string("Add that public key for the Windows user you will log in as"),
                     icon: "terminal",
-                    body: "Paste the contents of remodex_ed25519.pub into authorized_keys.",
+                    body: L10n.string("Paste the contents of remodex_ed25519.pub into authorized_keys."),
                     command: """
                     mkdir $HOME\\.ssh -Force
                     notepad $HOME\\.ssh\\authorized_keys
@@ -384,7 +402,7 @@ private extension TerminalConnectionHelpStep {
                 ),
                 TerminalConnectionHelpStep(
                     number: 5,
-                    title: "Find the PC IP, then use it in Remodex",
+                    title: L10n.string("Find the PC IP, then use it in Remodex"),
                     icon: "checkmark.seal.fill",
                     body: "",
                     command: "ipconfig"

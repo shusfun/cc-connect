@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct GoalStatusSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let threadId: String
     // Draft text carried over from the composer when the user typed `/goal <text>`.
     let initialObjectiveDraft: String?
@@ -37,6 +39,7 @@ struct GoalStatusSheet: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
@@ -63,7 +66,7 @@ struct GoalStatusSheet: View {
             await loadRemoteGoalIfNeeded()
         }
         .confirmationDialog(
-            "Clear this goal?",
+            L10n.string("Clear this goal?"),
             isPresented: $isShowingClearConfirmation,
             titleVisibility: .visible
         ) {
@@ -75,7 +78,7 @@ struct GoalStatusSheet: View {
             Text("Codex stops pursuing the objective and forgets its goal progress accounting.")
         }
         .confirmationDialog(
-            "Replace the current goal?",
+            L10n.string("Replace the current goal?"),
             isPresented: $isShowingReplaceConfirmation,
             titleVisibility: .visible
         ) {
@@ -113,7 +116,7 @@ struct GoalStatusSheet: View {
 
             if let tokenBudget = goal.tokenBudget {
                 let remaining = goal.remainingTokens ?? 0
-                Text("Budget \(CodexThreadGoal.formatTokenCount(tokenBudget)) tokens · \(CodexThreadGoal.formatTokenCount(remaining)) remaining")
+                Text(L10n.format("Budget %@ tokens · %@ remaining", String(describing: CodexThreadGoal.formatTokenCount(tokenBudget)), String(describing: CodexThreadGoal.formatTokenCount(remaining))))
                     .font(AppFont.footnote())
                     .foregroundStyle(.secondary)
             }
@@ -132,7 +135,7 @@ struct GoalStatusSheet: View {
     private func goalActionsCard(_ goal: CodexThreadGoal) -> some View {
         VStack(spacing: 10) {
             if goal.status == .active {
-                actionButton("Pause Goal", systemImage: "pause.circle") {
+                actionButton(L10n.string("Pause Goal"), systemImage: "pause.circle") {
                     performAction {
                         try await codex.setThreadGoal(threadId: threadId, status: .paused)
                     }
@@ -140,7 +143,7 @@ struct GoalStatusSheet: View {
             }
 
             if goal.status.isResumable {
-                actionButton("Resume Goal", systemImage: "play.circle") {
+                actionButton(L10n.string("Resume Goal"), systemImage: "play.circle") {
                     performAction {
                         try await codex.setThreadGoal(threadId: threadId, status: .active)
                     }
@@ -148,14 +151,14 @@ struct GoalStatusSheet: View {
             }
 
             if goal.status == .complete {
-                actionButton("New Goal", systemImage: "plus.circle") {
+                actionButton(L10n.string("New Goal"), systemImage: "plus.circle") {
                     objectiveDraft = initialObjectiveDraft ?? ""
                     tokenBudgetDraft = ""
                     editorMode = .createNew
                     isEditingObjective = true
                 }
             } else {
-                actionButton("Edit Objective", systemImage: "pencil") {
+                actionButton(L10n.string("Edit Objective"), systemImage: "pencil") {
                     objectiveDraft = goal.objective
                     tokenBudgetDraft = goal.tokenBudget.map(String.init) ?? ""
                     editorMode = .editExisting
@@ -163,7 +166,7 @@ struct GoalStatusSheet: View {
                 }
             }
 
-            actionButton("Clear Goal", systemImage: "trash", role: .destructive) {
+            actionButton(L10n.string("Clear Goal"), systemImage: "trash", role: .destructive) {
                 isShowingClearConfirmation = true
             }
         }
@@ -174,7 +177,7 @@ struct GoalStatusSheet: View {
 
     private var objectiveEditorCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(editorMode == .editExisting ? "Edit Goal" : "New Goal")
+            Text(editorMode == .editExisting ? L10n.string("Edit Goal") : L10n.string("New Goal"))
                 .font(AppFont.headline())
 
             Text("Describe the outcome, how to verify it, and what must not regress. Codex keeps working toward it across turns.")
@@ -208,7 +211,7 @@ struct GoalStatusSheet: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                     } else {
-                        Text(editorMode == .editExisting ? "Save Goal" : "Start Goal")
+                        Text(editorMode == .editExisting ? L10n.string("Save Goal") : L10n.string("Start Goal"))
                             .frame(maxWidth: .infinity)
                     }
                 }

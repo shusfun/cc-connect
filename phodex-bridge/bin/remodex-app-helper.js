@@ -5,6 +5,12 @@
 // Exports: none
 // Depends on: ../src/bridge, ../src/daemon-state, ../src/secure-device-state, ../src/session-state
 
+const command = process.argv[2] || 'run';
+if (command === 'run' && process.platform !== 'win32') {
+  require('../src/app-supervisor').supervise(__filename);
+  return;
+}
+
 const { startBridge } = require("../src/bridge");
 const { readBridgeConfig } = require("../src/codex-desktop-refresher");
 const {
@@ -21,8 +27,6 @@ const { resetBridgeTrustState } = require("../src/secure-device-state");
 const { openLastActiveThread } = require("../src/session-state");
 const { DeviceAccess } = require('../src/device-access');
 
-const command = process.argv[2] || "run";
-
 if (command === "reset-pairing") {
   resetBridgeTrustState();
   process.exit(0);
@@ -33,7 +37,7 @@ if (command === "resume") {
   process.exit(0);
 }
 
-if (command !== "run") {
+if (command !== "run" && command !== "worker") {
   console.error(`[remodex] Unsupported app helper command: ${command}`);
   process.exit(2);
 }
@@ -63,9 +67,23 @@ process.stdin.once("close", stopWithParent);
 
 let bootstrap = '';
 let started = false;
+let refreshInvitation;
+let controlInput = '';
 const bootstrapTimeout = setTimeout(() => { console.error('[remodex] activation_required'); process.exit(1); }, 10000);
 process.stdin.on('data', async chunk => {
-  if (started) return;
+  if (started) {
+    controlInput += chunk.toString('utf8');
+    if (controlInput.length > 1024) { process.exit(1); return; }
+    while (controlInput.includes('\n')) {
+      const end = controlInput.indexOf('\n'); const line = controlInput.slice(0, end); controlInput = controlInput.slice(end + 1);
+      try {
+        const command = JSON.parse(line);
+        if (command.command !== 'refresh-pairing' || !refreshInvitation) throw new Error('control_not_ready');
+        await refreshInvitation();
+      } catch { console.error('[remodex] pairing_refresh_failed'); }
+    }
+    return;
+  }
   bootstrap += chunk.toString('utf8');
   if (bootstrap.length > 16384) { process.exit(1); return; }
   if (!bootstrap.includes('\n')) return;
@@ -80,8 +98,9 @@ process.stdin.on('data', async chunk => {
     const pairingInvitation = await deviceAccess.request('/v1/access/pairing/invite');
     startBridge({
       config, deviceAccess, pairingInvitation, printPairingQr: false,
+      onControlReady(refresh) { refreshInvitation = refresh; },
       onPairingSession(pairingSession) { writePairingSession(pairingSession); },
-      onBridgeStatus(status) { writeBridgeStatus({ ...(readBridgeStatus() || {}), ...status }); },
+      onBridgeStatus(status) { writeBridgeStatus({ ...(readBridgeStatus() || {}), ...status, ownerGeneration: process.env.REMODEX_OWNER_GENERATION }); },
     });
   } catch (error) {
     console.error(`[remodex] ${error.code || 'activation_failed'}`);

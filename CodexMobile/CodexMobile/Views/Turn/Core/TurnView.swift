@@ -16,6 +16,8 @@ private enum TurnWorktreeOverlayRoute: Equatable {
 }
 
 struct TurnView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let thread: CodexThread
     let isWakingMacDisplayRecovery: Bool
     private let initiallyAwaitingAssistantResponse: Bool
@@ -70,6 +72,7 @@ struct TurnView: View {
 
     // ─── ENTRY POINT ─────────────────────────────────────────────
     var body: some View {
+        let _ = _localizationLocale
         let resolvedThread = currentResolvedThread
         let timelineState = codex.timelineState(for: thread.id)
         let renderSnapshot = timelineState.renderSnapshot
@@ -111,7 +114,7 @@ struct TurnView: View {
             gitWorkingDirectory: gitWorkingDirectory
         )
         let toolbarNavigationContext = isRootlessChat ? nil : threadNavigationContext(for: resolvedThread)
-        let toolbarWorktreeHandoffTitle = isWorktreeProject ? "Hand off to Local" : "Hand off to Worktree"
+        let toolbarWorktreeHandoffTitle = isWorktreeProject ? L10n.string("Hand off to Local") : L10n.string("Hand off to Worktree")
         let isGitActionEnabled = viewModel.gitRepoSync != nil && canRunGitAction(
             isThreadRunning: isThreadRunning,
             gitWorkingDirectory: gitWorkingDirectory,
@@ -575,7 +578,7 @@ struct TurnView: View {
             }
         )
         .alert(
-            checkedOutElsewhereAlert?.title ?? "Branch already open elsewhere",
+            checkedOutElsewhereAlert?.title ?? L10n.string("Branch already open elsewhere"),
             isPresented: checkedOutElsewhereAlertIsPresented,
             presenting: checkedOutElsewhereAlert
         ) { alert in
@@ -691,8 +694,8 @@ struct TurnView: View {
                 let result = try await gitService.diff()
                 guard let presentation = TurnDiffPresentationBuilder.repositoryPresentation(from: result.patch) else {
                     viewModel.gitSyncAlert = TurnGitSyncAlert(
-                        title: "Git Error",
-                        message: "There are no repository changes to show.",
+                        title: L10n.string("Git Error"),
+                        message: L10n.string("There are no repository changes to show."),
                         action: .dismissOnly
                     )
                     return
@@ -700,13 +703,13 @@ struct TurnView: View {
                 repositoryDiffPresentation = presentation
             } catch let error as GitActionsError {
                 viewModel.gitSyncAlert = TurnGitSyncAlert(
-                    title: "Git Error",
-                    message: error.errorDescription ?? "Could not load repository changes.",
+                    title: L10n.string("Git Error"),
+                    message: error.errorDescription ?? L10n.string("Could not load repository changes."),
                     action: .dismissOnly
                 )
             } catch {
                 viewModel.gitSyncAlert = TurnGitSyncAlert(
-                    title: "Git Error",
+                    title: L10n.string("Git Error"),
                     message: error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -1029,9 +1032,9 @@ struct TurnView: View {
                     )
                 } catch {
                     viewModel.gitSyncAlert = TurnGitSyncAlert(
-                        title: "Local Handoff Failed",
+                        title: L10n.string("Local Handoff Failed"),
                         message: error.localizedDescription.isEmpty
-                            ? "Could not hand off the thread back to Local."
+                            ? L10n.string("Could not hand off the thread back to Local.")
                             : error.localizedDescription,
                         action: .dismissOnly
                     )
@@ -1069,9 +1072,9 @@ struct TurnView: View {
                 }
             } catch {
                 viewModel.gitSyncAlert = TurnGitSyncAlert(
-                    title: "Worktree Handoff Failed",
+                    title: L10n.string("Worktree Handoff Failed"),
                     message: error.localizedDescription.isEmpty
-                        ? "Could not hand off the thread to the new worktree."
+                        ? L10n.string("Could not hand off the thread to the new worktree.")
                         : error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -1242,8 +1245,8 @@ struct TurnView: View {
             onOpenWorktree: { result in
                 guard !result.alreadyExisted else {
                     viewModel.gitSyncAlert = TurnGitSyncAlert(
-                        title: "Branch Already Exists",
-                        message: "A worktree for '\(result.branch)' already exists. Choose a different name.",
+                        title: L10n.string("Branch Already Exists"),
+                        message: L10n.format("A worktree for '%@' already exists. Choose a different name.", String(describing: result.branch)),
                         action: .dismissOnly
                     )
                     return
@@ -1268,9 +1271,9 @@ struct TurnView: View {
                         }
                     } catch {
                         viewModel.gitSyncAlert = TurnGitSyncAlert(
-                            title: "Worktree Handoff Failed",
+                            title: L10n.string("Worktree Handoff Failed"),
                             message: error.localizedDescription.isEmpty
-                                ? "Could not hand off the thread to the new worktree."
+                                ? L10n.string("Could not hand off the thread to the new worktree.")
                                 : error.localizedDescription,
                             action: .dismissOnly
                         )
@@ -1290,10 +1293,10 @@ struct TurnView: View {
                 localCheckoutPath: viewModel.gitLocalCheckoutPath
             ) != nil else {
                 viewModel.gitSyncAlert = TurnGitSyncAlert(
-                    title: "Local Fork Unavailable",
+                    title: L10n.string("Local Fork Unavailable"),
                     message: sourceThread.isManagedWorktreeProject
-                        ? "Could not resolve the Local checkout for this worktree thread."
-                        : "Could not resolve the local project path for this thread.",
+                        ? L10n.string("Could not resolve the Local checkout for this worktree thread.")
+                        : L10n.string("Could not resolve the local project path for this thread."),
                     action: .dismissOnly
                 )
                 return
@@ -1335,8 +1338,8 @@ struct TurnView: View {
             onOpenWorktree: { result in
                 guard !result.alreadyExisted else {
                     viewModel.gitSyncAlert = TurnGitSyncAlert(
-                        title: "Branch Already Exists",
-                        message: "A worktree for '\(result.branch)' already exists. Choose a different name.",
+                        title: L10n.string("Branch Already Exists"),
+                        message: L10n.format("A worktree for '%@' already exists. Choose a different name.", String(describing: result.branch)),
                         action: .dismissOnly
                     )
                     return
@@ -1355,9 +1358,9 @@ struct TurnView: View {
                         openThread(forkedThread.id)
                     } catch {
                         viewModel.gitSyncAlert = TurnGitSyncAlert(
-                            title: "Worktree Fork Failed",
+                            title: L10n.string("Worktree Fork Failed"),
                             message: error.localizedDescription.isEmpty
-                                ? "Could not fork the thread into the new worktree."
+                                ? L10n.string("Could not fork the thread into the new worktree.")
                                 : error.localizedDescription,
                             action: .dismissOnly
                         )
@@ -1500,7 +1503,7 @@ struct TurnView: View {
                 SubagentParentAccessoryCard(
                     parentTitle: parentThread.displayTitle,
                     agentLabel: codex.resolvedSubagentDisplayLabel(threadId: thread.id, agentId: thread.agentId)
-                        ?? "Subagent",
+                        ?? L10n.string("Subagent"),
                     onTap: { openThread(parentThread.id) }
                 )
                 .padding(.horizontal, 12)
@@ -1758,7 +1761,7 @@ struct TurnView: View {
     private var loadingState: some View {
         ChatEmptyStatePlaceholder(
             title: Text("Loading chat..."),
-            subtitle: "Fetching the latest messages for this conversation."
+            subtitle: L10n.string("Fetching the latest messages for this conversation.")
         )
     }
 
@@ -1774,7 +1777,7 @@ struct TurnView: View {
     private var emptyState: some View {
         ChatEmptyStatePlaceholder(
             title: ChatEmptyStateTitleBuilder.makeTitle(for: emptyStateFolderName),
-            subtitle: "Chats are End-to-end encrypted"
+            subtitle: L10n.string("Chats are End-to-end encrypted")
         )
     }
 

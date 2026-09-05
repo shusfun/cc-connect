@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct SkillAutocompletePanel: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let items: [CodexSkillMetadata]
     let isLoading: Bool
     let query: String
@@ -22,6 +24,7 @@ struct SkillAutocompletePanel: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 0) {
             if isLoading {
                 HStack(spacing: 8) {
@@ -34,7 +37,7 @@ struct SkillAutocompletePanel: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
             } else if items.isEmpty, !query.isEmpty {
-                Text("No skills for \(trigger)\(query)")
+                Text(L10n.format("No skills for %@%@", String(describing: trigger), String(describing: query)))
                     .font(AppFont.footnote())
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)

@@ -8,10 +8,13 @@ import SwiftUI
 import UIKit
 
 struct TerminalEditorSection<Content: View>: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     @ViewBuilder let content: Content
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(AppFont.system(size: 18, weight: .bold))
@@ -22,9 +25,12 @@ struct TerminalEditorSection<Content: View>: View {
 }
 
 struct TerminalConnectionStringField: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var connection: String
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 14) {
             HStack(spacing: 4) {
                 Text("ssh")
@@ -47,10 +53,13 @@ struct TerminalConnectionStringField: View {
 }
 
 struct TerminalRoundedTextField: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let placeholder: String
     @Binding var text: String
 
     var body: some View {
+        let _ = _localizationLocale
         TextField(placeholder, text: $text)
             .font(AppFont.system(size: 15, weight: .medium))
             .textInputAutocapitalization(.words)
@@ -62,11 +71,14 @@ struct TerminalRoundedTextField: View {
 }
 
 struct TerminalEditorRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let value: String
     var showsChevron = false
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 12) {
             Text(title)
                 .font(AppFont.system(size: 15))
@@ -87,18 +99,21 @@ struct TerminalEditorRow: View {
 }
 
 struct TerminalPrivateKeyEditor: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var privateKey: String
     @Binding var passphrase: String
     @State private var isShowingKey = false
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text("Private key")
                     .font(AppFont.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
-                Button(isShowingKey ? "Hide" : "Paste/Edit", action: toggleKeyVisibility)
+                Button(isShowingKey ? L10n.string("Hide") : "Paste/Edit", action: toggleKeyVisibility)
                     .font(AppFont.system(size: 11, weight: .semibold))
                     .buttonStyle(.plain)
             }
@@ -134,7 +149,10 @@ struct TerminalPrivateKeyEditor: View {
 }
 
 private struct TerminalPrivateKeySavedRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 8) {
             RemodexIcon.image(systemName: "checkmark.seal.fill")
                 .foregroundStyle(.green)
@@ -150,12 +168,15 @@ private struct TerminalPrivateKeySavedRow: View {
 }
 
 struct TerminalTextField: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     @Binding var text: String
     var placeholder: String = ""
     var keyboardType: UIKeyboardType = .default
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(AppFont.system(size: 11, weight: .semibold))

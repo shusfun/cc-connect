@@ -12,6 +12,8 @@ struct InAppToastBannerAction {
 }
 
 struct InAppToastBannerView<LeadingIcon: View>: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let subtitle: String?
     let detailLines: [String]
@@ -47,6 +49,7 @@ struct InAppToastBannerView<LeadingIcon: View>: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 12) {
             leadingIcon()
                 .frame(width: 28, height: 28)
@@ -135,15 +138,18 @@ struct InAppToastBannerView<LeadingIcon: View>: View {
 }
 
 struct ThreadCompletionBannerView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let banner: CodexThreadCompletionBanner
     let onTap: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         InAppToastBannerView(
             title: banner.title,
-            subtitle: "Answer ready in another chat",
-            accessibilityHint: "Opens the completed chat.",
+            subtitle: L10n.string("Answer ready in another chat"),
+            accessibilityHint: L10n.string("Opens the completed chat."),
             isDismissable: true,
             onTap: onTap,
             onDismiss: onDismiss

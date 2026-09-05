@@ -38,17 +38,17 @@ enum CodexThreadGoalStatus: String, Codable, Equatable, Sendable, CaseIterable {
     var displayLabel: String {
         switch self {
         case .active:
-            return "Active"
+            return L10n.string("Active")
         case .paused:
-            return "Paused"
+            return L10n.string("Paused")
         case .blocked:
-            return "Blocked"
+            return L10n.string("Blocked")
         case .usageLimited:
-            return "Usage Limited"
+            return L10n.string("Usage Limited")
         case .budgetLimited:
-            return "Budget Limited"
+            return L10n.string("Budget Limited")
         case .complete:
-            return "Complete"
+            return L10n.string("Complete")
         }
     }
 
@@ -105,7 +105,7 @@ struct CodexThreadGoal: Equatable, Sendable {
     // budgeted goals show tokens, unbudgeted goals show elapsed goal time.
     var usageSummary: String {
         if let tokenBudget {
-            return "\(Self.formatTokenCount(tokensUsed)) / \(Self.formatTokenCount(tokenBudget)) tokens"
+            return L10n.format("%@ / %@ tokens", String(describing: Self.formatTokenCount(tokensUsed)), String(describing: Self.formatTokenCount(tokenBudget)))
         }
         return Self.formatElapsedSeconds(timeUsedSeconds)
     }

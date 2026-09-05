@@ -6,6 +6,8 @@
 import SwiftUI
 
 struct SidebarThreadListView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var isFiltering: Bool = false
     let isConnected: Bool
     let isCreatingThread: Bool
@@ -13,8 +15,8 @@ struct SidebarThreadListView: View {
     let groups: [SidebarThreadGroup]
     let selectedThread: CodexThread?
     let bottomContentInset: CGFloat
-    var emptyStateTitle: String = "No conversations"
-    var emptyFilterTitle: String = "No matching conversations"
+    var emptyStateTitle: String = L10n.string("No conversations")
+    var emptyFilterTitle: String = L10n.string("No matching conversations")
     var projectlessRootPaths: [String] = []
     let runBadgeStateByThreadID: [String: CodexThreadRunBadgeState]
     let onSelectThread: (CodexThread) -> Void
@@ -37,10 +39,11 @@ struct SidebarThreadListView: View {
     @State private var revealedProjectGroupIDs: Set<String> = []
 
     var body: some View {
+        let _ = _localizationLocale
         LazyVStack(alignment: .leading, spacing: 0) {
 
             if threads.isEmpty && !isFiltering {
-                Text(isConnected ? emptyStateTitle : "Connect to view conversations")
+                Text(isConnected ? emptyStateTitle : L10n.string("Connect to view conversations"))
                     .foregroundStyle(.secondary)
                     .font(AppFont.subheadline())
                     .padding(.horizontal, 16)
@@ -542,7 +545,7 @@ private enum SidebarThreadListPreviewFixtures {
         CodexThread(id: "om-2", title: "Create Landing Page with AI Stuff", createdAt: ago(170), updatedAt: ago(2), cwd: "/Users/dev/omnara-voice"),
         CodexThread(id: "om-3", title: "Landing Page", createdAt: ago(160), updatedAt: ago(2), cwd: "/Users/dev/omnara-voice"),
         CodexThread(id: "om-4", title: "App's UI", createdAt: ago(150), updatedAt: ago(2), cwd: "/Users/dev/omnara-voice"),
-        CodexThread(id: "om-5", title: "Backend", createdAt: ago(140), updatedAt: ago(2), cwd: "/Users/dev/omnara-voice"),
+        CodexThread(id: "om-5", title: L10n.string("Backend"), createdAt: ago(140), updatedAt: ago(2), cwd: "/Users/dev/omnara-voice"),
     ]
 
     static let bridgeThreads: [CodexThread] = [
@@ -557,7 +560,7 @@ private enum SidebarThreadListPreviewFixtures {
     static let groups: [SidebarThreadGroup] = [
         SidebarThreadGroup(
             id: "pinned",
-            label: "Pinned",
+            label: L10n.string("Pinned"),
             kind: .pinned,
             sortDate: ago(8),
             projectPath: nil,

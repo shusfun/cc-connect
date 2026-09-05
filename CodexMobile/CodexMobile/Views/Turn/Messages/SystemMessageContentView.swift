@@ -8,6 +8,8 @@ import SwiftUI
 import UIKit
 
 struct SystemMessageContentView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let message: CodexMessage
     let text: String
     let actionText: String
@@ -16,6 +18,7 @@ struct SystemMessageContentView: View {
     let onSelectText: (SelectableMessageTextSheetState) -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         content
     }
 
@@ -142,7 +145,7 @@ struct SystemMessageContentView: View {
             } else {
                 let hiddenCount = entries.count - Self.maxVisibleStreamingFileChangeEntries
                 if hiddenCount > 0 {
-                    Text("+\(hiddenCount) more files")
+                    Text(L10n.format("+%@ more files", String(describing: hiddenCount)))
                         .font(AppFont.caption())
                         .foregroundStyle(.secondary.opacity(0.6))
                 }
@@ -274,7 +277,7 @@ struct SystemMessageContentView: View {
 
         return UIMenu(children: [
             UIAction(
-                title: "Select Text",
+                title: L10n.string("Select Text"),
                 image: RemodexIcon.menuUIImage(systemName: "text.cursor")
             ) { _ in
                 HapticFeedback.shared.triggerImpactFeedback(style: .light)
@@ -284,7 +287,7 @@ struct SystemMessageContentView: View {
                 ))
             },
             UIAction(
-                title: "Copy",
+                title: L10n.string("Copy"),
                 image: RemodexIcon.menuUIImage(systemName: "doc.on.doc")
             ) { _ in
                 HapticFeedback.shared.triggerImpactFeedback(style: .light)

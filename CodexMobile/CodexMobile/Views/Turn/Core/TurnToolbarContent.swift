@@ -155,7 +155,7 @@ struct TurnToolbarContent: ToolbarContent {
     ) -> [TurnThreadActionMenuItem] {
         var actions: [TurnThreadActionMenuItem] = [
             TurnThreadActionMenuItem(
-                title: "Hand off to Desktop",
+                title: L10n.string("Hand off to Desktop"),
                 icon: .system("arrow.left.arrow.right"),
                 isEnabled: canTapMacHandoff
             ) {
@@ -166,7 +166,7 @@ struct TurnToolbarContent: ToolbarContent {
         if onTapWorktreeHandoff != nil {
             actions.append(
                 TurnThreadActionMenuItem(
-                    title: isCreatingGitWorktree ? "Preparing worktree..." : worktreeHandoffTitle,
+                    title: isCreatingGitWorktree ? L10n.string("Preparing worktree...") : worktreeHandoffTitle,
                     icon: .worktree,
                     isEnabled: canTapWorktreeHandoff
                 ) {
@@ -177,14 +177,14 @@ struct TurnToolbarContent: ToolbarContent {
 
         actions.append(contentsOf: [
             TurnThreadActionMenuItem(
-                title: "New chat",
+                title: L10n.string("New chat"),
                 icon: .system("square.and.pencil"),
                 isEnabled: canTapNewChat
             ) {
                 onTapNewChat?()
             },
             TurnThreadActionMenuItem(
-                title: "Open Terminal Here",
+                title: L10n.string("Open Terminal Here"),
                 icon: .system("terminal"),
                 isEnabled: canTapTerminal
             ) {
@@ -201,12 +201,14 @@ struct TurnToolbarContent: ToolbarContent {
             title: displayTitle,
             subtitle: navigationContext?.subtitle,
             onTap: navigationContext == nil ? nil : { isShowingPathSheet = true },
-            accessibilityHint: navigationContext == nil ? nil : "Opens thread location"
+            accessibilityHint: navigationContext == nil ? nil : L10n.string("Opens thread location")
         )
     }
 }
 
 struct TurnToolbarActionCluster: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let isEnabled: Bool
     let disabledActions: Set<TurnGitActionKind>
     let isRunningAction: Bool
@@ -221,6 +223,7 @@ struct TurnToolbarActionCluster: View {
     let threadActions: [TurnThreadActionMenuItem]
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: Self.iconGap) {
             TurnGitActionsToolbarButton(
                 isEnabled: isEnabled,
@@ -255,10 +258,13 @@ struct TurnToolbarActionCluster: View {
 }
 
 struct TurnMacHandoffToolbarLabel: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let isLoading: Bool
     var usesToolbarChrome: Bool = true
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             if isLoading {
                 ProgressView()
@@ -277,12 +283,15 @@ struct TurnMacHandoffToolbarLabel: View {
 }
 
 struct TurnThreadActionsMenuButton: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let isLoading: Bool
     var isEnabled: Bool = true
     let actions: [TurnThreadActionMenuItem]
     var usesToolbarChrome: Bool = true
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             if isLoading {
                 TurnMacHandoffToolbarLabel(isLoading: true, usesToolbarChrome: usesToolbarChrome)
@@ -362,7 +371,7 @@ private struct UIKitThreadActionsToolbarButton: UIViewRepresentable {
         let button = UIButton(configuration: config)
         button.showsMenuAsPrimaryAction = true
         button.tintColor = .label
-        button.accessibilityLabel = "Thread actions"
+        button.accessibilityLabel = L10n.string("Thread actions")
         button.setContentHuggingPriority(.required, for: .horizontal)
         button.setContentHuggingPriority(.required, for: .vertical)
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -382,7 +391,7 @@ private struct UIKitThreadActionsToolbarButton: UIViewRepresentable {
         config.image = triggerImage.withRenderingMode(.alwaysTemplate)
         button.configuration = config
         button.isEnabled = isEnabled
-        button.accessibilityLabel = "Thread actions"
+        button.accessibilityLabel = L10n.string("Thread actions")
         context.coordinator.actions = actions
     }
 
@@ -405,6 +414,8 @@ private struct UIKitThreadActionsToolbarButton: UIViewRepresentable {
 }
 
 struct TurnThreadPathSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let context: TurnThreadNavigationContext
     let threadTitle: String
     var onRenameThread: ((String) -> Void)? = nil
@@ -413,6 +424,7 @@ struct TurnThreadPathSheet: View {
     @State private var didCopyPath = false
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -472,7 +484,7 @@ struct TurnThreadPathSheet: View {
                                 .contentShape(Circle())
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(didCopyPath ? "Path copied" : "Copy path")
+                            .accessibilityLabel(didCopyPath ? L10n.string("Path copied") : L10n.string("Copy path"))
                         }
 
                         Text(context.fullPath)

@@ -58,17 +58,17 @@ nonisolated enum CodexAutoApprovalReviewStatus: Codable, Hashable, Sendable {
     var title: String {
         switch self {
         case .inProgress:
-            return "Reviewing approval"
+            return L10n.string("Reviewing approval")
         case .approved:
-            return "Approved automatically"
+            return L10n.string("Approved automatically")
         case .denied:
-            return "Approval denied"
+            return L10n.string("Approval denied")
         case .timedOut:
-            return "Approval review timed out"
+            return L10n.string("Approval review timed out")
         case .aborted:
-            return "Approval review stopped"
+            return L10n.string("Approval review stopped")
         case .unknown:
-            return "Approval review updated"
+            return L10n.string("Approval review updated")
         }
     }
 
@@ -94,9 +94,9 @@ nonisolated struct CodexAutoApprovalReview: Codable, Hashable, Sendable {
     // Single source for the retry-unavailable copy shown when the backing retry
     // token is missing, so service, persistence, and UI can never drift apart.
     static let liveSessionRetryUnavailableReason =
-        "Retry approvals are available only during the live session."
+        L10n.string("Retry approvals are available only during the live session.")
     static let expiredRetryUnavailableReason =
-        "This retry is no longer available. Wait for Codex to request the action again."
+        L10n.string("This retry is no longer available. Wait for Codex to request the action again.")
 
     let reviewId: String
     let targetItemId: String?
@@ -120,27 +120,27 @@ nonisolated struct CodexAutoApprovalReview: Codable, Hashable, Sendable {
         }
         guard let object = action.objectValue,
               let type = object["type"]?.stringValue else {
-            return "Requested action"
+            return L10n.string("Requested action")
         }
 
         switch type {
         case "command":
-            return object["command"]?.stringValue ?? "Run command"
+            return object["command"]?.stringValue ?? L10n.string("Run command")
         case "execve":
-            let program = object["program"]?.stringValue ?? "Run command"
+            let program = object["program"]?.stringValue ?? L10n.string("Run command")
             let arguments = object["argv"]?.arrayValue?.compactMap(\.stringValue) ?? []
             return arguments.isEmpty
                 ? shellQuoted(program)
                 : arguments.map(shellQuoted).joined(separator: " ")
         case "applyPatch":
             let files = object["files"]?.arrayValue?.compactMap(\.stringValue) ?? []
-            if files.isEmpty { return "Apply file changes" }
-            return files.count == 1 ? "Edit \(files[0])" : "Edit \(files.count) files: \(files.joined(separator: ", "))"
+            if files.isEmpty { return L10n.string("Apply file changes") }
+            return files.count == 1 ? L10n.format("Edit %@", String(describing: files[0])) : L10n.format("Edit %@ files: %@", String(describing: files.count), String(describing: files.joined(separator: ", ")))
         case "networkAccess":
             let host = object["host"]?.stringValue ?? object["target"]?.stringValue
             let port = object["port"]?.intValue.map(String.init)
             let target = [host, port].compactMap { $0 }.joined(separator: ":")
-            return target.isEmpty ? "Access the network" : "Access \(target)"
+            return target.isEmpty ? L10n.string("Access the network") : L10n.format("Access %@", String(describing: target))
         case "mcpToolCall":
             let server = object["server"]?.stringValue
             let tool = object["toolTitle"]?.stringValue ?? object["toolName"]?.stringValue
@@ -148,7 +148,7 @@ nonisolated struct CodexAutoApprovalReview: Codable, Hashable, Sendable {
         case "requestPermissions":
             return object["reason"]?.stringValue ?? permissionSummary(object["permissions"])
         default:
-            return "Requested action"
+            return L10n.string("Requested action")
         }
     }
 
@@ -162,7 +162,7 @@ nonisolated struct CodexAutoApprovalReview: Codable, Hashable, Sendable {
 
     private func permissionSummary(_ value: JSONValue?) -> String {
         guard let permissions = value?.objectValue else {
-            return "Request additional permissions"
+            return L10n.string("Request additional permissions")
         }
         var requested: [String] = []
         if permissions["network"] != nil, permissions["network"] != .null {
@@ -172,8 +172,8 @@ nonisolated struct CodexAutoApprovalReview: Codable, Hashable, Sendable {
             requested.append("file access")
         }
         return requested.isEmpty
-            ? "Request additional permissions"
-            : "Request \(requested.joined(separator: " and "))"
+            ? L10n.string("Request additional permissions")
+            : L10n.format("Request %@", String(describing: requested.joined(separator: " and ")))
     }
 
     var coreDeniedEvent: JSONValue? {

@@ -25,17 +25,17 @@ enum RemodexTerminalStatus: String, Codable, Equatable, Sendable {
     var displayTitle: String {
         switch self {
         case .idle:
-            return "Idle"
+            return L10n.string("Idle")
         case .starting:
-            return "Connecting"
+            return L10n.string("Connecting")
         case .running:
-            return "Running"
+            return L10n.string("Running")
         case .exited:
-            return "Exited"
+            return L10n.string("Exited")
         case .closed:
-            return "Closed"
+            return L10n.string("Closed")
         case .error:
-            return "Error"
+            return L10n.string("Error")
         }
     }
 }
@@ -100,7 +100,7 @@ struct RemodexTerminalProfile: Codable, Equatable, Sendable {
         let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedUser = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedUser.isEmpty else {
-            return trimmedHost.isEmpty ? "SSH host" : trimmedHost
+            return trimmedHost.isEmpty ? L10n.string("SSH host") : trimmedHost
         }
         return "\(trimmedUser)@\(trimmedHost)"
     }

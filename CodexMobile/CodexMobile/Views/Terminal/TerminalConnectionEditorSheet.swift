@@ -8,6 +8,8 @@ import SwiftUI
 import UIKit
 
 struct TerminalConnectionEditorSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.dismiss) private var dismiss
     @Binding var profile: RemodexTerminalProfile
     @Binding var connection: String
@@ -24,11 +26,11 @@ struct TerminalConnectionEditorSheet: View {
     @State private var isShowingConnectionHelp = false
 
     private var keyLabel: String {
-        RemodexTerminalPrivateKeyStore.hasPrivateKey(privateKey) ? "Imported" : "Import"
+        RemodexTerminalPrivateKeyStore.hasPrivateKey(privateKey) ? L10n.string("Imported") : L10n.string("Import")
     }
 
     private var advancedLabel: String {
-        profile.port == 22 ? "Default" : "Custom"
+        profile.port == 22 ? L10n.string("Default") : L10n.string("Custom")
     }
 
     private var isAdvancedVisible: Bool {
@@ -48,16 +50,17 @@ struct TerminalConnectionEditorSheet: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    TerminalEditorSection(title: "Connection") {
+                    TerminalEditorSection(title: L10n.string("Connection")) {
                         TerminalConnectionStringField(connection: $connection)
                     }
 
-                    TerminalEditorSection(title: "Nickname") {
+                    TerminalEditorSection(title: L10n.string("Nickname")) {
                         TerminalRoundedTextField(
-                            placeholder: "Nickname",
+                            placeholder: L10n.string("Nickname"),
                             text: $profile.nickname
                         )
                     }
@@ -110,7 +113,7 @@ struct TerminalConnectionEditorSheet: View {
                     .presentationDragIndicator(.visible)
             }
             .confirmationDialog(
-                "Reset saved SSH host key?",
+                L10n.string("Reset saved SSH host key?"),
                 isPresented: $isConfirmingKnownHostReset,
                 titleVisibility: .visible
             ) {
@@ -124,19 +127,22 @@ struct TerminalConnectionEditorSheet: View {
 }
 
 private struct TerminalAuthenticationSection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let keyLabel: String
     @Binding var privateKey: String
     @Binding var passphrase: String
     @Binding var isShowingKeyEditor: Bool
 
     var body: some View {
-        TerminalEditorSection(title: "Authentication") {
+        let _ = _localizationLocale
+        TerminalEditorSection(title: L10n.string("Authentication")) {
             VStack(spacing: 0) {
-                TerminalEditorRow(title: "Method", value: "SSH Key")
+                TerminalEditorRow(title: L10n.string("Method"), value: L10n.string("SSH Key"))
                 Divider()
                 Button(action: toggleKeyEditor) {
                     TerminalEditorRow(
-                        title: "SSH Key",
+                        title: L10n.string("SSH Key"),
                         value: keyLabel,
                         showsChevron: true
                     )
@@ -161,6 +167,8 @@ private struct TerminalAuthenticationSection: View {
 }
 
 private struct TerminalSSHSection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var profile: RemodexTerminalProfile
     let portBinding: Binding<String>
     @Binding var isShowingAdvanced: Bool
@@ -169,11 +177,12 @@ private struct TerminalSSHSection: View {
     let isAdvancedVisible: Bool
 
     var body: some View {
+        let _ = _localizationLocale
         TerminalEditorSection(title: "SSH") {
             VStack(spacing: 0) {
                 Button(action: toggleAdvanced) {
                     TerminalEditorRow(
-                        title: "Advanced Configuration",
+                        title: L10n.string("Advanced Configuration"),
                         value: advancedLabel,
                         showsChevron: true
                     )
@@ -183,7 +192,7 @@ private struct TerminalSSHSection: View {
                 if isAdvancedVisible {
                     Divider()
                     TerminalTextField(
-                        title: "Port",
+                        title: L10n.string("Port"),
                         text: portBinding,
                         placeholder: "22",
                         keyboardType: .numberPad
@@ -196,8 +205,8 @@ private struct TerminalSSHSection: View {
                     isConfirmingKnownHostReset = true
                 } label: {
                     TerminalEditorRow(
-                        title: "Known Host",
-                        value: "Reset"
+                        title: L10n.string("Known Host"),
+                        value: L10n.string("Reset")
                     )
                 }
                 .buttonStyle(.plain)

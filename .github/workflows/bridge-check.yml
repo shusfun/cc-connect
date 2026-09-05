@@ -11,6 +11,7 @@ on:
       - "phodex-bridge/**"
       - "relay/**"
       - "packages/**"
+      - "apps/**"
   pull_request:
     paths:
       - ".github/workflows/bridge-check.yml"
@@ -20,6 +21,7 @@ on:
       - "phodex-bridge/**"
       - "relay/**"
       - "packages/**"
+      - "apps/**"
 
 jobs:
   bridge-check:
@@ -92,3 +94,13 @@ jobs:
 
       - name: Run relay tests
         run: pnpm --filter remodex-relay test
+      - name: Build React management app
+        run: pnpm --filter @remodex/control run build
+      - name: Test React activation feedback
+        run: pnpm --filter @remodex/control test
+      - name: Install isolated browser test runtime
+        run: pnpm --filter @remodex/control exec playwright install --with-deps chromium
+      - name: Test real management browser flow
+        run: pnpm --filter @remodex/control run test:e2e
+      - name: Test update transactions
+        run: pnpm --filter @remodex/updater test

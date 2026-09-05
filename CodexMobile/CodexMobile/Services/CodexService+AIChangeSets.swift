@@ -14,17 +14,17 @@ enum AIChangeSetError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingWorkingDirectory:
-            return "The selected local folder is not available on this device."
+            return L10n.string("The selected local folder is not available on this device.")
         case .missingPatch:
-            return "This response cannot be auto-reverted because no exact patch was captured."
+            return L10n.string("This response cannot be auto-reverted because no exact patch was captured.")
         case .bridgeError(let code, let message):
             switch code {
             case "missing_patch":
-                return "This response cannot be auto-reverted because no exact patch was captured."
+                return L10n.string("This response cannot be auto-reverted because no exact patch was captured.")
             case "missing_working_directory":
-                return "The selected local folder is not available on this device."
+                return L10n.string("The selected local folder is not available on this device.")
             default:
-                return message ?? "Patch revert failed."
+                return message ?? L10n.string("Patch revert failed.")
             }
         }
     }
@@ -100,7 +100,7 @@ extension CodexService {
                 )
             }
             if overlapAnalysis.hasOverlap {
-                let warningText = "Other chats also changed \(overlapAnalysis.overlappingFiles.count) of these file\(overlapAnalysis.overlappingFiles.count == 1 ? "" : "s")."
+                let warningText = L10n.format("Other chats also changed %@ of these file%@.", String(describing: overlapAnalysis.overlappingFiles.count), String(describing: overlapAnalysis.overlappingFiles.count == 1 ? "" : "s"))
                 return AssistantRevertPresentation(
                     title: "Undo changes",
                     isEnabled: true,
@@ -713,7 +713,7 @@ private extension CodexService {
     func bridgeError(from error: CodexServiceError) -> AIChangeSetError {
         switch error {
         case .disconnected:
-            return .bridgeError(code: "disconnected", message: "Not connected to bridge.")
+            return .bridgeError(code: "disconnected", message: L10n.string("Not connected to bridge."))
         case .rpcError(let rpcError):
             let errorCode = rpcError.data?.objectValue?["errorCode"]?.stringValue
             return .bridgeError(code: errorCode, message: rpcError.message)

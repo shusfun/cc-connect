@@ -10,12 +10,15 @@
 import SwiftUI
 
 struct SidebarConnectionStatusBadge: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let connectionPhase: CodexConnectionPhase
 
     @State private var dotPulse = false
     @State private var connectionAttemptStartedAt: Date?
 
     var body: some View {
+        let _ = _localizationLocale
         if connectionPhase == .connected {
             EmptyView()
         } else {
@@ -71,7 +74,7 @@ struct SidebarConnectionStatusBadge: View {
                 )
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("Connection status: \(statusLabel)"))
+        .accessibilityLabel(Text(L10n.format("Connection status: %@", String(describing: statusLabel))))
     }
 
     private var isBusy: Bool {
@@ -97,18 +100,18 @@ struct SidebarConnectionStatusBadge: View {
     private var statusLabel: String {
         switch connectionPhase {
         case .connecting:
-            guard let connectionAttemptStartedAt else { return "Connecting" }
+            guard let connectionAttemptStartedAt else { return L10n.string("Connecting") }
             let elapsed = Date().timeIntervalSince(connectionAttemptStartedAt)
-            if elapsed >= 12 { return "Still connecting…" }
-            return "Connecting"
+            if elapsed >= 12 { return L10n.string("Still connecting…") }
+            return L10n.string("Connecting")
         case .loadingChats:
-            return "Loading chats"
+            return L10n.string("Loading chats")
         case .syncing:
-            return "Syncing"
+            return L10n.string("Syncing")
         case .connected:
-            return "Connected"
+            return L10n.string("Connected")
         case .offline:
-            return "Offline"
+            return L10n.string("Offline")
         }
     }
 }

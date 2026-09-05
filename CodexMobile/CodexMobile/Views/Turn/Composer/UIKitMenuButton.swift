@@ -95,6 +95,7 @@ private struct UIKitMenuButtonBacker: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: MenuButtonHostController, context: Context) {
+        _ = context.environment.locale
         context.coordinator.menu = menu
         context.coordinator.onWillPresent = onWillPresent
     }

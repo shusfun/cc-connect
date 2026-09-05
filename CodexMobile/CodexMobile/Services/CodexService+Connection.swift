@@ -48,7 +48,7 @@ extension CodexService {
     ) async throws {
         guard !isConnecting else {
             lastErrorMessage = "Connection already in progress"
-            throw CodexServiceError.invalidInput("Connection already in progress")
+            throw CodexServiceError.invalidInput(L10n.string("Connection already in progress"))
         }
 
         isConnecting = true
@@ -342,7 +342,7 @@ extension CodexService {
     // Waits through the short connected-but-handshaking window before user actions hit runtime APIs.
     func awaitRuntimeInitializedIfNeeded() async throws {
         guard isConnected else {
-            throw CodexServiceError.invalidInput("Connect to runtime first.")
+            throw CodexServiceError.invalidInput(L10n.string("Connect to runtime first."))
         }
         guard !isInitialized else {
             return
@@ -356,11 +356,11 @@ extension CodexService {
                 return
             }
             guard isConnected else {
-                throw CodexServiceError.invalidInput("Connect to runtime first.")
+                throw CodexServiceError.invalidInput(L10n.string("Connect to runtime first."))
             }
         }
 
-        throw CodexServiceError.invalidInput("Runtime is still initializing. Wait a moment and retry.")
+        throw CodexServiceError.invalidInput(L10n.string("Runtime is still initializing. Wait a moment and retry."))
     }
 
     // Converts a bridge-declared "your iPhone app is too old" initialize failure into
@@ -389,10 +389,10 @@ extension CodexService {
         } else if let bridgeVersion, !bridgeVersion.isEmpty,
                   let minimumSupportedAppVersion, !minimumSupportedAppVersion.isEmpty {
             promptMessage =
-                "This device bridge is running Remodex \(bridgeVersion), which requires Remodex iPhone \(minimumSupportedAppVersion) or newer. Update the iPhone app, then reconnect."
+                L10n.format("This device bridge is running Remodex %@, which requires Remodex iPhone %@ or newer. Update the iPhone app, then reconnect.", String(describing: bridgeVersion), String(describing: minimumSupportedAppVersion))
         } else if let minimumSupportedAppVersion, !minimumSupportedAppVersion.isEmpty {
             promptMessage =
-                "This device bridge requires Remodex iPhone \(minimumSupportedAppVersion) or newer. Update the iPhone app, then reconnect."
+                L10n.format("This device bridge requires Remodex iPhone %@ or newer. Update the iPhone app, then reconnect.", String(describing: minimumSupportedAppVersion))
         } else {
             promptMessage = "This device bridge requires a newer Remodex iPhone app. Update the app, then reconnect."
         }
@@ -410,17 +410,17 @@ extension CodexService {
         if let bridgeVersion, !bridgeVersion.isEmpty,
            let minimumSupportedAppVersion, !minimumSupportedAppVersion.isEmpty {
             return .invalidInput(
-                "This device bridge is running Remodex \(bridgeVersion), which requires Remodex iPhone \(minimumSupportedAppVersion) or newer. Update the iPhone app, then reconnect."
+                L10n.format("This device bridge is running Remodex %@, which requires Remodex iPhone %@ or newer. Update the iPhone app, then reconnect.", String(describing: bridgeVersion), String(describing: minimumSupportedAppVersion))
             )
         }
 
         if let minimumSupportedAppVersion, !minimumSupportedAppVersion.isEmpty {
             return .invalidInput(
-                "This device bridge requires Remodex iPhone \(minimumSupportedAppVersion) or newer. Update the iPhone app, then reconnect."
+                L10n.format("This device bridge requires Remodex iPhone %@ or newer. Update the iPhone app, then reconnect.", String(describing: minimumSupportedAppVersion))
             )
         }
 
-        return .invalidInput("This device bridge requires a newer Remodex iPhone app. Update the app, then reconnect.")
+        return .invalidInput(L10n.string("This device bridge requires a newer Remodex iPhone app. Update the app, then reconnect."))
     }
 
     // Classifies socket failures so transient relay hiccups reconnect, while dead pairings are forgotten.
@@ -883,29 +883,29 @@ extension CodexService {
         if let nwError = error as? NWError {
             switch nwError {
             case .posix(let code) where code == .ECONNREFUSED:
-                return "Connection refused by relay server at \(attemptedURL)."
+                return L10n.format("Connection refused by relay server at %@.", String(describing: attemptedURL))
             case .posix(let code) where code == .EMSGSIZE:
                 return oversizedRelayPayloadMessage
             case .posix(let code) where code == .ENETDOWN || code == .ENETUNREACH || code == .EHOSTUNREACH:
-                return "Cannot reach relay server at \(attemptedURL). Check that the iPhone can access the paired device on the local network."
+                return L10n.format("Cannot reach relay server at %@. Check that the iPhone can access the paired device on the local network.", String(describing: attemptedURL))
             case .posix(let code) where code == .ETIMEDOUT:
-                return "Connection timed out. Check server/network."
+                return L10n.string("Connection timed out. Check server/network.")
             case .dns(let code):
-                return "Cannot resolve server host (\(code)). Check the relay URL."
+                return L10n.format("Cannot resolve server host (%@). Check the relay URL.", String(describing: code))
             default:
                 break
             }
         }
 
         if isRecoverableTransientConnectionError(error) {
-            return "Connection timed out. Check server/network."
+            return L10n.string("Connection timed out. Check server/network.")
         }
 
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain,
            nsError.code == NSURLErrorNotConnectedToInternet,
            requiresLocalNetworkAuthorization(for: URL(string: attemptedURL) ?? URL(fileURLWithPath: "/")) {
-            return "Remodex cannot open the local relay connection on this iPhone. Check Local Network and the app's Wi-Fi/Cellular access in Settings, then retry."
+            return L10n.string("Remodex cannot open the local relay connection on this iPhone. Check Local Network and the app's Wi-Fi/Cellular access in Settings, then retry.")
         }
 
         return error.localizedDescription
@@ -1029,7 +1029,7 @@ extension CodexService {
             return "Reconnecting..."
         }
         if isRecoverableTransientConnectionError(error) {
-            return "Connection timed out. Retrying..."
+            return L10n.string("Connection timed out. Retrying...")
         }
         return "Reconnecting..."
     }
@@ -1039,16 +1039,16 @@ extension CodexService {
             return retryableSessionUnavailableMessage
         }
         if relayCloseCodeRawValue(fromConnectError: error) == 4003 {
-            return "A newer Remodex connection replaced this socket. Tap Reconnect to try again."
+            return L10n.string("A newer Remodex connection replaced this socket. Tap Reconnect to try again.")
         }
         if isOversizedRelayPayloadError(error) {
             return oversizedRelayPayloadMessage
         }
         if shouldTreatSendFailureAsDisconnect(error) || isBenignBackgroundDisconnect(error) {
-            return "Connection was interrupted. Tap Reconnect to try again."
+            return L10n.string("Connection was interrupted. Tap Reconnect to try again.")
         }
         if isRecoverableTransientConnectionError(error) {
-            return "Connection timed out. Check server/network."
+            return L10n.string("Connection timed out. Check server/network.")
         }
         return error.localizedDescription
     }
@@ -1118,9 +1118,9 @@ extension CodexService {
 
         switch rawValue {
         case 4001:
-            return "This relay session was replaced by another device connection. Scan a new QR code to reconnect."
+            return L10n.string("This relay session was replaced by another device connection. Scan a new QR code to reconnect.")
         default:
-            return "This relay pairing is no longer valid. Scan a new QR code to reconnect."
+            return L10n.string("This relay pairing is no longer valid. Scan a new QR code to reconnect.")
         }
     }
 
@@ -1138,7 +1138,7 @@ extension CodexService {
             return nil
         }
 
-        return "Trying to reach your saved device. Remodex will keep retrying. If you restarted the bridge on that device, scan the new QR code."
+        return L10n.string("Trying to reach your saved device. Remodex will keep retrying. If you restarted the bridge on that device, scan the new QR code.")
     }
 
     func retryableSessionUnavailableMessage(forConnectError error: Error) -> String? {
@@ -1146,7 +1146,7 @@ extension CodexService {
             return nil
         }
 
-        return "Trying to reach your saved device. Remodex will keep retrying. If you restarted the bridge on that device, scan the new QR code."
+        return L10n.string("Trying to reach your saved device. Remodex will keep retrying. If you restarted the bridge on that device, scan the new QR code.")
     }
 
     // Surfaces relay-enforced drops that keep the pairing valid but lost the current send.
@@ -1156,7 +1156,7 @@ extension CodexService {
             return nil
         }
 
-        return "The paired device was temporarily unavailable and this message could not be delivered. Wait a moment, then try again."
+        return L10n.string("The paired device was temporarily unavailable and this message could not be delivered. Wait a moment, then try again.")
     }
 
     func shouldClearSavedRelaySession(for closeCode: NWProtocolWebSocket.CloseCode?) -> Bool {

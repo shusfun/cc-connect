@@ -358,9 +358,9 @@ struct CodexSubagentThreadPresentation: Identifiable, Hashable, Sendable {
 
         let compactThreadId = threadId.trimmingCharacters(in: .whitespacesAndNewlines)
         if compactThreadId.count > 14 {
-            return "Agent \(compactThreadId.suffix(8))"
+            return L10n.format("Agent %@", String(describing: compactThreadId.suffix(8)))
         }
-        return compactThreadId.isEmpty ? "Agent" : compactThreadId
+        return compactThreadId.isEmpty ? L10n.string("Agent") : compactThreadId
     }
 
     private func sanitizedAgentIdentity(_ value: String?) -> String? {
@@ -456,17 +456,17 @@ struct CodexSubagentAction: Codable, Hashable, Sendable {
 
         switch normalizedTool {
         case "spawnagent":
-            return "Spawning \(count) \(noun)"
+            return L10n.format("Spawning %@ %@", String(describing: count), String(describing: noun))
         case "wait", "waitagent":
-            return "Waiting on \(count) \(noun)"
+            return L10n.format("Waiting on %@ %@", String(describing: count), String(describing: noun))
         case "closeagent":
-            return "Closing \(count) \(noun)"
+            return L10n.format("Closing %@ %@", String(describing: count), String(describing: noun))
         case "resumeagent":
-            return "Resuming \(count) \(noun)"
+            return L10n.format("Resuming %@ %@", String(describing: count), String(describing: noun))
         case "sendinput":
-            return count == 1 ? "Updating agent" : "Updating agents"
+            return count == 1 ? L10n.string("Updating agent") : L10n.string("Updating agents")
         default:
-            return count == 1 ? "Agent activity" : "Agent activity (\(count))"
+            return count == 1 ? L10n.string("Agent activity") : L10n.format("Agent activity (%@)", String(describing: count))
         }
     }
 }

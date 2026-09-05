@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct SlashCommandAutocompletePanel: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let state: TurnComposerSlashCommandPanelState
     let availableCommands: [TurnComposerSlashCommand]
     let hasComposerContentConflictingWithReview: Bool
@@ -30,6 +32,7 @@ struct SlashCommandAutocompletePanel: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 0) {
             switch state {
             case .hidden:
@@ -57,7 +60,7 @@ struct SlashCommandAutocompletePanel: View {
         let items = TurnComposerSlashCommand.filtered(matching: query, within: availableCommands)
 
         if items.isEmpty {
-            Text("No commands for /\(query)")
+            Text(L10n.format("No commands for /%@", String(describing: query)))
                 .font(AppFont.footnote())
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
@@ -113,15 +116,15 @@ struct SlashCommandAutocompletePanel: View {
     private var reviewTargetList: some View {
         VStack(alignment: .leading, spacing: 0) {
             submenuHeader(
-                title: "Code Review",
-                subtitle: "Choose what the reviewer should compare.",
-                closeAccessibilityLabel: "Close code review options"
+                title: L10n.string("Code Review"),
+                subtitle: L10n.string("Choose what the reviewer should compare."),
+                closeAccessibilityLabel: L10n.string("Close code review options")
             )
 
             VStack(alignment: .leading, spacing: 0) {
                 reviewTargetButton(
                     target: .uncommittedChanges,
-                    subtitle: "Review everything currently modified in the repo",
+                    subtitle: L10n.string("Review everything currently modified in the repo"),
                     isEnabled: true
                 )
 
@@ -140,9 +143,9 @@ struct SlashCommandAutocompletePanel: View {
     private func forkDestinationList(destinations: [TurnComposerForkDestination]) -> some View {
         return VStack(alignment: .leading, spacing: 0) {
             submenuHeader(
-                title: "Fork",
+                title: L10n.string("Fork"),
                 subtitle: forkDestinationSubtitle(for: destinations),
-                closeAccessibilityLabel: "Close fork options"
+                closeAccessibilityLabel: L10n.string("Close fork options")
             )
 
             VStack(alignment: .leading, spacing: 0) {
@@ -160,13 +163,13 @@ struct SlashCommandAutocompletePanel: View {
 
         switch (showsLocal, showsNewWorktree) {
         case (true, true):
-            return "Fork this thread into local or a new worktree."
+            return L10n.string("Fork this thread into local or a new worktree.")
         case (true, false):
-            return "Fork this thread into a new local thread."
+            return L10n.string("Fork this thread into a new local thread.")
         case (false, true):
-            return "Fork this thread into a new worktree."
+            return L10n.string("Fork this thread into a new worktree.")
         default:
-            return "Fork this thread."
+            return L10n.string("Fork this thread.")
         }
     }
 
@@ -282,14 +285,14 @@ struct SlashCommandAutocompletePanel: View {
 
     private var baseBranchSubtitle: String {
         if let resolvedBaseBranchName {
-            return "Diff against \(resolvedBaseBranchName)"
+            return L10n.format("Diff against %@", String(describing: resolvedBaseBranchName))
         }
 
         if isLoadingGitBranchTargets {
-            return "Loading base branches..."
+            return L10n.string("Loading base branches...")
         }
 
-        return "Pick a base branch first"
+        return L10n.string("Pick a base branch first")
     }
 
     private func isCommandEnabled(_ command: TurnComposerSlashCommand) -> Bool {
@@ -313,11 +316,11 @@ struct SlashCommandAutocompletePanel: View {
 
     private func commandSubtitle(for command: TurnComposerSlashCommand) -> String {
         if (command == .compact || command == .fork), isThreadRunning {
-            return "Wait for the current response to finish first"
+            return L10n.string("Wait for the current response to finish first")
         }
 
         guard isCommandEnabled(command) else {
-            return "Clear draft text, files, skills, and images first"
+            return L10n.string("Clear draft text, files, skills, and images first")
         }
 
         return command.subtitle

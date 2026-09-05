@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct TurnConversationContainerView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let threadID: String
     let messages: [CodexMessage]
     let timelineChangeToken: Int
@@ -68,9 +70,9 @@ struct TurnConversationContainerView: View {
                 AccessoryBackedEmptyState(
                     systemImage: snapshot.status.symbolName,
                     tint: snapshot.status.tint,
-                    title: snapshot.status == .inProgress ? "Plan in progress" : "Plan ready",
-                    summary: summary.isEmpty ? "Codex has prepared a plan for this chat." : summary,
-                    detail: "Open the plan card above the composer to review the current steps."
+                    title: snapshot.status == .inProgress ? L10n.string("Plan in progress") : L10n.string("Plan ready"),
+                    summary: summary.isEmpty ? L10n.string("Codex has prepared a plan for this chat.") : summary,
+                    detail: L10n.string("Open the plan card above the composer to review the current steps.")
                 )
             )
         }
@@ -80,6 +82,7 @@ struct TurnConversationContainerView: View {
 
     // ─── ENTRY POINT ─────────────────────────────────────────────
     var body: some View {
+        let _ = _localizationLocale
         // Keep this split synchronous with `messages`: cached layout refreshes can
         // be starved by rapid assistant streaming and hide a just-sent user row.
         let messageLayout = Self.buildMessageLayout(
@@ -261,6 +264,8 @@ private struct TimelineMessageLayout: Equatable {
 }
 
 private struct AccessoryBackedEmptyState: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let systemImage: String
     let tint: Color
     let title: String
@@ -268,6 +273,7 @@ private struct AccessoryBackedEmptyState: View {
     let detail: String
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(spacing: 0) {
             Spacer()
 

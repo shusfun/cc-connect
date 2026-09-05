@@ -14,11 +14,11 @@ enum PlanAccessoryStatus: Equatable {
     var label: String {
         switch self {
         case .pending:
-            return "Pending"
+            return L10n.string("Pending")
         case .inProgress:
-            return "In progress"
+            return L10n.string("In progress")
         case .completed:
-            return "Completed"
+            return L10n.string("Completed")
         }
     }
 
@@ -54,7 +54,7 @@ struct PlanAccessorySnapshot: Equatable {
     let currentStepNumber: Int
 
     init(
-        title: String = "Plan",
+        title: String = L10n.string("Plan"),
         summary: String,
         status: PlanAccessoryStatus,
         completedStepCount: Int,
@@ -99,12 +99,12 @@ struct PlanAccessorySnapshot: Equatable {
     /// 1-based index of the step currently being worked on, capped at the total.
     var stepProgressText: String? {
         guard totalStepCount > 0 else { return nil }
-        return "Step \(currentStepNumber) / \(totalStepCount)"
+        return L10n.format("Step %@ / %@", String(describing: currentStepNumber), String(describing: totalStepCount))
     }
 
     var progressDescription: String {
         guard totalStepCount > 0 else { return status.label }
-        return "Step \(currentStepNumber) of \(totalStepCount)"
+        return L10n.format("Step %@ of %@", String(describing: currentStepNumber), String(describing: totalStepCount))
     }
 
     private static func resolveStatus(
@@ -131,7 +131,7 @@ struct PlanAccessorySnapshot: Equatable {
         }
 
         let body = normalizedPlanText(message.text)
-        return body ?? "Open plan details"
+        return body ?? L10n.string("Open plan details")
     }
 
     private static func highlightedStepIndex(in steps: [CodexPlanStep]) -> Int? {
@@ -153,6 +153,8 @@ struct PlanAccessorySnapshot: Equatable {
 
 /// Shared glass-backed card used by above-composer accessories (plan, subagent, etc.).
 struct GlassAccessoryCard<LeadingMarker: View, Header: View, Summary: View, Trailing: View>: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let onTap: () -> Void
     @ViewBuilder let leadingMarker: () -> LeadingMarker
     @ViewBuilder let header: () -> Header
@@ -160,6 +162,7 @@ struct GlassAccessoryCard<LeadingMarker: View, Header: View, Summary: View, Trai
     @ViewBuilder let trailing: () -> Trailing
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
             onTap()
@@ -208,10 +211,13 @@ extension EnvironmentValues {
 }
 
 struct PlanAccessoryCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let snapshot: PlanAccessorySnapshot
     let onTap: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
             onTap()
@@ -277,12 +283,15 @@ struct PlanAccessoryCard: View {
 /// tint, the in-progress arc glows at partial strength, and pending arcs stay
 /// a faint track — so the ring fills (and moves) as the plan advances.
 private struct PlanStepProgressRing: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let stepStatuses: [CodexPlanStepStatus]
     let tint: Color
     var size: CGFloat = 14
     var lineWidth: CGFloat = 2.25
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             ForEach(stepStatuses.indices, id: \.self) { index in
                 Circle()
@@ -338,7 +347,7 @@ enum PlanAccessoryPreviewFixtures {
         text: "Preparing the rollout in small, safe steps so the response stays visible while work is happening.",
         isStreaming: true,
         planState: CodexPlanState(
-            explanation: "The assistant is organizing the work before execution.",
+            explanation: L10n.string("The assistant is organizing the work before execution."),
             steps: [
                 CodexPlanStep(step: "Inspect the current conversation layout and top overlay behavior", status: .completed),
                 CodexPlanStep(step: "Move the active plan out of the timeline overlay and into a compact accessory", status: .inProgress),
@@ -353,7 +362,7 @@ enum PlanAccessoryPreviewFixtures {
         kind: .plan,
         text: "Planning...",
         planState: CodexPlanState(
-            explanation: "The task has been broken down and is waiting to begin.",
+            explanation: L10n.string("The task has been broken down and is waiting to begin."),
             steps: [
                 CodexPlanStep(step: "Confirm the runtime contract for plan updates", status: .pending),
                 CodexPlanStep(step: "Split the accessory into a reusable component", status: .pending),
@@ -366,7 +375,7 @@ enum PlanAccessoryPreviewFixtures {
         threadId: threadID,
         role: .system,
         kind: .plan,
-        text: "All plan tasks are done.",
+        text: L10n.string("All plan tasks are done."),
         planState: CodexPlanState(
             explanation: "This is how the compact row looks once every step is complete.",
             steps: [
@@ -379,21 +388,24 @@ enum PlanAccessoryPreviewFixtures {
 }
 
 private struct PlanAccessoryPreviewGallery: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 previewSection(
-                    title: "Live plan",
+                    title: L10n.string("Live plan"),
                     snapshot: PlanAccessorySnapshot(message: PlanAccessoryPreviewFixtures.activeMessage)
                 )
 
                 previewSection(
-                    title: "Queued plan",
+                    title: L10n.string("Queued plan"),
                     snapshot: PlanAccessorySnapshot(message: PlanAccessoryPreviewFixtures.pendingMessage)
                 )
 
                 previewSection(
-                    title: "Completed plan",
+                    title: L10n.string("Completed plan"),
                     snapshot: PlanAccessorySnapshot(message: PlanAccessoryPreviewFixtures.completedMessage)
                 )
             }
@@ -414,9 +426,12 @@ private struct PlanAccessoryPreviewGallery: View {
 }
 
 private struct PlanAccessoryCardOnlyPreview: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let snapshot: PlanAccessorySnapshot
 
     var body: some View {
+        let _ = _localizationLocale
         VStack {
             PlanAccessoryCard(snapshot: snapshot) { }
                 .padding(16)
@@ -427,7 +442,10 @@ private struct PlanAccessoryCardOnlyPreview: View {
 }
 
 private struct PlanAccessoryInContextPreview: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ZStack(alignment: .bottom) {
                 ScrollView {

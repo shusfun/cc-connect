@@ -67,7 +67,7 @@ extension CodexService {
             .first(where: { $0.autoApprovalReview?.reviewId == reviewId })?
             .autoApprovalReview,
               !review.retryApproved else {
-            throw CodexServiceError.invalidInput("This denied action is no longer available for approval.")
+            throw CodexServiceError.invalidInput(L10n.string("This denied action is no longer available for approval."))
         }
         if let retryUnavailableReason = review.retryUnavailableReason {
             throw CodexServiceError.invalidInput(retryUnavailableReason)
@@ -75,7 +75,7 @@ extension CodexService {
 
         let retryKey = retryTokenKey(threadId: threadId, reviewId: reviewId)
         guard autoApprovalRetryReviewIDsInFlight.insert(retryKey).inserted else {
-            throw CodexServiceError.invalidInput("This denied action is already being approved.")
+            throw CodexServiceError.invalidInput(L10n.string("This denied action is already being approved."))
         }
         defer {
             autoApprovalRetryReviewIDsInFlight.remove(retryKey)

@@ -55,9 +55,12 @@ enum MermaidMarkdownContentCache {
 }
 
 struct MermaidMarkdownContentView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let content: MermaidMarkdownContent
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 12) {
             ForEach(content.segments) { segment in
                 switch segment.kind {
@@ -77,6 +80,8 @@ struct MermaidMarkdownContentView: View {
 }
 
 private struct MermaidBlockView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let source: String
 
     @Environment(\.colorScheme) private var colorScheme
@@ -88,11 +93,12 @@ private struct MermaidBlockView: View {
     @State private var saveAlertMessage: String?
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             if let snapshot = currentSnapshot {
                 Button {
                     HapticFeedback.shared.triggerImpactFeedback(style: .light)
-                    previewImage = PreviewImagePayload(image: snapshot.image, title: "Diagram")
+                    previewImage = PreviewImagePayload(image: snapshot.image, title: L10n.string("Diagram"))
                 } label: {
                     Image(uiImage: snapshot.image)
                         .resizable()
@@ -220,7 +226,7 @@ private struct MermaidBlockView: View {
         saveCoordinator.save(snapshot.image) { result in
             switch result {
             case .success:
-                saveAlertMessage = "Saved to Photos."
+                saveAlertMessage = L10n.string("Saved to Photos.")
             case .failure(let error):
                 saveAlertMessage = error.localizedDescription
             }
@@ -259,7 +265,10 @@ private struct MermaidBlockView: View {
 }
 
 private struct MermaidPlaceholderView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.primary.opacity(0.03))

@@ -34,11 +34,11 @@ struct UnifiedDiffHunk: Identifiable, Equatable {
         guard !isSynthetic else { return nil }
         let newNumbers = lines.compactMap(\.newNumber)
         if let first = newNumbers.first, let last = newNumbers.last {
-            return first == last ? "Line \(first)" : "Lines \(first)-\(last)"
+            return first == last ? L10n.format("Line %@", String(describing: first)) : L10n.format("Lines %@-%@", String(describing: first), String(describing: last))
         }
         let oldNumbers = lines.compactMap(\.oldNumber)
         if let first = oldNumbers.first, let last = oldNumbers.last {
-            return first == last ? "Line \(first)" : "Lines \(first)-\(last)"
+            return first == last ? L10n.format("Line %@", String(describing: first)) : L10n.format("Lines %@-%@", String(describing: first), String(describing: last))
         }
         return nil
     }
@@ -247,6 +247,8 @@ enum UnifiedDiffParser {
 // ─── View ───────────────────────────────────────────────────────────
 
 struct UnifiedDiffView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let diff: UnifiedDiff
     let rawDiffCode: String
     let collapseAllHunks: Bool
@@ -265,6 +267,7 @@ struct UnifiedDiffView: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         let syntheticHunkCount = diff.hunks.reduce(0) { $0 + ($1.isSynthetic ? 1 : 0) }
         let syntheticIndices: [String: Int] = {
             var indices: [String: Int] = [:]
@@ -333,9 +336,9 @@ struct UnifiedDiffView: View {
             return range
         }
         if let index = syntheticIndex, totalSynthetic > 1 {
-            return "Patch \(index) of \(totalSynthetic)"
+            return L10n.format("Patch %@ of %@", String(describing: index), String(describing: totalSynthetic))
         }
-        return "Patch"
+        return L10n.string("Patch")
     }
 
     // Raw, line-oriented fallback rendering used when no hunks could be parsed but the diff
@@ -353,12 +356,15 @@ struct UnifiedDiffView: View {
 // ─── Hunk section ───────────────────────────────────────────────────
 
 private struct UnifiedDiffHunkSection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let hunk: UnifiedDiffHunk
     let headerLabel: String
     let gutterWidth: CGFloat
     @Binding var isCollapsed: Bool
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
@@ -404,9 +410,12 @@ private struct UnifiedDiffHunkSection: View {
 // Raw-line fallback row used when the structured parser yielded no hunks. It still classifies
 // the row by leading prefix so additions/deletions stay coloured.
 private struct UnifiedDiffRawRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let rawLine: String
 
     var body: some View {
+        let _ = _localizationLocale
         let palette = paletteForLine(rawLine)
         let text = displayText(rawLine)
         let indicator = gutterIndicator(for: rawLine)
@@ -456,10 +465,13 @@ private struct UnifiedDiffRawRow: View {
 // ─── Row ────────────────────────────────────────────────────────────
 
 private struct UnifiedDiffRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let line: UnifiedDiffLine
     let gutterWidth: CGFloat
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(alignment: .top, spacing: 0) {
             ZStack(alignment: .trailing) {
                 palette.gutterBackground

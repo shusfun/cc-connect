@@ -100,7 +100,14 @@ function ensureRemodexLogsDir({ fsImpl = fs, ...options } = {}) {
 function writeJsonFile(targetPath, value, { fsImpl = fs } = {}) {
   fsImpl.mkdirSync(path.dirname(targetPath), { recursive: true });
   const serialized = JSON.stringify(value, null, 2);
-  fsImpl.writeFileSync(targetPath, serialized, { mode: 0o600 });
+  const temporaryPath = `${targetPath}.${require('node:crypto').randomUUID()}.tmp`;
+  try {
+    fsImpl.writeFileSync(temporaryPath, serialized, { mode: 0o600, flag: 'wx' });
+    fsImpl.renameSync(temporaryPath, targetPath);
+  } catch (error) {
+    try { fsImpl.unlinkSync(temporaryPath); } catch {}
+    throw error;
+  }
   try {
     fsImpl.chmodSync(targetPath, 0o600);
   } catch {

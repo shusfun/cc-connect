@@ -15,7 +15,7 @@ struct TurnComposerRuntimeState: Equatable {
     let supportsFastMode: Bool
 
     var selectedReasoningTitle: String {
-        effectiveReasoningEffort.map(TurnComposerMetaMapper.reasoningTitle(for:)) ?? "Select reasoning"
+        effectiveReasoningEffort.map(TurnComposerMetaMapper.reasoningTitle(for:)) ?? L10n.string("Select reasoning")
     }
 
     var showsFastModeBadgeOnPill: Bool {

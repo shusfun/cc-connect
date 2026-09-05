@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct ContextWindowProgressRing: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let usage: ContextWindowUsage?
     let rateLimitBuckets: [CodexRateLimitBucket]
     let isLoadingRateLimits: Bool
@@ -25,6 +27,7 @@ struct ContextWindowProgressRing: View {
     private let lineWidth: CGFloat = 2.75
 
     var body: some View {
+        let _ = _localizationLocale
         let displayUsage = usage ?? .zero
 
         Button {
@@ -67,7 +70,7 @@ struct ContextWindowProgressRing: View {
             contextPlacement: .bottom,
             refreshControl: onRefreshStatus.map { _ in
                 UsageStatusRefreshControl(
-                    title: "Refresh",
+                    title: L10n.string("Refresh"),
                     isRefreshing: isRefreshing,
                     action: { refreshStatus() }
                 )
@@ -78,7 +81,7 @@ struct ContextWindowProgressRing: View {
     }
 
     private var usageAccessibilityValue: String {
-        "\(usage?.percentUsed ?? 0) percent used"
+        L10n.format("%@ percent used", String(describing: usage?.percentUsed ?? 0))
     }
 
     private func ringColor(for usage: ContextWindowUsage) -> Color {

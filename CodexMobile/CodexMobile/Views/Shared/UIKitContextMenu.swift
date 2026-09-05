@@ -57,15 +57,15 @@ private struct UIKitContextMenuHost<Content: View>: UIViewControllerRepresentabl
         Coordinator(menu: menu)
     }
 
-    func makeUIViewController(context: Context) -> ContextMenuHostController<Content> {
-        let host = ContextMenuHostController(rootView: content)
+    func makeUIViewController(context: Context) -> ContextMenuHostController<AnyView> {
+        let host = ContextMenuHostController(rootView: AnyView(content.environment(\.locale, context.environment.locale)))
         let interaction = UIContextMenuInteraction(delegate: context.coordinator)
         host.view.addInteraction(interaction)
         return host
     }
 
-    func updateUIViewController(_ host: ContextMenuHostController<Content>, context: Context) {
-        host.rootView = content
+    func updateUIViewController(_ host: ContextMenuHostController<AnyView>, context: Context) {
+        host.rootView = AnyView(content.environment(\.locale, context.environment.locale))
         context.coordinator.menu = menu
     }
 
@@ -76,7 +76,7 @@ private struct UIKitContextMenuHost<Content: View>: UIViewControllerRepresentabl
     // metadata, lost flexible width).
     func sizeThatFits(
         _ proposal: ProposedViewSize,
-        uiViewController: ContextMenuHostController<Content>,
+        uiViewController: ContextMenuHostController<AnyView>,
         context: Context
     ) -> CGSize? {
         let target = CGSize(

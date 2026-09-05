@@ -73,13 +73,15 @@ final class ContentViewModel {
         await stopAutoReconnectForManualScan(codex: codex)
         // Avoid logging live pairing metadata; the relay URL path includes a bearer-like session id.
         do {
-            codex.lastErrorMessage = "请在电脑上核对设备身份并确认手机配对"
+            codex.lastErrorMessage = L10n.string("请在电脑上核对设备身份并确认手机配对")
             let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState)
             codex.phoneIdentityState = CodexPhoneIdentityState(phoneDeviceId: access.phoneId, phoneIdentityPrivateKey: codex.phoneIdentityState.phoneIdentityPrivateKey, phoneIdentityPublicKey: codex.phoneIdentityState.phoneIdentityPublicKey)
             SecureStore.writeCodable(codex.phoneIdentityState, for: CodexSecureKeys.phoneIdentityState)
-            codex.rememberRelayPairing(pairingPayload)
             let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay)
-            let fullURL = "\(pairingPayload.relay)/\(session.sessionId)"
+            guard session.macIdentityPublicKey == pairingPayload.macIdentityPublicKey else { throw CodexServiceError.invalidResponse(L10n.string("设备身份不匹配，已阻止连接")) }
+            var resolvedPayload = pairingPayload; resolvedPayload.sessionId = session.sessionId
+            codex.rememberRelayPairing(resolvedPayload)
+            let fullURL = try RelayDeviceAccess.sessionURL(relay: pairingPayload.relay, sessionId: session.sessionId)
             codex.relaySessionId = session.sessionId
             codex.lastErrorMessage = nil
             try await connectWithAutoRecovery(
@@ -88,9 +90,7 @@ final class ContentViewModel {
                 serverURLProvider: { fullURL }
             )
         } catch {
-            if codex.lastErrorMessage?.isEmpty ?? true {
-                codex.lastErrorMessage = codex.userFacingConnectFailureMessage(error)
-            }
+            codex.lastErrorMessage = codex.userFacingConnectFailureMessage(error)
         }
     }
 
@@ -141,7 +141,7 @@ final class ContentViewModel {
         }
 
         codex.shouldAutoReconnectOnForeground = false
-        codex.connectionRecoveryState = .retrying(attempt: 0, message: "Preparing reconnect...")
+        codex.connectionRecoveryState = .retrying(attempt: 0, message: L10n.string("Preparing reconnect..."))
         codex.lastErrorMessage = nil
         codex.cancelTrustedSessionResolve()
 
@@ -324,7 +324,7 @@ final class ContentViewModel {
         if attempt >= maxAttempts {
             codex.shouldAutoReconnectOnForeground = false
             codex.connectionRecoveryState = .idle
-            codex.lastErrorMessage = "Could not reconnect. Tap Reconnect to try again."
+            codex.lastErrorMessage = L10n.string("Could not reconnect. Tap Reconnect to try again.")
         }
     }
 }
@@ -399,7 +399,7 @@ extension ContentViewModel {
             if attemptIndex > 0 {
                 codex.connectionRecoveryState = .retrying(
                     attempt: attemptIndex,
-                    message: "Connection timed out. Retrying..."
+                    message: L10n.string("Connection timed out. Retrying...")
                 )
             }
 
@@ -573,7 +573,7 @@ extension ContentViewModel {
                     codex: codex
                 )
                 if prunedCount > 0 {
-                    macSwitchNotice = "Removed old saved entries for that device. Scan its QR code once if it is still missing."
+                    macSwitchNotice = L10n.string("Removed old saved entries for that device. Scan its QR code once if it is still missing.")
                 }
             }
             return trustedReconnectResolution(
@@ -610,7 +610,7 @@ extension ContentViewModel {
             return nil
         }
         try validateResolvedTrustedReconnectTarget(resolved, trustedMac: trustedMac)
-        return "\(relayURL)/\(resolved.sessionId)"
+        return try RelayDeviceAccess.sessionURL(relay: relayURL, sessionId: resolved.sessionId)
     }
 
     // Recovers from stale duplicate records by trying only records with the same stable Mac key.
@@ -676,7 +676,7 @@ extension ContentViewModel {
     ) throws {
         guard resolved.macDeviceId == trustedMac.macDeviceId else {
             throw CodexTrustedSessionResolveError.invalidResponse(
-                "The trusted device relay returned a session for a different device."
+                L10n.string("The trusted device relay returned a session for a different device.")
             )
         }
 
@@ -684,7 +684,7 @@ extension ContentViewModel {
         let trustedPublicKey = trustedMac.macIdentityPublicKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !resolvedPublicKey.isEmpty, resolvedPublicKey == trustedPublicKey else {
             throw CodexTrustedSessionResolveError.invalidResponse(
-                "The trusted device relay returned a different device identity key."
+                L10n.string("The trusted device relay returned a different device identity key.")
             )
         }
     }
@@ -702,7 +702,7 @@ extension ContentViewModel {
                 codex.secureConnectionState = .liveSessionUnresolved
                 codex.connectionRecoveryState = .idle
                 codex.shouldAutoReconnectOnForeground = false
-                codex.lastErrorMessage = "Trusted reconnect is unavailable from this relay endpoint. Update or check the relay/proxy, then reconnect. Scan a new QR code only if this device was reset."
+                codex.lastErrorMessage = L10n.string("Trusted reconnect is unavailable from this relay endpoint. Update or check the relay/proxy, then reconnect. Scan a new QR code only if this device was reset.")
                 return .stop
             }
             return .fallbackToSaved
@@ -712,7 +712,7 @@ extension ContentViewModel {
                 return .fallbackToSaved
             }
             if isConnectedToDifferentCurrentDevice(codex: codex, targetMacDeviceId: targetMacDeviceId) {
-                macSwitchNotice = "That device is not reachable yet. Make sure its bridge is connected, or rescan its QR code."
+                macSwitchNotice = L10n.string("That device is not reachable yet. Make sure its bridge is connected, or rescan its QR code.")
                 return .retryLater
             }
             codex.lastErrorMessage = message
@@ -750,7 +750,7 @@ extension ContentViewModel {
            codex.normalizedRelayMacDeviceId != normalizedTargetMacDeviceId {
             return nil
         }
-        return "\(relayURL)/\(sessionId)"
+        return try? RelayDeviceAccess.sessionURL(relay: relayURL, sessionId: sessionId)
     }
 
     private func isConnectedToDifferentCurrentDevice(codex: CodexService, targetMacDeviceId: String?) -> Bool {
@@ -797,14 +797,14 @@ extension ContentViewModel {
             ) else {
                 let switchFailureMessage = macSwitchNotice
                     ?? codex.lastErrorMessage
-                    ?? "Could not reconnect to the selected device."
+                    ?? L10n.string("Could not reconnect to the selected device.")
                 macSwitchNotice = switchFailureMessage
                 codex.lastErrorMessage = isConnectedToDifferentCurrentDevice(
                     codex: codex,
                     targetMacDeviceId: normalizedTargetMacDeviceId
                 ) ? previousErrorMessage : switchFailureMessage
                 logMacSwitchState("missing-reconnect-url-keeping-current", targetMacDeviceId: normalizedTargetMacDeviceId, codex: codex)
-                throw CodexServiceError.invalidInput("Could not reconnect to the selected device.")
+                throw CodexServiceError.invalidInput(L10n.string("Could not reconnect to the selected device."))
             }
             if let resolvedMacDeviceId = codex.normalizedRelayMacDeviceId,
                resolvedMacDeviceId != effectiveTargetMacDeviceId {
@@ -913,19 +913,25 @@ extension ContentViewModel {
         let previousRelaySessionSnapshot = captureRelaySessionSnapshot(from: codex)
         codex.lastErrorMessage = nil
 
-        try await interruptRunningTurnsBeforeMacSwitchIfNeeded(codex: codex)
         await stopAutoReconnectForManualScan(codex: codex)
         codex.saveLocalState(for: previousCurrentTrustedMacDeviceId)
         beginMacSwitchContext(pairingPayload.macDeviceId, codex: codex)
-        codex.rememberRelayPairing(pairingPayload)
         prepareMacSwitchState(for: pairingPayload.macDeviceId, codex: codex, loadCachedMessages: false)
 
         do {
+            let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState)
+            codex.phoneIdentityState = CodexPhoneIdentityState(phoneDeviceId: access.phoneId, phoneIdentityPrivateKey: codex.phoneIdentityState.phoneIdentityPrivateKey, phoneIdentityPublicKey: codex.phoneIdentityState.phoneIdentityPublicKey)
+            SecureStore.writeCodable(codex.phoneIdentityState, for: CodexSecureKeys.phoneIdentityState)
+            let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay)
+            guard session.macIdentityPublicKey == pairingPayload.macIdentityPublicKey else { throw CodexServiceError.invalidResponse(L10n.string("设备身份不匹配")) }
+            var resolvedPayload = pairingPayload; resolvedPayload.sessionId = session.sessionId
+            codex.rememberRelayPairing(resolvedPayload)
+            let fullURL = try RelayDeviceAccess.sessionURL(relay: pairingPayload.relay, sessionId: session.sessionId)
             try await connectWithAutoRecovery(
                 codex: codex,
                 performAutoRetry: true,
                 continueWhile: { !self.isCancellingMacSwitch },
-                serverURLProvider: { "\(pairingPayload.relay)/\(pairingPayload.sessionId)" }
+                serverURLProvider: { fullURL }
             )
             endMacSwitchContext(codex: codex, persistThreadSnapshot: true)
         } catch is CancellationError {
@@ -1022,7 +1028,7 @@ extension ContentViewModel {
 
     private func normalizedRequiredMacDeviceId(_ deviceId: String?) throws -> String {
         guard let normalizedMacDeviceId = normalizedMacDeviceId(deviceId) else {
-            throw CodexServiceError.invalidInput("A valid device id is required.")
+            throw CodexServiceError.invalidInput(L10n.string("A valid device id is required."))
         }
         return normalizedMacDeviceId
     }
@@ -1173,7 +1179,7 @@ extension ContentViewModel {
         codex.clearSavedRelaySession()
         codex.clearInMemoryMacScopedState()
         endMacSwitchContext(codex: codex)
-        macSwitchNotice = "Switch cancelled. Choose a device to reconnect."
+        macSwitchNotice = L10n.string("Switch cancelled. Choose a device to reconnect.")
     }
 
     private func captureRelaySessionSnapshot(from codex: CodexService) -> RelaySessionSnapshot {

@@ -1,117 +1,16 @@
-// FILE: QRScannerPairingValidator.swift
-// Purpose: Classifies scanned or pasted pairing payloads so the pairing flow can block outdated computer bridges before reconnecting.
-// Layer: View support
-// Exports: validatePairingQRCode
-// Depends on: Foundation, CodexPairingQRPayload, CodexBridgeUpdatePrompt
-
 import Foundation
 
 enum QRScannerPairingValidationResult {
-    case success(CodexPairingQRPayload)
-    case shortCode(String)
+    case compact(CompactPairingCode)
     case scanError(String)
     case bridgeUpdateRequired(CodexBridgeUpdatePrompt)
 }
 
-private let qrScannerBridgeUpdateCommand: String? = nil
-private let qrScannerPairingCodePrefix = "RMX1:"
-private let qrScannerShortCodePattern = "^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8,12}$"
-
-// Distinguishes a usable pairing QR from stale bridge payloads and generic camera mis-scans.
 func validatePairingQRCode(_ code: String, now: Date = Date()) -> QRScannerPairingValidationResult {
-    let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
-    let normalizedShortCode = trimmedCode
-        .uppercased()
-        .replacingOccurrences(of: "-", with: "")
-        .replacingOccurrences(of: " ", with: "")
-    if normalizedShortCode.range(of: qrScannerShortCodePattern, options: .regularExpression) != nil {
-        return .shortCode(normalizedShortCode)
-    }
-    let normalizedCode: String
-    if trimmedCode.hasPrefix(qrScannerPairingCodePrefix) {
-        guard let decodedCode = decodePairingCode(trimmedCode) else {
-            return .scanError("This pairing code is unreadable. Copy it again from the Mac bridge.")
-        }
-        normalizedCode = decodedCode
-    } else {
-        normalizedCode = trimmedCode
-    }
-
-    guard let data = normalizedCode.data(using: .utf8) else {
-        return .scanError("Pairing code contains invalid text encoding.")
-    }
-
-    let decoder = JSONDecoder()
-    if let payload = try? decoder.decode(CodexPairingQRPayload.self, from: data) {
-        guard payload.v == codexPairingQRVersion else {
-            return .bridgeUpdateRequired(
-                makeScannerBridgeUpdatePrompt(
-                    message: "该二维码来自不兼容的 Remodex Mac App。请更新 Mac App 后生成新二维码。"
-                )
-            )
-        }
-
-        guard !payload.relay.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .scanError("Pairing code is missing the relay URL. Re-generate it from the bridge.")
-        }
-
-        guard !payload.sessionId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .scanError("Pairing code is missing the session ID. Re-generate it from the bridge.")
-        }
-
-        let expiryDate = Date(timeIntervalSince1970: TimeInterval(payload.expiresAt) / 1000)
-        guard expiryDate.addingTimeInterval(codexSecureClockSkewToleranceSeconds) >= now else {
-            return .scanError("This pairing code has expired. Generate a new one from the Mac bridge.")
-        }
-
-        return .success(payload)
-    }
-
-    if looksLikeRemodexPairingPayload(data) {
-        return .bridgeUpdateRequired(
-            makeScannerBridgeUpdatePrompt(
-                message: "该二维码来自旧版 Remodex Mac App。请更新 Mac App 后生成新二维码。"
-            )
-        )
-    }
-
-    return .scanError("Not a valid secure pairing code. Make sure you're scanning a QR from the latest Remodex bridge.")
-}
-
-// Reuses the QR validator for manual entry by decoding the bridge's paste-friendly token back into JSON.
-private func decodePairingCode(_ code: String) -> String? {
-    let encoded = String(code.dropFirst(qrScannerPairingCodePrefix.count))
-        .replacingOccurrences(of: "-", with: "+")
-        .replacingOccurrences(of: "_", with: "/")
-    let paddingCount = (4 - (encoded.count % 4)) % 4
-    let padded = encoded + String(repeating: "=", count: paddingCount)
-    guard let data = Data(base64Encoded: padded) else {
-        return nil
-    }
-    return String(data: data, encoding: .utf8)
-}
-
-private func looksLikeRemodexPairingPayload(_ data: Data) -> Bool {
-    guard let jsonObject = try? JSONSerialization.jsonObject(with: data),
-          let object = jsonObject as? [String: Any] else {
-        return false
-    }
-
-    let pairingKeys: Set<String> = [
-        "relay",
-        "sessionId",
-        "macDeviceId",
-        "macIdentityPublicKey",
-        "expiresAt",
-        "v",
-    ]
-    return !pairingKeys.isDisjoint(with: object.keys)
-}
-
-private func makeScannerBridgeUpdatePrompt(message: String) -> CodexBridgeUpdatePrompt {
-    CodexBridgeUpdatePrompt(
-        title: "Update Remodex on your Mac before scanning",
-        message: message,
-        command: qrScannerBridgeUpdateCommand
-    )
+    do { return .compact(try CompactPairingCode.parse(code)) }
+    catch CompactPairingCode.ParseError.updateRequired {
+        return .bridgeUpdateRequired(CodexBridgeUpdatePrompt(title: L10n.string("请更新设备上的 Remodex"), message: L10n.string("该配对码来自旧版或不兼容的应用，请更新电脑和 iPhone 应用后重新扫码。"), command: nil))
+    } catch CompactPairingCode.ParseError.unrelated {
+        return .scanError(L10n.string("这不是 Remodex 配对二维码，请对准电脑配对页上的二维码。"))
+    } catch { return .scanError(L10n.string("二维码内容不完整或格式不正确，请在电脑上刷新后重试。")) }
 }

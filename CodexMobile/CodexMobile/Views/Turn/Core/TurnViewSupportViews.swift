@@ -8,7 +8,10 @@ import SwiftUI
 import UIKit
 
 struct NewChatOpeningOverlay: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         VStack(spacing: 14) {
             ProgressView()
                 .controlSize(.regular)
@@ -40,11 +43,14 @@ struct VoiceRecoveryPresentation: Equatable {
 }
 
 struct SubagentParentAccessoryCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let parentTitle: String
     let agentLabel: String
     let onTap: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         GlassAccessoryCard(onTap: onTap) {
             ZStack {
                 Circle()
@@ -70,7 +76,7 @@ struct SubagentParentAccessoryCard: View {
                     .lineLimit(1)
             }
         } summary: {
-            Text("Back to \(parentTitle)")
+            Text(L10n.format("Back to %@", String(describing: parentTitle)))
                 .font(AppFont.subheadline(weight: .medium))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
@@ -88,19 +94,21 @@ struct CheckedOutElsewhereAlert: Identifiable {
     let threadID: String?
 
     var title: String {
-        "Branch already open elsewhere"
+        L10n.string("Branch already open elsewhere")
     }
 
     var message: String {
         if threadID != nil {
-            return "'\(branch)' is already checked out in another worktree. Open that chat to continue there."
+            return L10n.format("'%@' is already checked out in another worktree. Open that chat to continue there.", String(describing: branch))
         }
 
-        return "'\(branch)' is already checked out in another worktree. Open that chat from the sidebar to continue there."
+        return L10n.format("'%@' is already checked out in another worktree. Open that chat from the sidebar to continue there.", String(describing: branch))
     }
 }
 
 struct RuntimeDebugLogSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @Environment(\.dismiss) private var dismiss
 
@@ -109,11 +117,12 @@ struct RuntimeDebugLogSheet: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             Group {
                 if codex.runtimeDebugLogEntries.isEmpty {
                     ContentUnavailableView {
-                        RemodexIcon.label("No Runtime Logs Yet", systemName: "list.bullet.rectangle")
+                        RemodexIcon.label(L10n.string("No Runtime Logs Yet"), systemName: "list.bullet.rectangle")
                     } description: {
                         Text("Start a Plan Mode turn and the RPC events will appear here.")
                     }

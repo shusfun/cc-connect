@@ -22,13 +22,13 @@ enum RemodexNativeSSHTerminalError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingPrivateKey:
-            return "Paste your SSH private key before connecting."
+            return L10n.string("Paste your SSH private key before connecting.")
         case .hostKeyChanged:
-            return "The SSH host key changed. Check the host before reconnecting."
+            return L10n.string("The SSH host key changed. Check the host before reconnecting.")
         case .unsupportedPrivateKey(let keyType):
-            return "This SSH key type is not supported yet: \(keyType). Use an Ed25519 or RSA private key."
+            return L10n.format("This SSH key type is not supported yet: %@. Use an Ed25519 or RSA private key.", String(describing: keyType))
         case .sessionNotRunning:
-            return "The SSH terminal is not running."
+            return L10n.string("The SSH terminal is not running.")
         }
     }
 
@@ -57,10 +57,10 @@ enum RemodexNativeSSHTerminalError: LocalizedError {
 
         let fallback = error.localizedDescription
         if fallback.contains("NIOCore.ChannelError") {
-            return "SSH connection closed before the terminal was ready. Check that Remote Login is enabled on the Mac, the saved host/IP is still current, and the Mac is reachable from this network."
+            return L10n.string("SSH connection closed before the terminal was ready. Check that Remote Login is enabled on the Mac, the saved host/IP is still current, and the Mac is reachable from this network.")
         }
         if fallback.contains("NIOPosix.NIOConnectionError") {
-            return "SSH could not reach the Mac. Check that Remote Login is enabled, the saved host/IP and port are correct, and both devices are on a network that allows local SSH."
+            return L10n.string("SSH could not reach the Mac. Check that Remote Login is enabled, the saved host/IP and port are correct, and both devices are on a network that allows local SSH.")
         }
         return fallback
     }
@@ -68,34 +68,34 @@ enum RemodexNativeSSHTerminalError: LocalizedError {
     private static func userFacingDescription(for error: SSHClientError) -> String {
         switch error {
         case .allAuthenticationOptionsFailed:
-            return "SSH authentication failed. Check the username, private key, passphrase, and that the public key is still in ~/.ssh/authorized_keys on the Mac."
+            return L10n.string("SSH authentication failed. Check the username, private key, passphrase, and that the public key is still in ~/.ssh/authorized_keys on the Mac.")
         case .unsupportedPrivateKeyAuthentication:
-            return "This SSH server is not accepting private-key authentication for that user."
+            return L10n.string("This SSH server is not accepting private-key authentication for that user.")
         case .unsupportedPasswordAuthentication:
-            return "This SSH server is asking for password authentication, but Remodex terminal currently uses a private key."
+            return L10n.string("This SSH server is asking for password authentication, but Remodex terminal currently uses a private key.")
         case .unsupportedHostBasedAuthentication:
-            return "This SSH server requires host-based authentication, which Remodex terminal does not support."
+            return L10n.string("This SSH server requires host-based authentication, which Remodex terminal does not support.")
         case .channelCreationFailed:
-            return "SSH connected, but the terminal channel could not be opened. Check whether the Mac allows interactive login for this user."
+            return L10n.string("SSH connected, but the terminal channel could not be opened. Check whether the Mac allows interactive login for this user.")
         }
     }
 
     private static func userFacingDescription(for error: ChannelError) -> String {
         switch error {
         case .connectTimeout(_):
-            return "SSH connection timed out. Check that the Mac is awake, Remote Login is enabled, and the saved host/IP and port are reachable from this network."
+            return L10n.string("SSH connection timed out. Check that the Mac is awake, Remote Login is enabled, and the saved host/IP and port are reachable from this network.")
         case .eof, .inputClosed, .outputClosed, .ioOnClosedChannel, .alreadyClosed:
-            return "SSH connection closed before the terminal was ready. Check that Remote Login is enabled on the Mac and retry. If this Mac was restored or reinstalled, reset the terminal host key first."
+            return L10n.string("SSH connection closed before the terminal was ready. Check that Remote Login is enabled on the Mac and retry. If this Mac was restored or reinstalled, reset the terminal host key first.")
         case .connectPending:
-            return "SSH is already connecting. Wait a moment and try again."
+            return L10n.string("SSH is already connecting. Wait a moment and try again.")
         default:
-            return "SSH channel failed before the terminal was ready. Check the saved host/IP, port, Remote Login setting, and network reachability."
+            return L10n.string("SSH channel failed before the terminal was ready. Check the saved host/IP, port, Remote Login setting, and network reachability.")
         }
     }
 
     private static func userFacingDescription(for error: NIOConnectionError) -> String {
         if error.dnsAError != nil || error.dnsAAAAError != nil {
-            return "SSH could not resolve \(error.host). Check the saved hostname or use the Mac's current local IP address."
+            return L10n.format("SSH could not resolve %@. Check the saved hostname or use the Mac's current local IP address.", String(describing: error.host))
         }
 
         if let failedConnection = error.connectionErrors.first {
@@ -107,21 +107,21 @@ enum RemodexNativeSSHTerminalError: LocalizedError {
             }
         }
 
-        return "SSH could not reach \(error.host):\(error.port). Check that the Mac is awake, Remote Login is enabled, the saved host/IP is current, and the network allows local SSH."
+        return L10n.format("SSH could not reach %@:%@. Check that the Mac is awake, Remote Login is enabled, the saved host/IP is current, and the network allows local SSH.", String(describing: error.host), String(describing: error.port))
     }
 
     private static func userFacingDescription(for error: IOError) -> String {
         switch error.errnoCode {
         case ECONNREFUSED:
-            return "The Mac refused the SSH connection. Enable Remote Login on the Mac and confirm the terminal port is correct."
+            return L10n.string("The Mac refused the SSH connection. Enable Remote Login on the Mac and confirm the terminal port is correct.")
         case EHOSTUNREACH, ENETUNREACH:
-            return "The Mac is not reachable from this network. Check that the iPhone and Mac are on the same network and that the saved host/IP is still current."
+            return L10n.string("The Mac is not reachable from this network. Check that the iPhone and Mac are on the same network and that the saved host/IP is still current.")
         case ETIMEDOUT:
-            return "SSH connection timed out. Check that the Mac is awake, Remote Login is enabled, and the saved host/IP is still current."
+            return L10n.string("SSH connection timed out. Check that the Mac is awake, Remote Login is enabled, and the saved host/IP is still current.")
         case ECONNRESET, ECONNABORTED, EPIPE:
-            return "SSH connection was closed by the Mac or the network. Reopen the terminal after checking Remote Login and network reachability."
+            return L10n.string("SSH connection was closed by the Mac or the network. Reopen the terminal after checking Remote Login and network reachability.")
         default:
-            return "SSH network error: \(error.localizedDescription)"
+            return L10n.format("SSH network error: %@", String(describing: error.localizedDescription))
         }
     }
 }

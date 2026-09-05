@@ -57,7 +57,7 @@ enum RemodexQuickActionCenter {
     private static func newChatShortcutItem() -> UIApplicationShortcutItem {
         UIApplicationShortcutItem(
             type: newChatType,
-            localizedTitle: "New Chat",
+            localizedTitle: L10n.string("New Chat"),
             localizedSubtitle: nil,
             icon: UIApplicationShortcutIcon(systemImageName: "square.and.pencil"),
             userInfo: nil
@@ -77,7 +77,7 @@ enum RemodexQuickActionCenter {
     private static func projectSubtitle(for thread: CodexThread) -> String {
         let projectName = thread.projectDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !projectName.isEmpty, projectName != CodexThread.noProjectDisplayName else {
-            return "Chats"
+            return L10n.string("Chats")
         }
         return projectName
     }

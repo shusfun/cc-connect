@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct GoalStatusChip: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let goal: CodexThreadGoal
     let isThreadRunning: Bool
     let onEdit: () -> Void
@@ -20,6 +22,7 @@ struct GoalStatusChip: View {
     @State private var observedAt = Date()
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .trailing, spacing: 8) {
             if isExpanded {
                 detailCard
@@ -43,7 +46,7 @@ struct GoalStatusChip: View {
                     )
                     .foregroundStyle(.secondary)
 
-                    Text("Goal \(goal.status.displayLabel.lowercased())")
+                    Text(L10n.format("Goal %@", String(describing: goal.status.displayLabel.lowercased())))
                         .font(AppFont.caption())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -52,14 +55,14 @@ struct GoalStatusChip: View {
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Goal \(goal.status.displayLabel), \(elapsedText(now: Date()))")
-            .accessibilityHint(isExpanded ? "Collapses goal details" : "Expands goal details")
+            .accessibilityLabel(L10n.format("Goal %@, %@", String(describing: goal.status.displayLabel), String(describing: elapsedText(now: Date()))))
+            .accessibilityHint(isExpanded ? L10n.string("Collapses goal details") : L10n.string("Expands goal details"))
         }
         .onChange(of: goal) { _, _ in
             observedAt = Date()
         }
         .confirmationDialog(
-            "Remove this goal?",
+            L10n.string("Remove this goal?"),
             isPresented: $isShowingRemoveConfirmation,
             titleVisibility: .visible
         ) {

@@ -18,17 +18,17 @@ enum CodexServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidServerURL(let value):
-            return "Invalid server URL: \(value)"
+            return L10n.format("Invalid server URL: %@", String(describing: value))
         case .invalidInput(let reason):
             return reason
         case .invalidResponse(let reason):
             return reason
         case .encodingFailed:
-            return "Unable to encode JSON-RPC payload"
+            return L10n.string("Unable to encode JSON-RPC payload")
         case .disconnected:
-            return "WebSocket not connected"
+            return L10n.string("WebSocket not connected")
         case .noPendingApproval:
-            return "No pending approval request"
+            return L10n.string("No pending approval request")
         case .rpcError(let rpcError):
             return "RPC error \(rpcError.code): \(rpcError.message)"
         }

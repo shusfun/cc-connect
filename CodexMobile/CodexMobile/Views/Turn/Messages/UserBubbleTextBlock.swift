@@ -8,6 +8,8 @@ import SwiftUI
 import UIKit
 
 struct UserBubbleTextBlock<Content: View>: View {
+    @Environment(\.locale) private var _localizationLocale
+
     private static var collapseLineLimit: Int { 10 }
     private static var collapseCharacterThreshold: Int { 360 }
     private static var collapseNewlineThreshold: Int { 8 }
@@ -52,11 +54,12 @@ struct UserBubbleTextBlock<Content: View>: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .trailing, spacing: 4) {
             collapsibleContent
 
             if canCollapse {
-                Button(isExpanded ? "Show less" : "Show more") {
+                Button(isExpanded ? L10n.string("Show less") : L10n.string("Show more")) {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         isExpanded.toggle()
                     }

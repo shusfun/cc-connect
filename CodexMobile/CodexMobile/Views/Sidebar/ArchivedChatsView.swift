@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct ArchivedChatsView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @State private var threadPendingDeletion: CodexThread? = nil
 
@@ -21,6 +23,7 @@ struct ArchivedChatsView: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             if archivedThreads.isEmpty {
                 VStack(spacing: 12) {
@@ -44,7 +47,7 @@ struct ArchivedChatsView: View {
         .navigationTitle("Archived Chats")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
-            "Remove \"\(threadPendingDeletion?.displayTitle ?? "conversation")\" from this phone?",
+            L10n.format("Remove \"%@\" from this phone?", String(describing: threadPendingDeletion?.displayTitle ?? "conversation")),
             isPresented: Binding(
                 get: { threadPendingDeletion != nil },
                 set: { if !$0 { threadPendingDeletion = nil } }
@@ -91,7 +94,7 @@ struct ArchivedChatsView: View {
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             HapticButton(action: { codex.unarchiveThread(thread.id) }) {
-                RemodexIcon.menuLabel("Unarchive", systemName: "tray.and.arrow.up")
+                RemodexIcon.menuLabel(L10n.string("Unarchive"), systemName: "tray.and.arrow.up")
             }
             .tint(.blue)
         }

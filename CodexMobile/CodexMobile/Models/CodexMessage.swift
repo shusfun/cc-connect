@@ -269,7 +269,7 @@ struct CodexMessage: Identifiable, Codable, Hashable, Sendable {
     // Formats timeline chrome in the originating desktop timezone when history provides it.
     func formattedTimelineTime() -> String {
         let formatter = DateFormatter()
-        formatter.locale = .current
+        formatter.locale = L10n.locale
         formatter.dateStyle = .none
         formatter.timeStyle = .short
         if let timeZoneIdentifier,

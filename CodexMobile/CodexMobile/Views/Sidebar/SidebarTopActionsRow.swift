@@ -13,6 +13,8 @@ enum SidebarTopAction {
 }
 
 struct SidebarTopActionsRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let isEnabled: Bool
     let pendingAction: SidebarTopAction?
     let onNewChat: () -> Void
@@ -24,25 +26,26 @@ struct SidebarTopActionsRow: View {
     private var isBusy: Bool { pendingAction != nil }
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(alignment: .top, spacing: 32) {
             actionButton(
                 action: .newChat,
                 systemName: "square.and.pencil",
-                label: "New Chat",
+                label: L10n.string("New Chat"),
                 tap: onNewChat
             )
 
             actionButton(
                 action: .quickChat,
                 systemName: "message",
-                label: "Quick Chat",
+                label: L10n.string("Quick Chat"),
                 tap: onQuickChat
             )
 
             actionButton(
                 action: .newProject,
                 systemName: "folder",
-                label: "New Project",
+                label: L10n.string("New Project"),
                 tap: onNewProject
             )
         }
@@ -94,10 +97,13 @@ struct SidebarTopActionsRow: View {
 
 #if DEBUG
 private struct SidebarTopActionsRowPreviewHost: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let isEnabled: Bool
     let pendingAction: SidebarTopAction?
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 0) {
             SidebarTopActionsRow(
                 isEnabled: isEnabled,

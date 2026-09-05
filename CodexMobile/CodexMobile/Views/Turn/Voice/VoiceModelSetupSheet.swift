@@ -7,11 +7,14 @@
 import SwiftUI
 
 struct VoiceModelSetupSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @ObservedObject private var manager = WhisperVoiceModelManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var confirmsCellularDownload = false
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
                 Label {
@@ -29,10 +32,10 @@ struct VoiceModelSetupSheet: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    detailRow(title: "下载大小", value: formattedBytes(WhisperVoiceModelManager.estimatedDownloadBytes))
-                    detailRow(title: "空间要求", value: formattedBytes(WhisperVoiceModelManager.requiredFreeBytes))
-                    detailRow(title: "可用空间", value: formattedBytes(manager.availableStorageBytes))
-                    detailRow(title: "保留规则", value: "失败录音加密保留 24 小时")
+                    detailRow(title: L10n.string("下载大小"), value: formattedBytes(WhisperVoiceModelManager.estimatedDownloadBytes))
+                    detailRow(title: L10n.string("空间要求"), value: formattedBytes(WhisperVoiceModelManager.requiredFreeBytes))
+                    detailRow(title: L10n.string("可用空间"), value: formattedBytes(manager.availableStorageBytes))
+                    detailRow(title: L10n.string("保留规则"), value: L10n.string("失败录音加密保留 24 小时"))
                 }
 
                 stateContent
@@ -55,7 +58,7 @@ struct VoiceModelSetupSheet: View {
         }
         .presentationDetents([.medium, .large])
         .confirmationDialog(
-            "使用蜂窝网络下载？",
+            L10n.string("使用蜂窝网络下载？"),
             isPresented: $confirmsCellularDownload,
             titleVisibility: .visible
         ) {
@@ -64,7 +67,7 @@ struct VoiceModelSetupSheet: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("模型约占 \(formattedBytes(WhisperVoiceModelManager.estimatedDownloadBytes))，此次确认不会改变系统网络设置。")
+            Text(L10n.format("模型约占 %@，此次确认不会改变系统网络设置。", String(describing: formattedBytes(WhisperVoiceModelManager.estimatedDownloadBytes))))
         }
     }
 
@@ -72,7 +75,7 @@ struct VoiceModelSetupSheet: View {
     private var stateContent: some View {
         switch manager.state {
         case .missing:
-            primaryButton(title: "通过 Wi-Fi 下载", icon: "arrow.down.circle") {
+            primaryButton(title: L10n.string("通过 Wi-Fi 下载"), icon: "arrow.down.circle") {
                 manager.startDownload(allowCellular: false)
             }
             Button("改用蜂窝网络") {
@@ -81,9 +84,9 @@ struct VoiceModelSetupSheet: View {
             .buttonStyle(.bordered)
             .frame(minHeight: 44)
         case .checking:
-            progressLine(title: "正在检查网络和存储空间", fraction: nil)
+            progressLine(title: L10n.string("正在检查网络和存储空间"), fraction: nil)
         case .downloading:
-            progressLine(title: "正在下载模型", fraction: manager.downloadFraction)
+            progressLine(title: L10n.string("正在下载模型"), fraction: manager.downloadFraction)
             HStack {
                 Button {
                     manager.pauseDownload()
@@ -99,7 +102,7 @@ struct VoiceModelSetupSheet: View {
             .buttonStyle(.bordered)
             .frame(minHeight: 44)
         case .paused:
-            progressLine(title: "下载已暂停", fraction: manager.downloadFraction)
+            progressLine(title: L10n.string("下载已暂停"), fraction: manager.downloadFraction)
             HStack {
                 Button {
                     manager.resumeDownload()
@@ -115,11 +118,11 @@ struct VoiceModelSetupSheet: View {
             .buttonStyle(.bordered)
             .frame(minHeight: 44)
         case .loading:
-            progressLine(title: "正在加载并预热模型", fraction: nil)
+            progressLine(title: L10n.string("正在加载并预热模型"), fraction: nil)
         case .ready:
             Label("模型已就绪，可在飞行模式下转写", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
-            primaryButton(title: "完成", icon: "checkmark") {
+            primaryButton(title: L10n.string("完成"), icon: "checkmark") {
                 dismiss()
             }
         case .failed(let message):

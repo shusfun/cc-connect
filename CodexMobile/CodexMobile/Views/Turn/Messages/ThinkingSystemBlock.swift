@@ -9,6 +9,8 @@ import SwiftUI
 // Centralizes the inline reasoning row so thinking-specific spacing, fonts, and
 // disclosure behavior are easy to tune without touching MessageRow.
 struct ThinkingSystemBlock: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let messageID: String
     let isStreaming: Bool
     let thinkingText: String
@@ -30,6 +32,7 @@ struct ThinkingSystemBlock: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             // Keep completed reasoning visible too; older builds showed thinking blocks
             // even after stream completion whenever content was present.
@@ -84,12 +87,15 @@ struct ThinkingSystemBlock: View {
 
 // Owns disclosure state for compact reasoning summaries without invalidating MessageRow.
 private struct ThinkingDisclosureView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let messageID: String
     let content: ThinkingDisclosureContent
 
     @State private var expandedSectionIDs: Set<String> = []
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 8) {
             if content.showsDisclosure {
                 ForEach(content.sections) { section in
@@ -177,9 +183,12 @@ private struct ThinkingDisclosureView: View {
 }
 
 struct TimelineSystemBlockPreviewSurface<Content: View>: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @ViewBuilder let content: () -> Content
 
     var body: some View {
+        let _ = _localizationLocale
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 content()
@@ -193,7 +202,10 @@ struct TimelineSystemBlockPreviewSurface<Content: View>: View {
 
 @MainActor
 private struct ThinkingSystemBlockCompactPreviewHost: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         TimelineSystemBlockPreviewSurface {
             ThinkingSystemBlock(
                 messageID: "preview-thinking-compact",
@@ -207,7 +219,10 @@ private struct ThinkingSystemBlockCompactPreviewHost: View {
 
 @MainActor
 private struct ThinkingSystemBlockDisclosurePreviewHost: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         TimelineSystemBlockPreviewSurface {
             ThinkingSystemBlock(
                 messageID: "preview-thinking-disclosure",
@@ -241,6 +256,8 @@ private struct ThinkingSystemBlockDisclosurePreviewHost: View {
 
 @MainActor
 private struct ThinkingSystemBlockRealResponsePreviewHost: View {
+    @Environment(\.locale) private var _localizationLocale
+
     private let rawThinkingText = """
     **Explored 1 file**
     Found the compact thinking block and isolated it into a dedicated view so the UI can be tuned in one place.
@@ -249,10 +266,11 @@ private struct ThinkingSystemBlockRealResponsePreviewHost: View {
     Removed italics and aligned the label with the selected prose font instead of monospace styling.
 
     **Polishing compact activity state**
-    running rg -n "Thinking" CodexMobile/CodexMobile/Views/Turn
+    running rg -n L10n.string("Thinking") CodexMobile/CodexMobile/Views/Turn
     """
 
     var body: some View {
+        let _ = _localizationLocale
         let parsed = ThinkingDisclosureParser.parse(from: rawThinkingText)
 
         return TimelineSystemBlockPreviewSurface {

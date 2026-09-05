@@ -135,7 +135,7 @@ struct CodexRateLimitBucket: Identifiable, Equatable, Sendable {
         let dayMinutes = 24 * 60
 
         if minutes % weekMinutes == 0 {
-            return minutes == weekMinutes ? "Weekly" : "\(minutes / weekMinutes)w"
+            return minutes == weekMinutes ? L10n.string("Weekly") : "\(minutes / weekMinutes)w"
         }
 
         if minutes % dayMinutes == 0 {

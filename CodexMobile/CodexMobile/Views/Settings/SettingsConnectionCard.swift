@@ -7,22 +7,26 @@
 import SwiftUI
 
 struct SettingsConnectionCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     let onEditComputerName: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         SettingsCard(
-            title: "Device",
-            footer: "Display sleep does not interrupt Remodex. If macOS enters system sleep, remote access stays offline until the Mac wakes."
+            title: L10n.string("Device"),
+            footer: L10n.string("Display sleep does not interrupt Remodex. If macOS enters system sleep, remote access stays offline until the Mac wakes.")
         ) {
             if let trustedPairPresentation = codex.trustedPairPresentation {
                 SettingsTrustedComputerCard(
                     presentation: trustedPairPresentation,
                     connectionStatusLabel: connectionStatusLabel,
+                    isConnected: codex.connectionPhase == .connected,
                     onEditName: onEditComputerName
                 )
             } else {
-                SettingsInlineMessage(text: "No paired device yet. Scan the QR code from your Mac to connect.")
+                SettingsInlineMessage(text: L10n.string("No paired device yet. Scan the QR code from your Mac to connect."))
             }
 
             if connectionPhaseShowsProgress {
@@ -45,12 +49,12 @@ struct SettingsConnectionCard: View {
             }
 
             if codex.isConnected {
-                SettingsButton("Disconnect", role: .destructive) {
+                SettingsButton(L10n.string("Disconnect"), role: .destructive) {
                     HapticFeedback.shared.triggerImpactFeedback()
                     disconnectRelay()
                 }
             } else if codex.hasTrustedMacReconnectCandidate {
-                SettingsButton("Forget Pair", role: .destructive) {
+                SettingsButton(L10n.string("Forget Pair"), role: .destructive) {
                     HapticFeedback.shared.triggerImpactFeedback()
                     codex.forgetTrustedMac()
                 }
@@ -70,26 +74,26 @@ struct SettingsConnectionCard: View {
     private var connectionStatusLabel: String {
         switch codex.connectionPhase {
         case .offline:
-            return "Offline"
+            return L10n.string("Offline")
         case .connecting:
-            return "Connecting"
+            return L10n.string("Connecting")
         case .loadingChats:
-            return "Loading"
+            return L10n.string("Loading")
         case .syncing:
-            return "Syncing"
+            return L10n.string("Syncing")
         case .connected:
-            return "Connected"
+            return L10n.string("Connected")
         }
     }
 
     private var connectionProgressLabel: String {
         switch codex.connectionPhase {
         case .connecting:
-            return "Connecting to relay…"
+            return L10n.string("Connecting to relay…")
         case .loadingChats:
-            return "Loading chats…"
+            return L10n.string("Loading chats…")
         case .syncing:
-            return "Syncing workspace…"
+            return L10n.string("Syncing workspace…")
         case .offline, .connected:
             return ""
         }

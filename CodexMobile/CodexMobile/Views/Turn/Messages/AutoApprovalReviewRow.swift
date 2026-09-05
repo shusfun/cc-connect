@@ -10,6 +10,8 @@ import SwiftUI
 // command group rows; expanding reveals the reviewed action, risk context, and
 // the one-shot retry control for denied reviews.
 struct AutoApprovalReviewRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let threadId: String
     let review: CodexAutoApprovalReview
     let actionSummary: String
@@ -21,10 +23,11 @@ struct AutoApprovalReviewRow: View {
     }
 
     private var rowTitle: String {
-        "Auto-review · \(presentation.statusLabel)"
+        L10n.format("Auto-review · %@", String(describing: presentation.statusLabel))
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 10) {
             Button(action: toggleExpanded) {
                 HStack(spacing: 8) {
@@ -50,8 +53,8 @@ struct AutoApprovalReviewRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Auto-review, \(presentation.statusLabel)")
-            .accessibilityHint(isExpanded ? "Collapse review details" : "Expand review details")
+            .accessibilityLabel(L10n.format("Auto-review, %@", String(describing: presentation.statusLabel)))
+            .accessibilityHint(isExpanded ? L10n.string("Collapse review details") : L10n.string("Expand review details"))
 
             if isExpanded {
                 AutoApprovalReviewDetails(
@@ -73,6 +76,8 @@ struct AutoApprovalReviewRow: View {
 }
 
 private struct AutoApprovalReviewDetails: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let threadId: String
     let review: CodexAutoApprovalReview
     let actionSummary: String
@@ -83,7 +88,7 @@ private struct AutoApprovalReviewDetails: View {
     }
 
     private var riskLabel: String? {
-        normalized(review.riskLevel).map { "\($0.capitalized) risk" }
+        normalized(review.riskLevel).map { L10n.format("%@ risk", String(describing: $0.capitalized)) }
     }
 
     private var normalizedAuthorization: String? {
@@ -91,6 +96,7 @@ private struct AutoApprovalReviewDetails: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 8) {
             Text(actionSummary)
                 .font(AppFont.footnote(weight: .medium))
@@ -104,7 +110,7 @@ private struct AutoApprovalReviewDetails: View {
             }
 
             if let authorization = normalizedAuthorization {
-                Text("Authorization: \(authorization)")
+                Text(L10n.format("Authorization: %@", String(describing: authorization)))
                     .font(AppFont.caption())
                     .foregroundStyle(.secondary)
             }
@@ -133,6 +139,8 @@ private struct AutoApprovalReviewDetails: View {
 }
 
 private struct AutoApprovalRetryControl: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
 
     let threadId: String
@@ -142,6 +150,7 @@ private struct AutoApprovalRetryControl: View {
     @State private var retryErrorMessage: String?
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 8) {
             if review.retryApproved {
                 Label("Approval recorded; the retry will still be reviewed", systemImage: "checkmark")
@@ -207,27 +216,27 @@ private struct AutoApprovalReviewPresentation {
     init(status: CodexAutoApprovalReviewStatus) {
         switch status {
         case .inProgress:
-            statusLabel = "Reviewing"
+            statusLabel = L10n.string("Reviewing")
             iconSystemName = "remodex.auto-review"
             color = .secondary
         case .approved:
-            statusLabel = "Approved"
+            statusLabel = L10n.string("Approved")
             iconSystemName = "remodex.auto-review"
             color = .green
         case .denied:
-            statusLabel = "Denied"
+            statusLabel = L10n.string("Denied")
             iconSystemName = "exclamationmark.triangle.fill"
             color = .orange
         case .timedOut:
-            statusLabel = "Timed out"
+            statusLabel = L10n.string("Timed out")
             iconSystemName = "hourglass"
             color = .secondary
         case .aborted:
-            statusLabel = "Stopped"
+            statusLabel = L10n.string("Stopped")
             iconSystemName = "xmark.circle.fill"
             color = .secondary
         case .unknown:
-            statusLabel = "Updated"
+            statusLabel = L10n.string("Updated")
             iconSystemName = "questionmark.circle"
             color = .secondary
         }

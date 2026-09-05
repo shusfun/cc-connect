@@ -9,6 +9,8 @@ import SwiftUI
 // MARK: - Card (timeline-level container)
 
 struct SubagentActionCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let parentThreadId: String
     let action: CodexSubagentAction
     let onOpenSubagent: ((CodexSubagentThreadPresentation) -> Void)?
@@ -18,6 +20,7 @@ struct SubagentActionCard: View {
     @State private var selectedAgentDetails: CodexSubagentThreadPresentation?
 
     var body: some View {
+        let _ = _localizationLocale
         let _ = codex.subagentIdentityVersion
         VStack(alignment: .leading, spacing: 0) {
             headerRow
@@ -42,7 +45,7 @@ struct SubagentActionCard: View {
                 title: title,
                 accentColor: SubagentLabelParser.nicknameColor(for: title),
                 statusText: readableStatus(resolvedStatus(for: resolved).label),
-                modelTitle: resolved.modelIsRequestedHint ? "Requested model" : "Model",
+                modelTitle: resolved.modelIsRequestedHint ? L10n.string("Requested model") : L10n.string("Model"),
                 modelLabel: resolvedModelLabel(for: resolved, prefixRequested: false),
                 instructionText: trimmedValue(resolved.prompt) ?? trimmedValue(action.prompt),
                 latestUpdateText: trimmedValue(resolved.fallbackMessage),
@@ -173,57 +176,57 @@ struct SubagentActionCard: View {
         switch action.normalizedTool {
         case "spawnagent":
             switch label {
-            case "running": return "Starting child thread"
-            case "completed": return "Child thread created"
-            case "failed": return "Could not create child thread"
-            case "stopped": return "Spawn interrupted"
-            case "queued": return "Queued for spawn"
-            default: return "Preparing child thread"
+            case "running": return L10n.string("Starting child thread")
+            case "completed": return L10n.string("Child thread created")
+            case "failed": return L10n.string("Could not create child thread")
+            case "stopped": return L10n.string("Spawn interrupted")
+            case "queued": return L10n.string("Queued for spawn")
+            default: return L10n.string("Preparing child thread")
             }
         case "wait", "waitagent":
             switch label {
-            case "running": return "Still working"
-            case "completed": return "Finished"
-            case "failed": return "Finished with error"
-            case "stopped": return "Stopped early"
-            case "queued": return "Queued"
-            default: return "Waiting for updates"
+            case "running": return L10n.string("Still working")
+            case "completed": return L10n.string("Finished")
+            case "failed": return L10n.string("Finished with error")
+            case "stopped": return L10n.string("Stopped early")
+            case "queued": return L10n.string("Queued")
+            default: return L10n.string("Waiting for updates")
             }
         case "sendinput":
             switch label {
-            case "running": return "Working on new instructions"
-            case "completed": return "Processed the update"
-            case "failed": return "Update failed"
-            case "stopped": return "Update interrupted"
-            case "queued": return "Queued update"
-            default: return "Instructions sent"
+            case "running": return L10n.string("Working on new instructions")
+            case "completed": return L10n.string("Processed the update")
+            case "failed": return L10n.string("Update failed")
+            case "stopped": return L10n.string("Update interrupted")
+            case "queued": return L10n.string("Queued update")
+            default: return L10n.string("Instructions sent")
             }
         case "resumeagent":
             switch label {
-            case "running": return "Back to work"
-            case "completed": return "Resumed and completed"
-            case "failed": return "Resume failed"
-            case "stopped": return "Resume interrupted"
-            case "queued": return "Queued to resume"
-            default: return "Resuming agent"
+            case "running": return L10n.string("Back to work")
+            case "completed": return L10n.string("Resumed and completed")
+            case "failed": return L10n.string("Resume failed")
+            case "stopped": return L10n.string("Resume interrupted")
+            case "queued": return L10n.string("Queued to resume")
+            default: return L10n.string("Resuming agent")
             }
         case "closeagent":
             switch label {
-            case "running": return "Closing"
-            case "completed": return "Closed"
-            case "failed": return "Close failed"
-            case "stopped": return "Close interrupted"
-            case "queued": return "Queued to close"
-            default: return "Closing agent"
+            case "running": return L10n.string("Closing")
+            case "completed": return L10n.string("Closed")
+            case "failed": return L10n.string("Close failed")
+            case "stopped": return L10n.string("Close interrupted")
+            case "queued": return L10n.string("Queued to close")
+            default: return L10n.string("Closing agent")
             }
         default:
             switch label {
-            case "running": return "Working now"
-            case "completed": return "Completed"
-            case "failed": return "Ended with error"
-            case "stopped": return "Stopped"
-            case "queued": return "Queued"
-            default: return "Idle"
+            case "running": return L10n.string("Working now")
+            case "completed": return L10n.string("Completed")
+            case "failed": return L10n.string("Ended with error")
+            case "stopped": return L10n.string("Stopped")
+            case "queued": return L10n.string("Queued")
+            default: return L10n.string("Idle")
             }
         }
     }
@@ -235,7 +238,7 @@ struct SubagentActionCard: View {
         }
         if let statusMessage = trimmedValue(agent.fallbackMessage),
            !sections.contains(statusMessage) {
-            sections.append(sections.isEmpty ? statusMessage : "Latest update: \(statusMessage)")
+            sections.append(sections.isEmpty ? statusMessage : L10n.format("Latest update: %@", String(describing: statusMessage)))
         }
         return sections.isEmpty ? nil : sections.joined(separator: "\n\n")
     }
@@ -264,6 +267,8 @@ struct SubagentActionCard: View {
 // MARK: - Agent row
 
 private struct SubagentAgentRowView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let status: SubagentStatusPresentation
     let statusText: String
@@ -273,6 +278,7 @@ private struct SubagentAgentRowView: View {
     let onOpen: (() -> Void)?
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(alignment: .center, spacing: 10) {
             openButtonContent
 
@@ -334,6 +340,8 @@ private struct SubagentAgentRowView: View {
 // MARK: - Detail sheet
 
 private struct SubagentAgentDetailSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let accentColor: Color
     let statusText: String
@@ -346,6 +354,7 @@ private struct SubagentAgentDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -356,11 +365,11 @@ private struct SubagentAgentDetailSheet: View {
                     }
 
                     if let instructionText, !instructionText.isEmpty {
-                        detailSection(title: "Instructions", value: instructionText)
+                        detailSection(title: L10n.string("Instructions"), value: instructionText)
                     }
 
                     if let latestUpdateText, !latestUpdateText.isEmpty {
-                        detailSection(title: "Latest update", value: latestUpdateText)
+                        detailSection(title: L10n.string("Latest update"), value: latestUpdateText)
                     }
 
                     if instructionText == nil, latestUpdateText == nil {

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        B8F0137F9E4A40FB88880001 /* WindowCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F0137F9E4A40FB88880002 /* WindowCoordinator.swift */; };
+        B8F0137F9E4A40FB88880003 /* ActivationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F0137F9E4A40FB88880004 /* ActivationPolicy.swift */; };
 		11A2B3C4D5E6F708192A3B4C /* TurnFileAutocompleteTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A2B3C4D5E6F708192A3B4D /* TurnFileAutocompleteTokenTests.swift */; };
 		1BF7B512D49503A3C3290F00 /* BridgeMenuBarStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1FC345ADD350213550F36C /* BridgeMenuBarStore.swift */; };
 		A1B2C3D4E5F60718293A4B5C /* DeviceAccessService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* DeviceAccessService.swift */; };
@@ -140,6 +142,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+        B8F0137F9E4A40FB88880002 /* WindowCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCoordinator.swift; sourceTree = "<group>"; };
+        B8F0137F9E4A40FB88880004 /* ActivationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationPolicy.swift; sourceTree = "<group>"; };
 		02C96CD0916A43F38184398D /* AssistantTurnEndActionVisibilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantTurnEndActionVisibilityTests.swift; sourceTree = "<group>"; };
 		11A2B3C4D5E6F708192A3B4D /* TurnFileAutocompleteTokenTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TurnFileAutocompleteTokenTests.swift; sourceTree = "<group>"; };
 		22B3C4D5E6F708192A3B4C5E /* CodexFuzzyFileSearchDecodeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexFuzzyFileSearchDecodeTests.swift; sourceTree = "<group>"; };
@@ -487,6 +491,8 @@
 				3A1FC345ADD350213550F36C /* BridgeMenuBarStore.swift */,
 				53C1E3E027CF4B98453962A0 /* BridgeMenuBarViews.swift */,
 				A1B2C3D4E5F60718293A4B5D /* DeviceAccessService.swift */,
+				B8F0137F9E4A40FB88880002 /* WindowCoordinator.swift */,
+				B8F0137F9E4A40FB88880004 /* ActivationPolicy.swift */,
 			);
 			path = RemodexMenuBar;
 			sourceTree = SOURCE_ROOT;
@@ -615,6 +621,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = C09A76A52F4B8D7B003B3F3A;
@@ -683,6 +690,8 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/scripts/prepare-macos-runtime.sh",
+				"$(SRCROOT)/scripts/build-macos-icon.swift",
+				"$(SRCROOT)/CodexMobile/Remodex.icon/Assets/Group 5.png",
 				"$(SRCROOT)/../pnpm-lock.yaml",
 				"$(SRCROOT)/../phodex-bridge/package.json",
 			);
@@ -691,6 +700,7 @@
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/RemodexRuntime/node/bin/node",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Remodex.icns",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/RemodexRuntime/bridge/bin/remodex-app-helper.js",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -710,6 +720,8 @@
 				1BF7B512D49503A3C3290F00 /* BridgeMenuBarStore.swift in Sources */,
 				5D0DB447AAE8F5B60D164223 /* BridgeMenuBarViews.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5C /* DeviceAccessService.swift in Sources */,
+				B8F0137F9E4A40FB88880001 /* WindowCoordinator.swift in Sources */,
+				B8F0137F9E4A40FB88880003 /* ActivationPolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1023,15 +1035,12 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = CodexMobile/CodexMobile.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 130;
+				CURRENT_PROJECT_VERSION = 131;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "BuildSupport/CodexMobile-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Remodex;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Remodex 需要访问本地网络以连接 Mac 上的 Bridge。";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Remodex 使用麦克风进行设备端离线语音转写。";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Remodex 需要访问照片以添加图片附件。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1042,7 +1051,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.2;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = cn.syggu.remodex;
 				PRODUCT_NAME = Remodex;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1069,15 +1078,12 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = CodexMobile/CodexMobile.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 130;
+				CURRENT_PROJECT_VERSION = 131;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "BuildSupport/CodexMobile-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Remodex;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Remodex 需要访问本地网络以连接 Mac 上的 Bridge。";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Remodex 使用麦克风进行设备端离线语音转写。";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Remodex 需要访问照片以添加图片附件。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1088,7 +1094,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.2;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = cn.syggu.remodex;
 				PRODUCT_NAME = Remodex;
 				PROVISIONING_PROFILE_SPECIFIER = "";

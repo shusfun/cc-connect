@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct TerminalFallbackSurface: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let snapshot: RemodexTerminalSnapshot
     let fontSize: CGFloat
     let theme: RemodexTerminalTheme
@@ -17,7 +19,7 @@ struct TerminalFallbackSurface: View {
     @State private var input = ""
 
     private var statusLabel: String {
-        isRunning ? "Native terminal unavailable. Using text fallback." : "Open terminal to start a shell."
+        isRunning ? L10n.string("Native terminal unavailable. Using text fallback.") : L10n.string("Open terminal to start a shell.")
     }
 
     private var renderedBuffer: String {
@@ -26,6 +28,7 @@ struct TerminalFallbackSurface: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         GeometryReader { proxy in
             VStack(spacing: 0) {
                 TerminalFallbackBuffer(
@@ -71,12 +74,15 @@ struct TerminalFallbackSurface: View {
 }
 
 private struct TerminalFallbackBuffer: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let statusLabel: String
     let renderedBuffer: String
     let fontSize: CGFloat
     let theme: RemodexTerminalTheme
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 8) {
             Text(statusLabel)
                 .font(AppFont.system(size: 11))
@@ -99,6 +105,8 @@ private struct TerminalFallbackBuffer: View {
 }
 
 private struct TerminalFallbackInputBar: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var input: String
 
     let theme: RemodexTerminalTheme
@@ -107,6 +115,7 @@ private struct TerminalFallbackInputBar: View {
     let onInterrupt: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 8) {
             TextField("type and press return", text: $input)
                 .font(.system(size: 13, design: .monospaced))

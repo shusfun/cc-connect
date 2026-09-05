@@ -1,13 +1,13 @@
 # Remodex
 
-Remodex 是一套私有移动开发终端。Codex、Git、工作区与任务始终运行在 Mac；iPhone 通过端到端加密通道操作 Mac 上的 Codex；VPS 只负责设备会合、短码解析和密文转发。
+Remodex 是一套私有移动开发终端。Codex、Git、工作区与任务运行在用户的 macOS／Windows 开发设备；iPhone 通过端到端加密通道操作设备。VPS 管理账号审核、设备授权与密文转发，不保存聊天、代码或工作区。
 
 ```text
 iPhone Remodex
     ⇅ wss://cc.syggu.cn（E2E 密文）
-VPS Relay（无数据库、无模型、无聊天存储）
+VPS Relay + 管理后台（SQLite 只保存管理数据）
     ⇅
-Mac Remodex.app
+macOS / Windows Remodex App
     ⇅ App Bundle 内置 Node + Bridge
 codex app-server + Codex Desktop IPC
 ```
@@ -15,9 +15,11 @@ codex app-server + Codex Desktop IPC
 ## 组件
 
 - `CodexMobile/CodexMobile`：iOS 26 App，包含聊天、审批、结构化提问、Git、文件、图片、SSH 终端、增量缓存和离线语音转写。
-- `CodexMobile/RemodexMenuBar`：原生 macOS 菜单栏 App，拥有 Bridge 子进程生命周期、配对、状态和诊断。
+- `CodexMobile/RemodexMenuBar`：定制 SwiftUI 管理窗口和菜单栏快捷入口，拥有 Bridge 子进程生命周期、配对、状态和诊断。
 - `phodex-bridge`：App Bundle 内的 Node Bridge，以 `codex app-server` 为任务权威接口，并跟随 Codex Desktop IPC 实时状态。
-- `relay`：无状态会合与 WebSocket Relay。只暴露 `/health`、配对/可信会话解析和 `/relay/{sessionId}`。
+- `relay`：SQLite 管理 API、账号授权与 WebSocket Relay；管理接口与设备签名接口分别鉴权。
+- `apps/control`：React + TypeScript + React Router + Tailwind CSS v4 管理工作台。
+- `packages/updater`：不暴露公网端口的独立更新执行器，负责正式版验证、加密备份与更新事务。
 
 Mac App 不安装 LaunchAgent，不依赖全局 npm 或 `remodex` CLI。退出 App 会关闭父进程管道并终止唯一 Bridge 进程。系统睡眠后 Mac 不可达；App 不修改睡眠策略。
 
@@ -48,6 +50,8 @@ corepack prepare pnpm@11.18.0 --activate
 pnpm install --frozen-lockfile
 pnpm --filter remodex test
 pnpm --filter remodex-relay test
+pnpm --filter @remodex/control run build
+pnpm --filter @remodex/updater test
 ```
 
 macOS/iOS 工程位于 `CodexMobile/CodexMobile.xcodeproj`。Mac target 构建时由 `CodexMobile/scripts/prepare-macos-runtime.sh` 将固定 Node 和 Bridge 复制到 App Bundle。签名 Team 只在本机 Xcode 配置，不提交账号或证书。
@@ -65,3 +69,11 @@ macOS/iOS 工程位于 `CodexMobile/CodexMobile.xcodeproj`。Mac target 构建�
 Relay 可以看到连接时间、密文大小和会合所需的控制元数据，但看不到聊天正文、Mac 本地路径、密钥或 Git 内容。配对材料、Token、Cookie、私钥和原始客户端 IP 不写入 Relay 日志。
 
 许可证见 `LICENSE`。
+
+## 管理后台和更新
+
+管理员密码最低 6 位，至少包含一个大写和小写英文字母；旧密码仍可登录。个人中心改密码要求原密码并注销全部浏览器会话，不撤销开发设备或手机授权。普通用户只使用 GitHub 登录。
+
+只检查正式 GitHub Release，每 6 小时自动检查，管理员确认后才安装。首次部署与当前旧测试部署迁移必须按项目部署 Skill 执行；源码中的安装脚本包含占位符，只有正式发布生成的脚本可直接安装。当前 alpha 不会被当作正式更新。
+
+更新事务、脚本命令、安全边界与未验证条件见 [管理与更新运维](Docs/CONTROL-OPERATIONS.md)。本地独立预览可执行 `node apps/control/preview.cjs`，仅使用内存测试数据，不连接 VPS。

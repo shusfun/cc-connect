@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct TerminalOptionsMenu: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let statusLabel: String
     let errorDetail: String?
     let statusTone: TerminalStatusTone
@@ -31,6 +33,7 @@ struct TerminalOptionsMenu: View {
     let onAdjustFontSize: (Double) -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         // Keep navigation-bar controls SwiftUI-native. Hosting the shared
         // UIViewController-backed menu inside a ToolbarItem can outlive the
         // terminal destination during a pop and leave stale terminal chrome.
@@ -107,12 +110,12 @@ struct TerminalOptionsMenu: View {
     private var clipboardSection: some View {
         Section {
             Button(action: onPaste) {
-                RemodexIcon.menuLabel("Paste", systemName: "doc.on.clipboard")
+                RemodexIcon.menuLabel(L10n.string("Paste"), systemName: "doc.on.clipboard")
             }
             .disabled(!canPaste)
 
             Button(action: onSelectText) {
-                RemodexIcon.menuLabel("Select text", systemName: "text.cursor")
+                RemodexIcon.menuLabel(L10n.string("Select text"), systemName: "text.cursor")
             }
             .disabled(!canSelectText)
         }
@@ -122,21 +125,21 @@ struct TerminalOptionsMenu: View {
         Section {
             Button(action: onToggleConnection) {
                 RemodexIcon.menuLabel(
-                    isRunning ? "Disconnect" : "Connect",
+                    isRunning ? L10n.string("Disconnect") : L10n.string("Connect"),
                     systemName: isRunning ? "xmark" : "terminal"
                 )
             }
             .disabled(!hasConnectionConfiguration && !isRunning)
 
             Button(action: onOpenConnectionEditor) {
-                RemodexIcon.menuLabel("SSH connection", systemName: "lock.shield")
+                RemodexIcon.menuLabel(L10n.string("SSH connection"), systemName: "lock.shield")
             }
 
             Button("Clear", systemImage: "trash", action: onClear)
                 .disabled(!canClear)
 
             Button(action: onResetKnownHost) {
-                RemodexIcon.menuLabel("Reset host key", systemName: "key")
+                RemodexIcon.menuLabel(L10n.string("Reset host key"), systemName: "key")
             }
             .disabled(!canResetKnownHost)
         }

@@ -29,6 +29,8 @@ import SwiftUI
 import UIKit
 
 struct ComposerRuntimeSliderOverlay: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let runtimeState: TurnComposerRuntimeState
     let runtimeActions: TurnComposerRuntimeActions
     let modelDisplayTitle: String
@@ -47,6 +49,7 @@ struct ComposerRuntimeSliderOverlay: View {
     private let dismissAnimation = Animation.easeIn(duration: 0.18)
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             Rectangle()
                 .fill(.ultraThinMaterial)
@@ -78,7 +81,7 @@ struct ComposerRuntimeSliderOverlay: View {
                             ProgressView()
                                 .controlSize(.small)
                         }
-                        Text(isLoadingModels ? "Loading model options…" : "Model options unavailable. Check the Mac connection.")
+                        Text(isLoadingModels ? L10n.string("Loading model options…") : L10n.string("Model options unavailable. Check the Mac connection."))
                             .font(AppFont.subheadline())
                             .foregroundStyle(.secondary)
                     }
@@ -157,7 +160,7 @@ struct ComposerRuntimeSliderOverlay: View {
             .contentShape(Circle())
         }
         .accessibilityLabel("Fast mode")
-        .accessibilityValue(isFastModeOn ? "On" : "Off")
+        .accessibilityValue(isFastModeOn ? L10n.string("On") : L10n.string("Off"))
         .accessibilityAddTraits(isFastModeOn ? .isSelected : [])
     }
 
@@ -211,9 +214,9 @@ struct ComposerRuntimeSliderOverlay: View {
 
     private var modelMenuAccessibilityLabel: String {
         if let effortDisplayTitle {
-            return "Model: \(modelDisplayTitle), \(effortDisplayTitle)"
+            return L10n.format("Model: %@, %@", String(describing: modelDisplayTitle), String(describing: effortDisplayTitle))
         }
-        return "Model: \(modelDisplayTitle)"
+        return L10n.format("Model: %@", String(describing: modelDisplayTitle))
     }
 }
 
@@ -225,6 +228,8 @@ struct ComposerRuntimeSliderOverlay: View {
 // commits live while the thumb crosses dots, so the label above tracks the drag
 // in real time.
 struct ComposerEffortSlider: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let options: [TurnComposerReasoningDisplayOption]
     let selectedEffort: String?
     let isDisabled: Bool
@@ -248,6 +253,7 @@ struct ComposerEffortSlider: View {
     private var thumbDiameter: CGFloat { fillHeight - thumbInset * 2 }
 
     var body: some View {
+        let _ = _localizationLocale
         GeometryReader { proxy in
             slider(width: proxy.size.width)
         }

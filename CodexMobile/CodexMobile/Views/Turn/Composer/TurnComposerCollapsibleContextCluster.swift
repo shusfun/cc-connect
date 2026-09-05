@@ -14,6 +14,8 @@ import SwiftUI
 import UIKit
 
 struct TurnComposerCollapsibleContextCluster: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var isExpanded: Bool
 
     static let toggleControlSize: CGFloat = 34
@@ -21,6 +23,7 @@ struct TurnComposerCollapsibleContextCluster: View {
     private let toggleChevronSize: CGFloat = 14
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
             // Use a tighter, fully damped spring on collapse so the pills
@@ -46,8 +49,8 @@ struct TurnComposerCollapsibleContextCluster: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isExpanded ? "Collapse project controls" : "Expand project controls")
-        .accessibilityHint(isExpanded ? "Hides the local and branch pickers" : "Shows the local and branch pickers")
+        .accessibilityLabel(isExpanded ? L10n.string("Collapse project controls") : L10n.string("Expand project controls"))
+        .accessibilityHint(isExpanded ? L10n.string("Hides the local and branch pickers") : L10n.string("Shows the local and branch pickers"))
     }
 }
 
@@ -57,6 +60,8 @@ struct TurnComposerCollapsibleContextCluster: View {
 // It never participates in the composer's vertical flow, so the composer (and
 // the chat scroll height) stays fixed while the pickers are open.
 struct TurnComposerContextClusterFloatingColumn: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let isEmptyThread: Bool
     let hasWorkingDirectory: Bool
     let isWorktreeProject: Bool
@@ -69,9 +74,9 @@ struct TurnComposerContextClusterFloatingColumn: View {
 
     private var runtimeLabelTitle: String {
         if !hasWorkingDirectory {
-            return "Quick Chat"
+            return L10n.string("Quick Chat")
         }
-        return isWorktreeProject ? "Worktree" : "Local"
+        return isWorktreeProject ? L10n.string("Worktree") : L10n.string("Local")
     }
 
     private var runtimeIconSystemName: String {
@@ -82,6 +87,7 @@ struct TurnComposerContextClusterFloatingColumn: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: TurnComposerCollapsibleContextCluster.columnSpacing) {
             if gitState.showsGitBranchSelector {
                 TurnGitBranchSelector(
@@ -135,9 +141,9 @@ struct TurnComposerContextClusterFloatingColumn: View {
 
     private func buildRuntimeMenu() -> UIMenu {
         let worktreeTitle: String = {
-            if gitState.isCreatingGitWorktree { return "Preparing worktree..." }
-            if isWorktreeProject { return "Hand off to Local" }
-            return isEmptyThread ? "New worktree" : "Hand off to Worktree"
+            if gitState.isCreatingGitWorktree { return L10n.string("Preparing worktree...") }
+            if isWorktreeProject { return L10n.string("Hand off to Local") }
+            return isEmptyThread ? L10n.string("New worktree") : L10n.string("Hand off to Worktree")
         }()
         let worktreeDisabled = !gitState.canHandOffToWorktree
             || gitState.isCreatingGitWorktree
@@ -153,7 +159,7 @@ struct TurnComposerContextClusterFloatingColumn: View {
 
         // Returning to Local is intentionally disabled until it can move code + branch safely.
         let localAction = UIAction(
-            title: "Local",
+            title: L10n.string("Local"),
             image: RemodexIcon.menuUIImage(systemName: "laptopcomputer"),
             attributes: .disabled
         ) { _ in }
@@ -162,7 +168,7 @@ struct TurnComposerContextClusterFloatingColumn: View {
             title: "",
             children: [
                 UIMenu(
-                    title: "Continue in",
+                    title: L10n.string("Continue in"),
                     options: [.displayInline],
                     children: [worktreeAction, localAction]
                 ),

@@ -8,11 +8,14 @@ import SwiftUI
 import UIKit
 
 struct TurnGitActionToastOverlay: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let success: TurnGitActionSuccess?
     let progress: TurnGitActionProgress?
     let onDismissSuccess: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         if let success {
             successToast(success)
         } else if let progress {
@@ -87,7 +90,7 @@ struct TurnGitActionToastOverlay: View {
     private func successAccessibilityHint(for success: TurnGitActionSuccess) -> String? {
         switch success.kind {
         case .pullRequest where success.pullRequestURL != nil:
-            return "Tap View PR to open the pull request."
+            return L10n.string("Tap View PR to open the pull request.")
         default:
             return nil
         }
@@ -97,7 +100,7 @@ struct TurnGitActionToastOverlay: View {
         switch success.kind {
         case .pullRequest:
             guard let url = success.pullRequestURL else { return nil }
-            return InAppToastBannerAction(title: "View PR") {
+            return InAppToastBannerAction(title: L10n.string("View PR")) {
                 UIApplication.shared.open(url)
                 onDismissSuccess()
             }

@@ -1,8 +1,6 @@
 const { DatabaseSync } = require('node:sqlite');
-const { randomBytes, randomUUID, createHash, createCipheriv, createDecipheriv, timingSafeEqual, scrypt } = require('node:crypto');
-const { promisify } = require('node:util');
-
-const derivePassword = promisify(scrypt);
+const { randomBytes, randomUUID, createHash, createCipheriv, createDecipheriv } = require('node:crypto');
+const { hashPassword, verifyPassword } = require('./password');
 const digest = value => createHash('sha256').update(value).digest('hex');
 const secret = () => randomBytes(32).toString('base64url');
 function fail(status, code) { throw Object.assign(new Error(code), { status, code }); }
@@ -19,7 +17,9 @@ class ControlStore {
     this.db = new DatabaseSync(filename);
     this.db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;');
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 1) throw new Error('database_update_required');
+    if (version > 3) { this.db.close(); throw new Error('database_update_required'); }
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS users (
@@ -54,8 +54,18 @@ class ControlStore {
       CREATE TABLE IF NOT EXISTS nonces (hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS audit (
         id TEXT PRIMARY KEY, at INTEGER NOT NULL, actor_id TEXT, action TEXT NOT NULL, target_id TEXT);
-      PRAGMA user_version=1;
+      CREATE TABLE IF NOT EXISTS session_security (session_hash TEXT PRIMARY KEY REFERENCES browser_sessions(hash) ON DELETE CASCADE, id TEXT UNIQUE NOT NULL, created_at INTEGER NOT NULL, verified_at INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS audit_at_index ON audit(at DESC);
+      CREATE INDEX IF NOT EXISTS devices_account_index ON devices(account_id,created_at DESC);
     `);
+    if (!this.db.prepare('PRAGMA table_info(audit)').all().some(column => column.name === 'result')) {
+      this.db.exec("ALTER TABLE audit ADD COLUMN result TEXT NOT NULL DEFAULT 'success' CHECK(result IN ('success','failure'))");
+    }
+    if (!this.db.prepare('PRAGMA table_info(audit)').all().some(column => column.name === 'diagnostic')) {
+      this.db.exec('ALTER TABLE audit ADD COLUMN diagnostic TEXT');
+    }
+    this.db.exec('PRAGMA user_version=3; COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); this.db.close(); throw error; }
   }
   close() { this.db.close(); }
   transaction(action) {
@@ -76,19 +86,17 @@ class ControlStore {
     cipher.setAuthTag(bytes.subarray(-16));
     return Buffer.concat([cipher.update(bytes.subarray(12, -16)), cipher.final()]).toString('utf8');
   }
-  audit(actor, action, target) { this.db.prepare('INSERT INTO audit VALUES (?,?,?,?,?)').run(randomUUID(), this.now(), actor, action, target); }
+  audit(actor, action, target, result = 'success', diagnostic = null) { this.db.prepare('INSERT INTO audit(id,at,actor_id,action,target_id,result,diagnostic) VALUES (?,?,?,?,?,?,?)').run(randomUUID(), this.now(), actor, action, target, result, diagnostic ? JSON.stringify(diagnostic) : null); }
   async setup({ login, password, githubClientId, githubClientSecret, origin }) {
     if (this.get('configured')) fail(409, 'setup_closed');
     login = requireValue(login, 80);
-    if (typeof password !== 'string' || password.length < 14 || password.length > 1024) fail(400, 'password_too_short');
     const publicURL = new URL(origin);
     if (publicURL.protocol !== 'https:' || publicURL.username || publicURL.password || publicURL.pathname !== '/' || publicURL.search || publicURL.hash) fail(400, 'https_origin_required');
-    const salt = secret();
-    const derived = await derivePassword(password, salt, 64);
+    const passwordHash = await hashPassword(password);
     return this.transaction(() => {
       if (this.get('configured')) fail(409, 'setup_closed');
       const id = randomUUID();
-      this.db.prepare('INSERT INTO users VALUES (?,NULL,?,?,?, ?,NULL,?)').run(id, login, `${salt}:${derived.toString('hex')}`, 'admin', 'enabled', this.now());
+      this.db.prepare('INSERT INTO users VALUES (?,NULL,?,?,?, ?,NULL,?)').run(id, login, passwordHash, 'admin', 'enabled', this.now());
       this.set('origin', publicURL.origin);
       this.set('instanceId', randomUUID());
       this.set('githubClientId', requireValue(githubClientId));
@@ -102,14 +110,17 @@ class ControlStore {
   user(id) { return this.db.prepare('SELECT id,github_id,login,role,status,device_limit FROM users WHERE id=?').get(id); }
   async passwordLogin(login, password) {
     const row = this.db.prepare("SELECT * FROM users WHERE login=? AND role='admin'").get(String(login));
-    const [salt, expected] = (row?.password || `${'0'.repeat(43)}:${'0'.repeat(128)}`).split(':');
-    const actual = await derivePassword(String(password).slice(0, 1024), salt, 64);
-    if (!row || !timingSafeEqual(Buffer.from(expected, 'hex'), actual) || row.status !== 'enabled') fail(401, 'login_failed');
+    if (!await verifyPassword(password, row?.password) || row?.status !== 'enabled') fail(401, 'login_failed');
+    const current = this.db.prepare('SELECT password,status FROM users WHERE id=?').get(row.id);
+    if (current?.password !== row.password || current?.status !== 'enabled') fail(401, 'login_failed');
     return this.user(row.id);
   }
   session(userId) {
     const token = secret(); const csrf = secret();
-    this.db.prepare('INSERT INTO browser_sessions VALUES (?,?,?,?)').run(digest(token), userId, csrf, this.now() + 8 * 3600000);
+    this.transaction(() => {
+      this.db.prepare('INSERT INTO browser_sessions VALUES (?,?,?,?)').run(digest(token), userId, csrf, this.now() + 8 * 3600000);
+      this.db.prepare('INSERT INTO session_security VALUES (?,?,?,0)').run(digest(token), digest(`session-id:${digest(token)}`), this.now());
+    });
     return { token, csrf };
   }
   browser(token) {
@@ -118,6 +129,17 @@ class ControlStore {
     const user = this.user(row.user_id);
     if (!user || user.status === 'disabled') fail(403, 'account_disabled');
     return { ...row, user };
+  }
+  async changePassword(user, oldPassword, newPassword) {
+    if (user.role !== 'admin' || user.status !== 'enabled') fail(403, 'admin_required');
+    const previous = this.db.prepare('SELECT password FROM users WHERE id=?').get(user.id)?.password;
+    if (!await verifyPassword(oldPassword, previous)) fail(401, 'login_failed');
+    const next = await hashPassword(newPassword);
+    this.transaction(() => {
+      if (!this.db.prepare("UPDATE users SET password=? WHERE id=? AND password=? AND status='enabled'").run(next, user.id, previous).changes) fail(409, 'revision_conflict');
+      this.db.prepare('DELETE FROM browser_sessions WHERE user_id=?').run(user.id);
+      this.audit(user.id, 'password.changed', user.id);
+    });
   }
   githubUser(identity, bindingUserId) {
     const githubId = String(identity.id);
@@ -163,12 +185,22 @@ class ControlStore {
     if (!['macos','windows'].includes(platform)) fail(400, 'unsupported_platform');
     const id = randomUUID(); const token = secret(); const code = randomBytes(4).toString('hex').toUpperCase();
     this.db.prepare("INSERT INTO requests VALUES (?,'activation',?,?,?,'pending',NULL,?)").run(id, digest(token), publicKey, JSON.stringify({ platform, systemName: requireValue(systemName, 100), code }), this.now() + 300000);
-    return { id, token, code, expiresAt: this.now() + 300000, approvalURL: `${this.get('origin')}/?activation=${id}` };
+    return { id, token, code, serverTime: this.now(), expiresAt: this.now() + 300000, approvalURL: `${this.get('origin')}/?activation=${id}` };
   }
   request(id, kind) {
     const row = this.db.prepare('SELECT * FROM requests WHERE id=? AND kind=? AND expires_at>?').get(id, kind, this.now());
     if (!row) fail(410, 'request_expired');
     return { ...row, payload: JSON.parse(row.payload) };
+  }
+  activationStatus(actor, id) {
+    if (actor.status !== 'enabled') fail(403, 'account_not_enabled');
+    const row = this.db.prepare("SELECT * FROM requests WHERE id=? AND kind='activation'").get(id);
+    if (!row) fail(410, 'request_expired');
+    if (row.status !== 'pending' && row.account_id !== actor.id) fail(403, 'device_forbidden');
+    const payload = JSON.parse(row.payload);
+    const revoked = row.status !== 'pending' && this.db.prepare('SELECT status FROM devices WHERE id=?').get(payload.deviceId)?.status !== 'active';
+    return { id: row.id, status: revoked ? 'revoked' : row.status === 'pending' && row.expires_at <= this.now() ? 'expired' : row.status,
+      publicKey: row.public_key, ...payload, expiresAt: row.expires_at, serverTime: this.now() };
   }
   approveActivation(actor, id) {
     if (actor.status !== 'enabled') fail(403, 'account_not_enabled');
@@ -250,10 +282,22 @@ class ControlStore {
     });
   }
   invite(deviceId) {
+    return this.transaction(() => {
+    const device = this.device(deviceId);
+    if (device.status !== 'active' || this.user(device.account_id)?.status !== 'enabled') fail(403, 'device_revoked');
     const token = secret(); const expiresAt = this.now() + 300000;
     this.db.prepare('DELETE FROM invitations WHERE device_id=?').run(deviceId);
     this.db.prepare('INSERT INTO invitations VALUES (?,?,?,0)').run(digest(token), deviceId, expiresAt);
     return { invitation: token, expiresAt };
+    });
+  }
+  previewInvitation(invitation) {
+    if (typeof invitation !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(invitation)) fail(400, 'invalid_invitation');
+    const row = this.db.prepare('SELECT * FROM invitations WHERE hash=? AND used=0 AND expires_at>?').get(digest(invitation), this.now());
+    if (!row) fail(410, 'invitation_expired');
+    const device = this.device(row.device_id);
+    if (device.status !== 'active' || this.user(device.account_id)?.status !== 'enabled') fail(403, 'device_revoked');
+    return { device: { id: device.id, public_key: device.public_key, remark: device.remark, platform: device.platform }, accountId: device.account_id, instanceId: this.get('instanceId'), expiresAt: row.expires_at, serverTime: this.now() };
   }
   claimInvitation(invitation, publicKey) {
     return this.transaction(() => {

@@ -165,21 +165,21 @@ struct TurnMentionChipRef: Identifiable, Equatable {
     var removeAccessibilityLabel: String {
         switch kind {
         case .file:
-            return "Remove file mention"
+            return L10n.string("Remove file mention")
         case .skill:
-            return "Remove skill mention"
+            return L10n.string("Remove skill mention")
         case .plugin:
-            return "Remove plugin mention"
+            return L10n.string("Remove plugin mention")
         case .slashCommand(let command):
-            return "Remove \(command.title)"
+            return L10n.format("Remove %@", String(describing: command.title))
         case .review:
-            return "Remove code review"
+            return L10n.string("Remove code review")
         case .subagents:
-            return "Remove subagents"
+            return L10n.string("Remove subagents")
         case .planMode:
-            return "Disable Plan Mode"
+            return L10n.string("Disable Plan Mode")
         case .action:
-            return "Remove action"
+            return L10n.string("Remove action")
         }
     }
 
@@ -226,17 +226,17 @@ struct TurnMentionChipRef: Identifiable, Equatable {
     static func review(_ target: TurnComposerReviewTarget) -> TurnMentionChipRef {
         TurnMentionChipRef(
             kind: .review(target),
-            label: "Code Review: \(target.title)",
+            label: L10n.format("Code Review: %@", String(describing: target.title)),
             identity: target.rawValue
         )
     }
 
     static var subagents: TurnMentionChipRef {
-        TurnMentionChipRef(kind: .subagents, label: "Subagents", identity: "subagents")
+        TurnMentionChipRef(kind: .subagents, label: L10n.string("Subagents"), identity: "subagents")
     }
 
     static var planMode: TurnMentionChipRef {
-        TurnMentionChipRef(kind: .planMode, label: "Plan", identity: "plan")
+        TurnMentionChipRef(kind: .planMode, label: L10n.string("Plan"), identity: "plan")
     }
 
     static func action(
@@ -288,11 +288,14 @@ extension Array where Element == TurnComposerMentionedPlugin {
 // MARK: - Chip
 
 struct TurnMentionChip: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let ref: TurnMentionChipRef
     var removeAccessibilityLabelOverride: String? = nil
     var onRemove: (() -> Void)? = nil
 
     var body: some View {
+        let _ = _localizationLocale
         let style = ref.style
         HStack(spacing: TurnMentionChipTokens.contentSpacing) {
             RemodexIcon.image(systemName: style.symbolName)
@@ -339,6 +342,8 @@ struct TurnMentionChip: View {
 // MARK: - Row
 
 struct TurnMentionChipRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     enum Layout {
         /// Wrapping trailing row for the user-bubble column.
         case compact
@@ -353,6 +358,7 @@ struct TurnMentionChipRow: View {
     var onRemove: ((TurnMentionChipRef) -> Void)? = nil
 
     var body: some View {
+        let _ = _localizationLocale
         chipStack
             .padding(.horizontal, horizontalPadding)
             .padding(.top, topPadding)
@@ -480,9 +486,12 @@ private struct TurnMentionChipFlowLayout: Layout {
 
 /// Read-only mention chips shown above a sent user bubble.
 struct UserMentionChipStrip: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let chips: [TurnMentionChipRef]
 
     var body: some View {
+        let _ = _localizationLocale
         TurnMentionChipRow.bubble(chips: chips)
     }
 }
@@ -490,6 +499,8 @@ struct UserMentionChipStrip: View {
 // MARK: - Composer sections
 
 struct TurnComposerMentionChipSections: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let state: TurnComposerAccessoryState
     let onRemoveMentionedFile: (String) -> Void
     let onRemoveMentionedPlugin: (String) -> Void
@@ -498,6 +509,7 @@ struct TurnComposerMentionChipSections: View {
     let onRemoveComposerPlanModeSelection: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             if state.showsMentionedFiles {
                 TurnMentionChipRow.composer(
@@ -577,10 +589,13 @@ enum SkillDisplayNameFormatter {
 // MARK: - Preview catalog
 
 struct TurnMentionChipCatalog: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                catalogSection("Files") {
+                catalogSection(L10n.string("Files")) {
                     chipWrap {
                         TurnMentionChip(ref: .file("src/Views/SidebarView.swift"))
                         TurnMentionChip(ref: .file("src/index.ts"))
@@ -588,7 +603,7 @@ struct TurnMentionChipCatalog: View {
                     }
                 }
 
-                catalogSection("Skills") {
+                catalogSection(L10n.string("Skills")) {
                     chipWrap {
                         TurnMentionChip(ref: .skill("skill-builder"))
                         TurnMentionChip(ref: .skill("check-code"))
@@ -596,7 +611,7 @@ struct TurnMentionChipCatalog: View {
                     }
                 }
 
-                catalogSection("Plugins") {
+                catalogSection(L10n.string("Plugins")) {
                     chipWrap {
                         TurnMentionChip(ref: .plugin("linear"))
                         TurnMentionChip(ref: .plugin("github"))
@@ -604,7 +619,7 @@ struct TurnMentionChipCatalog: View {
                     }
                 }
 
-                catalogSection("Slash Commands") {
+                catalogSection(L10n.string("Slash Commands")) {
                     chipWrap {
                         ForEach(TurnComposerSlashCommand.allCommands) { command in
                             TurnMentionChip(ref: .slashCommand(command))
@@ -612,7 +627,7 @@ struct TurnMentionChipCatalog: View {
                     }
                 }
 
-                catalogSection("Composer Actions") {
+                catalogSection(L10n.string("Composer Actions")) {
                     chipWrap {
                         TurnMentionChip(ref: .subagents)
                         TurnMentionChip(ref: .review(.uncommittedChanges))
@@ -620,7 +635,7 @@ struct TurnMentionChipCatalog: View {
                     }
                 }
 
-                catalogSection("Removable") {
+                catalogSection(L10n.string("Removable")) {
                     chipWrap {
                         TurnMentionChip(ref: .file("TurnView.swift")) {}
                         TurnMentionChip(ref: .skill("refactor-code")) {}
@@ -631,7 +646,7 @@ struct TurnMentionChipCatalog: View {
                     }
                 }
 
-                catalogSection("Composer Row") {
+                catalogSection(L10n.string("Composer Row")) {
                     TurnMentionChipRow.composer(
                         chips: [
                             .file("UserMessageBubble.swift"),
@@ -644,7 +659,7 @@ struct TurnMentionChipCatalog: View {
                     )
                 }
 
-                catalogSection("Bubble Row") {
+                catalogSection(L10n.string("Bubble Row")) {
                     UserBubbleTrailingColumn {
                         UserMentionChipStrip(
                             chips: [

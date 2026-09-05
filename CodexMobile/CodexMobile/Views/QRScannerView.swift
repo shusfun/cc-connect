@@ -7,10 +7,19 @@
 import AVFoundation
 import SwiftUI
 import UIKit
+import CryptoKit
 
 struct QRScannerView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let onBack: (() -> Void)?
     let onScan: (CodexPairingQRPayload) -> Void
+    let initialCode: String?
+    @State private var preview: CodexPairingQRPayload?
+    @State private var previewTask: Task<Void, Never>?
+    @State private var previewEpoch = UUID()
+    @State private var isFetchingPreview = false
+    @State private var torch = false
 
     @State private var scannerError: String?
     @State private var bridgeUpdatePrompt: CodexBridgeUpdatePrompt?
@@ -22,27 +31,38 @@ struct QRScannerView: View {
         initialBridgeUpdatePrompt: CodexBridgeUpdatePrompt? = nil,
         initialHasCameraPermission: Bool = false,
         initialIsCheckingPermission: Bool = true,
+        initialCode: String? = nil,
         onBack: (() -> Void)? = nil,
         onScan: @escaping (CodexPairingQRPayload) -> Void
     ) {
         self.onBack = onBack
         self.onScan = onScan
+        self.initialCode = initialCode
         _bridgeUpdatePrompt = State(initialValue: initialBridgeUpdatePrompt)
         _hasCameraPermission = State(initialValue: initialHasCameraPermission)
         _isCheckingPermission = State(initialValue: initialIsCheckingPermission)
     }
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if isCheckingPermission {
+            if isFetchingPreview {
+                ProgressView("已识别，正在获取设备详情…").tint(.white).foregroundStyle(.white)
+            } else if let preview {
+                PairingConfirmationView(device: preview, onConfirm: {
+                    self.preview = nil; onScan(preview)
+                }, onCancel: {
+                    self.preview = nil; Task { await checkCameraPermission() }
+                })
+            } else if isCheckingPermission {
                 ProgressView()
                     .tint(.white)
             } else if let bridgeUpdatePrompt {
                 bridgeUpdateView(prompt: bridgeUpdatePrompt)
             } else if hasCameraPermission {
-                QRCameraPreview { code, resetScanLock in
+                QRCameraPreview(torch: torch, onError: { scannerError = $0 }) { code, resetScanLock in
                     handleScanResult(code, resetScanLock: resetScanLock)
                 }
                 .ignoresSafeArea()
@@ -64,19 +84,19 @@ struct QRScannerView: View {
             }
         }
         .task {
-            await checkCameraPermission()
+            if let initialCode { handleScanResult(initialCode, resetScanLock: {}); isCheckingPermission = false }
+            else { await checkCameraPermission() }
         }
-        .alert("Pairing Error", isPresented: Binding(
-            get: { scannerError != nil },
-            set: { if !$0 { scannerError = nil } }
-        )) {
-            Button("OK", role: .cancel) { scannerError = nil }
-        } message: {
-            Text(scannerError ?? "Invalid QR code")
+        .onDisappear { previewEpoch = UUID(); previewTask?.cancel(); torch = false }
+        .safeAreaInset(edge: .bottom) {
+            if let scannerError {
+                VStack { Text(scannerError); Button("重试") { self.scannerError = nil; Task { await checkCameraPermission() } } }
+                    .padding().foregroundStyle(.white).background(.black.opacity(0.85))
+            }
         }
     }
 
-    // Blocks repeated scans when the camera spots a bridge QR from an incompatible npm release.
+    // 不兼容时引导更新应用，不再提供全局 CLI 操作。
     private func bridgeUpdateView(prompt: CodexBridgeUpdatePrompt) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -93,26 +113,12 @@ struct QRScannerView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 14) {
-                    if let command = prompt.command, !command.isEmpty {
-                        Text("Do these steps on your device")
-                            .font(AppFont.caption(weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-
-                        bridgeUpdateStep(number: "1", title: "Update Remodex", detail: command, showsCopyButton: true)
-                        bridgeUpdateStep(number: "2", title: "Start it again", detail: "Run remodex up")
-                        bridgeUpdateStep(number: "3", title: "Make a new QR code", detail: "Use the new QR shown in the terminal")
-                        bridgeUpdateStep(number: "4", title: "Come back here", detail: "Then scan the new QR code from the iPhone")
-                    } else {
-                        Text("Do these steps on your iPhone")
-                            .font(AppFont.caption(weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-
-                        bridgeUpdateStep(number: "1", title: "Update Remodex", detail: "Install the latest Remodex build on this iPhone.")
-                        bridgeUpdateStep(number: "2", title: "Come back here", detail: "Then retry the connection or scan a fresh QR code.")
-                    }
+                    bridgeUpdateStep(number: "1", title: L10n.string("更新应用"), detail: L10n.string("在电脑和 iPhone 上安装配套版本的 Remodex。"))
+                    bridgeUpdateStep(number: "2", title: L10n.string("重新生成二维码"), detail: L10n.string("打开电脑应用的连接与配对页，点击刷新配对码。"))
+                    bridgeUpdateStep(number: "3", title: L10n.string("返回扫码"), detail: L10n.string("使用 iPhone 扫描新的二维码，并核对设备身份。"))
                 }
 
-                Button("I Updated It") {
+                Button("已更新，重新扫码") {
                     bridgeUpdatePrompt = nil
                     didCopyBridgeUpdateCommand = false
                 }
@@ -164,7 +170,7 @@ struct QRScannerView: View {
                     )
 
                 if showsCopyButton {
-                    Button(didCopyBridgeUpdateCommand ? "Copied" : "Copy Command") {
+                    Button(didCopyBridgeUpdateCommand ? L10n.string("已复制") : L10n.string("复制说明")) {
                         UIPasteboard.general.string = detail
                         HapticFeedback.shared.triggerImpactFeedback(style: .light)
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -198,22 +204,22 @@ struct QRScannerView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Back")
+        .accessibilityLabel("返回")
     }
 
     private var scannerOverlay: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
+        ZStack {
             RoundedRectangle(cornerRadius: 20)
                 .stroke(Color.white.opacity(0.6), lineWidth: 2)
                 .frame(width: 250, height: 250)
-
-            Text("Scan the Remodex QR code")
+                .allowsHitTesting(false)
+            VStack(spacing: 20) {
+            Text("对准电脑上的 Remodex 二维码，保持适当距离")
                 .font(AppFont.subheadline(weight: .medium))
                 .foregroundStyle(.white)
+            Button(torch ? L10n.string("关闭手电筒") : L10n.string("打开手电筒")) { torch.toggle() }.buttonStyle(.bordered).tint(.white)
 
-            Spacer()
+            }.padding(.horizontal, 24).offset(y: 190)
         }
     }
 
@@ -223,17 +229,17 @@ struct QRScannerView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
 
-            Text("Camera access needed")
+            Text("需要相机权限")
                 .font(AppFont.title3(weight: .semibold))
                 .foregroundStyle(.white)
 
-            Text("Open Settings and allow camera access to scan the pairing QR code.")
+            Text("请在设置中允许相机访问，以扫描配对二维码。")
                 .font(AppFont.subheadline())
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
 
-            Button("Open Settings") {
+            Button("打开设置") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
@@ -267,14 +273,25 @@ struct QRScannerView: View {
 
     private func handleScanResult(_ code: String, resetScanLock: @escaping () -> Void) {
         switch validatePairingQRCode(code) {
-        case .success(let payload):
-            onScan(payload)
-        case .shortCode:
-            scannerError = "Use Pair with Code from the previous screen."
-            resetScanLock()
+        case .compact(let code):
+            guard !isFetchingPreview else { return }
+            scannerError = nil; isFetchingPreview = true
+            let epoch = UUID(); previewEpoch = epoch
+            previewTask?.cancel()
+            previewTask = Task { @MainActor in
+                do {
+                    let result = try await RelayDeviceAccess.preview(code)
+                    guard !Task.isCancelled, previewEpoch == epoch else { return }
+                    preview = result; isFetchingPreview = false
+                    HapticFeedback.shared.triggerImpactFeedback(style: .light)
+                } catch {
+                    guard !Task.isCancelled, previewEpoch == epoch else { return }
+                    scannerError = error.localizedDescription; isFetchingPreview = false; resetScanLock()
+                }
+            }
         case .scanError(let message):
             scannerError = message
-            resetScanLock()
+            Task { @MainActor in try? await Task.sleep(for: .seconds(2)); resetScanLock() }
         case .bridgeUpdateRequired(let prompt):
             didCopyBridgeUpdateCommand = false
             bridgeUpdatePrompt = prompt
@@ -285,8 +302,8 @@ struct QRScannerView: View {
 
 private extension CodexBridgeUpdatePrompt {
     static let previewScannerMismatch = CodexBridgeUpdatePrompt(
-        title: "扫码前请更新 Mac 上的 Remodex.app",
-        message: "该二维码来自不兼容的 Mac App。更新后重新生成二维码。",
+        title: L10n.string("扫码前请更新 Mac 上的 Remodex.app"),
+        message: L10n.string("该二维码来自不兼容的 Mac App。更新后重新生成二维码。"),
         command: nil
     )
 }
@@ -304,10 +321,13 @@ private extension CodexBridgeUpdatePrompt {
 // MARK: - Camera Preview UIViewRepresentable
 
 private struct QRCameraPreview: UIViewRepresentable {
+    let torch: Bool
+    let onError: (String) -> Void
     let onScan: (String, _ resetScanLock: @escaping () -> Void) -> Void
 
     func makeUIView(context: Context) -> QRCameraUIView {
         let view = QRCameraUIView()
+        view.onError = onError
         view.onScan = { [weak view] code in
             onScan(code) {
                 view?.resetScanLock()
@@ -316,7 +336,7 @@ private struct QRCameraPreview: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: QRCameraUIView, context: Context) {}
+    func updateUIView(_ uiView: QRCameraUIView, context: Context) { uiView.setTorch(torch) }
 
     // Tears down the camera before UIKit deallocates the preview layer.
     static func dismantleUIView(_ uiView: QRCameraUIView, coordinator: ()) {
@@ -399,11 +419,21 @@ private final class QRCameraLifecycleCoordinator {
 // Owns the AVFoundation session lifecycle for the SwiftUI scanner host view.
 private class QRCameraUIView: UIView, AVCaptureMetadataOutputObjectsDelegate {
     var onScan: ((String) -> Void)?
+    var onError: ((String) -> Void)?
+    private let configurationQueue = DispatchQueue(label: "cn.syggu.remodex.camera.configuration")
+    private var captureDevice: AVCaptureDevice?
+    private var metadata: AVCaptureMetadataOutput?
+    private var observers: [NSObjectProtocol] = []
 
     private let captureSession = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var hasScanned = false
-    private var isStoppingCamera = false
+    private let stateLock = NSLock()
+    private var stoppingCamera = false
+    private var isStoppingCamera: Bool {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return stoppingCamera }
+        set { stateLock.lock(); stoppingCamera = newValue; stateLock.unlock() }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -418,36 +448,78 @@ private class QRCameraUIView: UIView, AVCaptureMetadataOutputObjectsDelegate {
     override func layoutSubviews() {
         super.layoutSubviews()
         previewLayer?.frame = bounds
+        if let orientation = window?.windowScene?.interfaceOrientation, let connection = previewLayer?.connection {
+            let angle: CGFloat = orientation == .landscapeRight ? 0 : orientation == .landscapeLeft ? 180 : orientation == .portraitUpsideDown ? 270 : 90
+            if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
+        }
+        if let layer = previewLayer, let metadata, bounds.width > 0 {
+            let side: CGFloat = 250
+            let scan = CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side)
+            let region = layer.metadataOutputRectConverted(fromLayerRect: scan)
+            configurationQueue.async { metadata.rectOfInterest = region }
+        }
     }
 
     // Configures the metadata session once and starts it off the main thread.
     private func setupCamera() {
-        guard let device = AVCaptureDevice.default(for: .video),
-              let input = try? AVCaptureDeviceInput(device: device) else {
-            return
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(focus(_:))))
+        for name in [AVCaptureSession.runtimeErrorNotification, AVCaptureSession.wasInterruptedNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: captureSession, queue: .main) { [weak self] _ in
+                self?.onError?("相机被中断或不可用，请返回后重新打开扫码。")
+            })
         }
-
-        if captureSession.canAddInput(input) {
-            captureSession.addInput(input)
-        }
-
-        let output = AVCaptureMetadataOutput()
-        if captureSession.canAddOutput(output) {
-            captureSession.addOutput(output)
-            output.setMetadataObjectsDelegate(self, queue: .main)
-            output.metadataObjectTypes = [.qr]
-        }
-
-        let layer = AVCaptureVideoPreviewLayer(session: captureSession)
-        layer.videoGravity = .resizeAspectFill
-        self.layer.addSublayer(layer)
-        previewLayer = layer
-
-        QRCameraLifecycleCoordinator.shared.start(session: captureSession) { [weak self] in
-            guard let self else {
-                return false
+        configurationQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else { throw CameraError.unavailable }
+                let input = try AVCaptureDeviceInput(device: device)
+                self.captureSession.beginConfiguration()
+                defer { self.captureSession.commitConfiguration() }
+                if self.captureSession.canSetSessionPreset(.hd1920x1080) { self.captureSession.sessionPreset = .hd1920x1080 }
+                let output = AVCaptureMetadataOutput()
+                guard self.captureSession.canAddInput(input) else { throw CameraError.unavailable }
+                self.captureSession.addInput(input)
+                guard self.captureSession.canAddOutput(output) else { throw CameraError.unavailable }
+                self.captureSession.addOutput(output)
+                guard output.availableMetadataObjectTypes.contains(.qr) else { throw CameraError.unavailable }
+                output.setMetadataObjectsDelegate(self, queue: .main); output.metadataObjectTypes = [.qr]
+                try device.lockForConfiguration()
+                if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+                if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
+                device.isSubjectAreaChangeMonitoringEnabled = true
+                device.unlockForConfiguration()
+                self.captureDevice = device
+                // 下一项才发布预览，确保 commitConfiguration 已结束。
+                self.configurationQueue.async { DispatchQueue.main.async { [weak self] in
+                    guard let self, !self.isStoppingCamera else { return }
+                    let layer = AVCaptureVideoPreviewLayer(session: self.captureSession)
+                    layer.videoGravity = .resizeAspectFill; self.layer.addSublayer(layer)
+                    self.previewLayer = layer; self.metadata = output; self.setNeedsLayout()
+                    QRCameraLifecycleCoordinator.shared.start(session: self.captureSession) { [weak self] in self?.isStoppingCamera == false }
+                } }
+            } catch {
+                DispatchQueue.main.async { [weak self] in self?.onError?("无法启动相机，请检查权限或关闭正在使用相机的应用。") }
             }
-            return !self.isStoppingCamera
+        }
+    }
+    private enum CameraError: Error { case unavailable }
+    @objc private func focus(_ gesture: UITapGestureRecognizer) {
+        guard let layer = previewLayer else { return }
+        let point = layer.captureDevicePointConverted(fromLayerPoint: gesture.location(in: self))
+        configurationQueue.async { [weak self] in
+            guard let device = self?.captureDevice else { return }
+            do { try device.lockForConfiguration(); defer { device.unlockForConfiguration() }
+                if device.isFocusPointOfInterestSupported { device.focusPointOfInterest = point }
+                if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+                if device.isExposurePointOfInterestSupported { device.exposurePointOfInterest = point }
+            } catch { DispatchQueue.main.async { [weak self] in self?.onError?("暂时无法调整对焦，请稍后重试。") } }
+        }
+    }
+    func setTorch(_ enabled: Bool) {
+        configurationQueue.async { [weak self] in
+            guard let device = self?.captureDevice, device.hasTorch, device.isTorchAvailable else { return }
+            do { try device.lockForConfiguration(); defer { device.unlockForConfiguration() }; device.torchMode = enabled ? .on : .off }
+            catch { DispatchQueue.main.async { [weak self] in self?.onError?("手电筒暂时不可用。") } }
         }
     }
 
@@ -464,7 +536,6 @@ private class QRCameraUIView: UIView, AVCaptureMetadataOutputObjectsDelegate {
         }
 
         hasScanned = true
-        HapticFeedback.shared.triggerImpactFeedback(style: .heavy)
         onScan?(code)
     }
 
@@ -480,6 +551,9 @@ private class QRCameraUIView: UIView, AVCaptureMetadataOutputObjectsDelegate {
 
         isStoppingCamera = true
         onScan = nil
+        onError = nil
+        observers.forEach(NotificationCenter.default.removeObserver); observers.removeAll()
+        setTorch(false)
 
         let layerToRemove = previewLayer
         previewLayer = nil

@@ -6,7 +6,10 @@
 import SwiftUI
 
 struct AboutRemodexView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         ScrollView {
             VStack(alignment: .leading, spacing: 36) {
                 header
@@ -52,7 +55,7 @@ struct AboutRemodexView: View {
             calloutCard(
                 icon: "desktopcomputer",
                 color: .cyan,
-                text: "The Codex runtime stays on your device. Your phone is a secure remote control connected through a relay."
+                text: L10n.string("The Codex runtime stays on your device. Your phone is a secure remote control connected through a relay.")
             )
         }
         .padding(.top, 8)
@@ -62,21 +65,21 @@ struct AboutRemodexView: View {
 
     @ViewBuilder private var howItWorksSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("How It Works")
+            sectionTitle(L10n.string("How It Works"))
 
-            bodyText("Your device runs a lightweight **bridge** that connects to a **relay server** over WebSocket.")
+            bodyText(L10n.string("Your device runs a lightweight **bridge** that connects to a **relay server** over WebSocket."))
 
             bulletList([
-                "You send a prompt from your phone",
-                "It travels through the relay to the bridge on your device",
-                "The bridge forwards it to `codex app-server` via JSON-RPC",
-                "Responses stream back the same path in real time",
+                L10n.string("You send a prompt from your phone"),
+                L10n.string("It travels through the relay to the bridge on your device"),
+                L10n.string("The bridge forwards it to `codex app-server` via JSON-RPC"),
+                L10n.string("Responses stream back the same path in real time"),
             ])
 
             calloutCard(
                 icon: "lock.shield.fill",
                 color: .green,
-                text: "All execution happens locally on your device — code generation, tool use, file edits. Nothing runs on the relay."
+                text: L10n.string("All execution happens locally on your device — code generation, tool use, file edits. Nothing runs on the relay.")
             )
         }
     }
@@ -85,12 +88,12 @@ struct AboutRemodexView: View {
 
     @ViewBuilder private var architectureDiagram: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("Architecture")
+            sectionTitle(L10n.string("Architecture"))
 
             VStack(spacing: 0) {
                 diagramStep(from: "Remodex iOS", to: "Bridge (Device)", via: "WebSocket")
                 diagramStep(from: "Bridge (Device)", to: "codex app-server", via: "JSON-RPC")
-                diagramStep(from: "codex app-server", to: "~/.codex/sessions", via: "JSONL rollout", isLast: true)
+                diagramStep(from: "codex app-server", to: "~/.codex/sessions", via: L10n.string("JSONL rollout"), isLast: true)
             }
             .padding(16)
             .background(
@@ -138,17 +141,17 @@ struct AboutRemodexView: View {
 
     @ViewBuilder private var relaySection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("The Relay")
+            sectionTitle(L10n.string("The Relay"))
 
-            bodyText("A lightweight WebSocket server that routes messages between your iPhone and your device.")
+            bodyText(L10n.string("A lightweight WebSocket server that routes messages between your iPhone and your device."))
 
-            iconRow("arrow.triangle.2.circlepath", "Handles session discovery so your phone finds the device's live session")
-            iconRow("eye.slash.fill", "Never sees decrypted message contents after the handshake")
-            iconRow("tag.fill", "Only observes connection metadata — session IDs, device IDs, timing")
+            iconRow("arrow.triangle.2.circlepath", L10n.string("Handles session discovery so your phone finds the device's live session"))
+            iconRow("eye.slash.fill", L10n.string("Never sees decrypted message contents after the handshake"))
+            iconRow("tag.fill", L10n.string("Only observes connection metadata — session IDs, device IDs, timing"))
 
             Spacer().frame(height: 4)
 
-            bodyText("Relay 只负责设备会合与端到端密文转发；Codex、Git、项目和聊天正文始终留在你的 Mac 与 iPhone。")
+            bodyText(L10n.string("Relay 只负责设备会合与端到端密文转发；Codex、Git、项目和聊天正文始终留在你的 Mac 与 iPhone。"))
         }
     }
 
@@ -158,18 +161,18 @@ struct AboutRemodexView: View {
         VStack(alignment: .leading, spacing: 14) {
             sectionTitle("Codex App-Server")
 
-            bodyText("The bridge spawns a **`codex app-server`** process — the same JSON-RPC interface behind the Codex desktop app and IDE extensions.")
+            bodyText(L10n.string("The bridge spawns a **`codex app-server`** process — the same JSON-RPC interface behind the Codex desktop app and IDE extensions."))
 
             bulletList([
-                "Phone conversations are first-class Codex sessions",
-                "Produces JSONL rollout files under `~/.codex/sessions/`",
-                "Threads started from your phone show up in Codex.app",
+                L10n.string("Phone conversations are first-class Codex sessions"),
+                L10n.string("Produces JSONL rollout files under `~/.codex/sessions/`"),
+                L10n.string("Threads started from your phone show up in Codex.app"),
             ])
 
             calloutCard(
                 icon: "point.topleft.down.to.point.bottomright.curvepath",
                 color: .orange,
-                text: "Already have a running Codex instance? Point the bridge at it with REMODEX_CODEX_ENDPOINT instead of spawning a new one."
+                text: L10n.string("Bridge is managed by the desktop app. Use its connection and diagnostics pages; no global Remodex CLI is required.")
             )
         }
     }
@@ -178,25 +181,25 @@ struct AboutRemodexView: View {
 
     @ViewBuilder private var pairingSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("Pairing & Security")
+            sectionTitle(L10n.string("Pairing & Security"))
 
-            bodyText("On first connect, the bridge prints a **QR code** containing:")
+            bodyText(L10n.string("On first connect, the bridge prints a **QR code** containing:"))
 
             bulletList([
-                "The relay URL",
-                "The session ID",
-                "The bridge's identity public key",
+                L10n.string("The relay URL"),
+                L10n.string("The one-time pairing invitation"),
+                L10n.string("The bridge's identity public key"),
             ])
 
-            bodyText("Scan it once from this app. After the handshake:")
+            bodyText(L10n.string("Verify the fingerprint, request pairing, and approve this iPhone on the device. The QR code pins the full identity key; it is not the encryption itself."))
 
-            iconRow("checkmark.shield.fill", "iPhone saves the bridge as a **trusted device** in Keychain")
-            iconRow("desktopcomputer", "Bridge persists your phone's identity locally")
-            iconRow("arrow.clockwise", "Later launches auto-reconnect — no QR needed")
+            iconRow("checkmark.shield.fill", L10n.string("iPhone saves the bridge as a **trusted device** in Keychain"))
+            iconRow("desktopcomputer", L10n.string("Bridge persists your phone's identity locally"))
+            iconRow("arrow.clockwise", L10n.string("Later launches auto-reconnect — no QR needed"))
 
             Spacer().frame(height: 4)
 
-            bodyText("The QR remains available as a recovery path if trust changes or the session can't be resolved.")
+            bodyText(L10n.string("The QR remains available as a recovery path if trust changes or the session can't be resolved."))
         }
     }
 
@@ -204,16 +207,16 @@ struct AboutRemodexView: View {
 
     @ViewBuilder private var encryptionSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("End-to-End Encryption")
+            sectionTitle(L10n.string("End-to-End Encryption"))
 
-            bodyText("After pairing, every message is wrapped in encrypted envelopes:")
+            bodyText(L10n.string("After pairing, every message is wrapped in encrypted envelopes:"))
 
-            specRow("Cipher", "AES-256-GCM")
-            specRow("Key derivation", "HKDF-SHA256, per-direction keys")
-            specRow("Key exchange", "X25519 ephemeral")
-            specRow("Identity", "Ed25519 signatures")
-            specRow("Replay protection", "Monotonic counters")
-            specRow("At-rest (iPhone)", "Keychain-backed AES key")
+            specRow(L10n.string("Cipher"), "AES-256-GCM")
+            specRow(L10n.string("Key derivation"), L10n.string("HKDF-SHA256, per-direction keys"))
+            specRow(L10n.string("Key exchange"), "X25519 ephemeral")
+            specRow(L10n.string("Identity"), "Ed25519 signatures")
+            specRow(L10n.string("Replay protection"), L10n.string("Monotonic counters"))
+            specRow("At-rest (iPhone)", L10n.string("Keychain-backed AES key"))
         }
     }
 
@@ -223,7 +226,7 @@ struct AboutRemodexView: View {
         VStack(alignment: .leading, spacing: 14) {
             sectionTitle("Git & Workspace")
 
-            bodyText("The bridge handles **git commands** from your phone locally on the paired device:")
+            bodyText(L10n.string("The bridge handles **git commands** from your phone locally on the paired device:"))
 
             HStack(alignment: .top, spacing: 24) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -246,7 +249,7 @@ struct AboutRemodexView: View {
 
             Spacer().frame(height: 4)
 
-            bodyText("Also supports **workspace revert** — preview and apply reverse patches when the assistant makes changes you want to undo.")
+            bodyText(L10n.string("Also supports **workspace revert** — preview and apply reverse patches when the assistant makes changes you want to undo."))
         }
     }
 
@@ -254,12 +257,12 @@ struct AboutRemodexView: View {
 
     @ViewBuilder private var resilienceSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("Connection Resilience")
+            sectionTitle(L10n.string("Connection Resilience"))
 
-            iconRow("arrow.clockwise", "Auto-reconnect with exponential backoff (1s → 5s)")
-            iconRow("envelope.badge.fill", "Bounded outbound buffer re-sends missed encrypted messages")
-            iconRow("cpu.fill", "Codex process stays alive across transient drops")
-            iconRow("power", "SIGINT / SIGTERM trigger clean shutdown")
+            iconRow("arrow.clockwise", L10n.string("Auto-reconnect with exponential backoff (1s → 5s)"))
+            iconRow("envelope.badge.fill", L10n.string("Bounded outbound buffer re-sends missed encrypted messages"))
+            iconRow("cpu.fill", L10n.string("Codex process stays alive across transient drops"))
+            iconRow("power", L10n.string("SIGINT / SIGTERM trigger clean shutdown"))
         }
     }
 
@@ -267,14 +270,14 @@ struct AboutRemodexView: View {
 
     @ViewBuilder private var desktopSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("Desktop App Integration")
+            sectionTitle(L10n.string("Desktop App Integration"))
 
-            bodyText("Threads from your phone are persisted as JSONL rollout files, so they appear in **Codex.app** on your device.")
+            bodyText(L10n.string("Threads from your phone are persisted as JSONL rollout files, so they appear in **Codex.app** on your device."))
 
             calloutCard(
                 icon: "macbook.and.iphone",
                 color: .blue,
-                text: "The desktop app doesn't live-reload external writes. Use the desktop app handoff button in Remodex to continue the current thread on your device."
+                text: L10n.string("The desktop app doesn't live-reload external writes. Use the desktop app handoff button in Remodex to continue the current thread on your device.")
             )
         }
     }

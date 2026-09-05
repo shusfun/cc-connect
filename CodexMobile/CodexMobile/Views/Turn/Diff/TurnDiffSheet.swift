@@ -17,7 +17,7 @@ struct TurnDiffPresentation: Identifiable, Equatable {
 
 enum TurnDiffPresentationBuilder {
     // Converts a raw unified repo patch into the same sectioned shape the existing diff sheet already renders.
-    static func repositoryPresentation(from rawPatch: String, title: String = "Repository Changes") -> TurnDiffPresentation? {
+    static func repositoryPresentation(from rawPatch: String, title: String = L10n.string("Repository Changes")) -> TurnDiffPresentation? {
         let patch = rawPatch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !patch.isEmpty else { return nil }
 
@@ -175,6 +175,8 @@ enum TurnDiffPresentationBuilder {
 }
 
 struct TurnDiffSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let entries: [TurnFileChangeSummaryEntry]
     let bodyText: String
@@ -217,6 +219,7 @@ struct TurnDiffSheet: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -248,7 +251,7 @@ struct TurnDiffSheet: View {
         let totals = totals
         return HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(chunks.count) file\(chunks.count == 1 ? "" : "s") changed")
+                Text(L10n.count("files.changed.count", chunks.count))
                     .font(AppFont.subheadline(weight: .semibold))
                     .foregroundStyle(.primary)
 
@@ -266,7 +269,7 @@ struct TurnDiffSheet: View {
                         allHunksCollapsed.toggle()
                     }
                 } label: {
-                    Text(allExpanded ? "Collapse All" : "Expand All")
+                    Text(allExpanded ? L10n.string("Collapse All") : L10n.string("Expand All"))
                         .font(AppFont.mono(.caption))
                         .foregroundStyle(.blue)
                 }
@@ -277,10 +280,13 @@ struct TurnDiffSheet: View {
 }
 
 private struct TurnDiffFileCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let chunk: PerFileDiffChunk
     let collapseAllHunks: Bool
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {

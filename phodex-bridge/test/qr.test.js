@@ -29,7 +29,8 @@ test("printQR prints the short pairing code without the full pairing JSON by def
   const logs = captureConsoleLog(() => {
     printQR({
       pairingPayload: {
-        relay: "ws://127.0.0.1:9000/relay",
+        relay: "wss://example.test",
+        invitation: 'A'.repeat(43), macIdentityPublicKey: Buffer.alloc(32, 1).toString('base64'),
         sessionId: "session-sensitive-long-value",
         macDeviceId: "mac-123",
         expiresAt: 1_900_000_000_000,
@@ -51,7 +52,8 @@ test("printQR prints the short pairing code without the full pairing JSON by def
 test("printQR refuses to print raw pairing JSON even for debug workflows", () => {
   const logs = captureConsoleLog(() => {
     printQR({
-      relay: "ws://127.0.0.1:9000/relay",
+      relay: "wss://example.test",
+      invitation: 'A'.repeat(43), macIdentityPublicKey: Buffer.alloc(32, 1).toString('base64'),
       sessionId: "session-debug",
       macDeviceId: "mac-123",
       expiresAt: 1_900_000_000_000,

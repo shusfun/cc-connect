@@ -25,11 +25,11 @@ extension CodexService {
     ) async throws -> CodexThread {
         let normalizedSourceThreadId = normalizedInterruptIdentifier(sourceThreadId) ?? sourceThreadId
         guard !normalizedSourceThreadId.isEmpty else {
-            throw CodexServiceError.invalidInput("A source thread id is required.")
+            throw CodexServiceError.invalidInput(L10n.string("A source thread id is required."))
         }
 
         guard let sourceThread = thread(for: normalizedSourceThreadId) else {
-            throw CodexServiceError.invalidInput("Thread not found.")
+            throw CodexServiceError.invalidInput(L10n.string("Thread not found."))
         }
 
         let resolvedProjectPath = resolvedForkProjectPath(for: target, sourceThread: sourceThread)

@@ -12,6 +12,8 @@
 import SwiftUI
 
 struct SidebarConnectionEmptyStatePanel: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let connectionPhase: CodexConnectionPhase
     let trustedPairPresentation: CodexTrustedPairPresentation?
     let securityLabel: String?
@@ -27,6 +29,7 @@ struct SidebarConnectionEmptyStatePanel: View {
     let onWakeMacDisplay: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(spacing: 20) {
             identityBlock
 
@@ -107,7 +110,7 @@ struct SidebarConnectionEmptyStatePanel: View {
     }
 
     private var heroTitle: String {
-        trustedPairPresentation?.name ?? "No device paired yet"
+        trustedPairPresentation?.name ?? L10n.string("No device paired yet")
     }
 
     private var accessibilityIdentityLabel: String {
@@ -158,7 +161,7 @@ struct SidebarConnectionEmptyStatePanel: View {
                         .font(.system(size: 12, weight: .semibold))
                 }
 
-                Text(isWakingSavedMacDisplay ? "Waking Screen…" : "Wake Screen")
+                Text(isWakingSavedMacDisplay ? L10n.string("Waking Screen…") : L10n.string("Wake Screen"))
                     .font(AppFont.footnote(weight: .semibold))
             }
             .foregroundStyle(.primary)
@@ -174,10 +177,10 @@ struct SidebarConnectionEmptyStatePanel: View {
 
     private var secondaryActions: some View {
         HStack(spacing: 10) {
-            secondaryButton("New QR Code", systemName: "qrcode.viewfinder", action: onScanNewQR)
+            secondaryButton(L10n.string("New QR Code"), systemName: "qrcode.viewfinder", action: onScanNewQR)
                 .disabled(isPreparingManualScanner)
 
-            secondaryButton("Pair with Code", systemName: "keyboard", action: onPairWithCode)
+            secondaryButton(L10n.string("Pair with Code"), systemName: "keyboard", action: onPairWithCode)
                 .disabled(isPreparingManualScanner || isResolvingManualPairingCode)
         }
     }
@@ -247,11 +250,11 @@ struct SidebarConnectionEmptyStatePanel: View {
         case .connecting:
             return "Reconnecting…"
         case .loadingChats:
-            return "Loading chats…"
+            return L10n.string("Loading chats…")
         case .syncing:
             return "Syncing…"
         case .connected:
-            return "Disconnect"
+            return L10n.string("Disconnect")
         case .offline:
             return offlinePrimaryButtonTitle
         }

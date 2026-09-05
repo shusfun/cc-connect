@@ -1,0 +1,8 @@
+.git
+.cc-connect
+**/node_modules
+**/.DS_Store
+**/._*
+**/*.pem
+**/secrets
+relay/public/app

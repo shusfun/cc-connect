@@ -330,7 +330,7 @@ extension CodexService {
         guard !trimmedInput.isEmpty
                 || !attachments.isEmpty
                 || hasRenderableStructuredMentions(skillMentions: skillMentions, mentionMentions: mentionMentions) else {
-            throw CodexServiceError.invalidInput("User input, images, and mentions cannot all be empty")
+            throw CodexServiceError.invalidInput(L10n.string("User input, images, and mentions cannot all be empty"))
         }
 
         let initialThreadId = try await resolveThreadID(threadId)
@@ -1012,7 +1012,7 @@ extension CodexService {
             answersByQuestionID: answersByQuestionID
         )
         guard !userInput.isEmpty else {
-            throw CodexServiceError.invalidInput("Questionnaire answers cannot be empty")
+            throw CodexServiceError.invalidInput(L10n.string("Questionnaire answers cannot be empty"))
         }
 
         let normalizedThreadID = normalizedInterruptIdentifier(threadId) ?? threadId
@@ -1808,7 +1808,7 @@ extension CodexService {
             clearRunningState(for: threadId)
             let errorMessage = userFacingTurnErrorMessage(from: error)
             lastErrorMessage = errorMessage
-            appendSystemMessage(threadId: threadId, text: "Compact error: \(errorMessage)")
+            appendSystemMessage(threadId: threadId, text: L10n.format("Compact error: %@", String(describing: errorMessage)))
             throw error
         }
     }
@@ -1916,7 +1916,7 @@ extension CodexService {
         if !trimmedInput.isEmpty {
             return trimmedInput
         }
-        return attachments.isEmpty ? nil : "Image request"
+        return attachments.isEmpty ? nil : L10n.string("Image request")
     }
 
     private func hasExistingUserChatMessage(threadId: String) -> Bool {
@@ -2012,7 +2012,7 @@ extension CodexService {
         }
 
         guard let initialTurnID = resolvedExpectedTurnID else {
-            let error = CodexServiceError.invalidInput("No active turn available to steer")
+            let error = CodexServiceError.invalidInput(L10n.string("No active turn available to steer"))
             handleSteerFailure(error, pendingMessageId: pendingMessageId, threadId: normalizedThreadID)
             throw error
         }
@@ -2148,12 +2148,12 @@ extension CodexService {
                 return trimmed.isEmpty ? serviceError.localizedDescription : trimmed
             default:
                 let trimmed = serviceError.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? "Error while sending message" : trimmed
+                return trimmed.isEmpty ? L10n.string("Error while sending message") : trimmed
             }
         }
 
         let trimmed = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Error while sending message" : trimmed
+        return trimmed.isEmpty ? L10n.string("Error while sending message") : trimmed
     }
 
     // Returns nil for internal/transient runtime noise that should not occupy the red footer.
@@ -2177,15 +2177,15 @@ extension CodexService {
         }
 
         if isRuntimeMaterializationMessage(normalizedMessage) {
-            return "The run is still starting. Try again in a moment."
+            return L10n.string("The run is still starting. Try again in a moment.")
         }
 
         if isStaleTurnRuntimeMessage(normalizedMessage) {
-            return "That run already finished."
+            return L10n.string("That run already finished.")
         }
 
         if isInternalRuntimeCompatibilityMessage(normalizedMessage) {
-            return "The paired runtime rejected this request. Reconnect and try again."
+            return L10n.string("The paired runtime rejected this request. Reconnect and try again.")
         }
 
         return nil
@@ -2651,7 +2651,7 @@ extension CodexService {
         let normalizedThreadID = normalizedInterruptIdentifier(threadId) ?? threadId
         let planBody = proposedPlan.body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !planBody.isEmpty else {
-            throw CodexServiceError.invalidInput("Proposed plan cannot be empty")
+            throw CodexServiceError.invalidInput(L10n.string("Proposed plan cannot be empty"))
         }
 
         // The approved plan is already part of the thread history, so keep the
@@ -2877,7 +2877,7 @@ extension CodexService {
         }
         if !shouldSuppressRuntimeErrorInChat(error),
            let errorMessage = userFacingTurnErrorMessageForFooter(from: error) {
-            appendSystemMessage(threadId: threadId, text: "Send error: \(errorMessage)")
+            appendSystemMessage(threadId: threadId, text: L10n.format("Send error: %@", String(describing: errorMessage)))
         }
         throw error
     }

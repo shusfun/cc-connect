@@ -24,7 +24,13 @@ ssh -i /Users/wangshangbin/Downloads/pem/2h4g5mGzShus.pem \
 
 ## 制品与启动
 
-部署制品只取当前提交中的 `relay/`、根 `pnpm-lock.yaml` 和必要 workspace 清单，传到新的临时发布目录。不得在旧回滚目录内覆盖构建。构建前执行仓库基础设施审计；服务器构建必须使用当前锁文件和固定 Node 版本。
+优先按已验证镜像 digest 部署，不使用浮动 main 作为运行身份。用户明确要求重建时，构建上下文包含 `relay/`、`apps/control/`、`packages/protocol/`、`packages/updater/`、根锁文件与 workspace 清单，以及下述两个 Bridge 测试辅助文件；不传 `.cc-connect/`、本机依赖、凭据或完整工作区。记录基线 SHA、未提交部署修复及输入归档 SHA-256；传到独立发布目录，不覆盖旧回滚目录。构建前执行基础设施审计；构建内执行 React 构建、Relay 和更新器测试，使用固定 Node/pnpm 和基础镜像摘要。macOS 不启动 Docker。
+
+主密钥和一次性 Setup 凭据在服务器生成，文件所有者必须允许容器 UID 10001 读取，权限 0400，不在日志或对话中回显。新镜像的 `/data` 预置 UID/GID 10001，确保首次命名卷初始化可写。先用无发布端口、隔离测试卷的候选容器验证真实入口、只读文件系统、SQLite WAL、Setup 错误凭据拒绝及未授权 WSS 拒绝；不可在生产数据库预置测试账号。
+
+现有 Relay 集成测试依赖 Bridge 的 `secure-transport.js` 与 `secure-device-state.js`，构建上下文须包含这两个测试辅助源文件；它们只进入测试构建阶段，不进入服务器运行镜像，不跳过对应测试。
+
+Compose 消费 `REMODEX_IMAGE` 与 `REMODEX_UPDATER_IMAGE`，固定到已验证仓库 digest，不在 `up` 时隐式构建。旧测试部署缺少执行器凭据、更新卷、标签与挂载，不能直接覆盖 Compose 后启动。先备份原数据库与配置，在隔离环境验证迁移及失败回滚，再按当前授权切换。新更新器只处理固定项目归属标签，不能把同机已有无归属容器自动收编。
 
 切换窗口内记录旧服务与容器精确状态，然后停止旧 CC-Connect 容器和 `cc-connect-deploy-host.service`，不删除任何旧文件。启动新容器后核验：
 

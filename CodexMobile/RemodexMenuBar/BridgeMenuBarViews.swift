@@ -7,6 +7,7 @@
 import AppKit
 import CoreImage.CIFilterBuiltins
 import SwiftUI
+import CryptoKit
 
 struct BridgeMenuBarContentView: View {
     @ObservedObject var store: BridgeMenuBarStore
@@ -15,28 +16,62 @@ struct BridgeMenuBarContentView: View {
     @State private var remarkDraft = ""
     @State private var replacingPhone: String?
     @State private var confirmsLogout = false
+    @State private var selection = "概览"
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                accountSection
-                Divider()
-                statusGrid
-                Divider()
-                pairingSection
-                Divider()
-                relaySection
-                Divider()
-                controls
-                Divider()
-                sleepSection
-                feedback
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Remodex", systemImage: "terminal.fill").font(.title2.bold()).padding(.bottom, 32)
+                ForEach(["概览", "连接与配对", "诊断", "设置"], id: \.self) { page in
+                    Button { selection = page } label: {
+                        Label(page, systemImage: symbol(page)).frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                            .background(selection == page ? Color.accentColor.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+                    }.buttonStyle(.plain).accessibilityAddTraits(selection == page ? .isSelected : [])
+                }
+                Spacer()
+                Label(store.snapshot?.isRunning == true ? "Bridge 运行中" : "Bridge 已停止", systemImage: "circle.fill")
+                    .font(.caption).foregroundStyle(store.snapshot?.isRunning == true ? .green : .secondary)
+                Text("任务在你的电脑运行").font(.caption).foregroundStyle(.secondary)
+            }.padding(24).frame(width: 190).frame(maxHeight: .infinity).background(.thinMaterial)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(selection).font(.largeTitle.bold())
+                            Text("你的设备，你的开发空间。").foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(store.phase).font(.callout.weight(.medium)).padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(Color.accentColor.opacity(0.12), in: Capsule())
+                    }
+                    if store.isPerformingAction { ProgressView(store.phase).accessibilityLabel("正在处理：\(store.phase)") }
+                    feedback
+                    if store.logUnavailable { Label("诊断日志不可写，操作结果仍会在这里显示。", systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+                    switch selection {
+                    case "概览":
+                        card("运行控制") { controls }
+                        if !access.isActivated { card("激活这台设备") { accountSection } }
+                        card("连接状态") { statusGrid }
+                    case "连接与配对":
+                        card("设备身份") { accountSection }
+                        card("手机配对") { pairingSection }
+                    case "诊断":
+                        card("当前状态") { statusGrid }
+                        card("诊断记录") {
+                            Text("操作编号：\(store.operationID.uuidString)").font(.caption.monospaced()).textSelection(.enabled)
+                            Text("错误码：\(store.errorCode.isEmpty ? "无" : store.errorCode)")
+                            HStack { Button("打开日志", action: store.openLogsFolder); Button("复制脱敏诊断", action: store.copyDiagnostics) }
+                        }
+                    default:
+                        card("Relay 服务") { relaySection }
+                        card("电源与运行") { sleepSection }
+                        Toggle("登录时启动", isOn: Binding(get: { store.launchAtLogin }, set: store.setLaunchAtLogin))
+                    }
+                }.padding(32).frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(16)
-        }
-        .frame(width: 380, height: 640)
-        .onAppear { relayDraft = store.relayOverride }
+        }.frame(minWidth: 800, minHeight: 580)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear { relayDraft = store.relayOverride; remarkDraft = access.remark; store.refresh() }
         .onChange(of: store.relayOverride) { _, value in relayDraft = value }
         .onChange(of: access.remark) { _, value in remarkDraft = value }
         .confirmationDialog("替换当前可信手机？旧手机将立即失去访问权限。", isPresented: Binding(get: { replacingPhone != nil }, set: { if !$0 { replacingPhone = nil } })) {
@@ -45,6 +80,18 @@ struct BridgeMenuBarContentView: View {
         .confirmationDialog("退出登录将撤销本设备及手机配对，不影响其他设备或代码文件。", isPresented: $confirmsLogout) {
             Button("退出登录", role: .destructive) { Task { await access.logout() } }
         }
+    }
+
+    private func symbol(_ page: String) -> String {
+        switch page { case "概览": return "square.grid.2x2"; case "连接与配对": return "link"; case "诊断": return "waveform.path.ecg"; default: return "slider.horizontal.3" }
+    }
+    private func card<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(title).font(.headline)
+            content()
+        }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(.primary.opacity(0.06)))
     }
 
     private var accountSection: some View {
@@ -64,7 +111,8 @@ struct BridgeMenuBarContentView: View {
                 Button(access.isActivating ? "等待浏览器批准…" : "使用 GitHub 激活") {
                     store.saveRelayOverride(relayDraft)
                     access.activate(relay: relayDraft)
-                }.disabled(access.isActivating)
+                }.disabled(access.isActivating || access.isLoggingOut)
+                if access.isActivating { Button("取消本次激活", action: access.cancelActivation) }
             }
             if !access.errorMessage.isEmpty { Text(access.errorMessage).foregroundStyle(.orange).font(.caption) }
         }
@@ -117,15 +165,25 @@ struct BridgeMenuBarContentView: View {
             if let session = store.snapshot?.pairingSession,
                let payload = session.pairingPayload {
                 HStack(alignment: .top, spacing: 14) {
-                    PairingQRCodeView(payload: payload)
-                        .frame(width: 126, height: 126)
+                    TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                        if payload.expiryDate > timeline.date, let text = session.qrText,
+                           store.snapshot?.bridgeStatus?.connectionStatus == "connected" {
+                            PairingQRCodeView(text: text).frame(width: 300, height: 300)
+                        } else {
+                            Label(payload.expiryDate <= timeline.date ? "配对码已过期，请刷新" : "等待 Relay 连接后显示二维码", systemImage: "qrcode")
+                                .frame(width: 300, height: 300).background(.white).foregroundStyle(.black)
+                        }
+                    }
                     VStack(alignment: .leading, spacing: 8) {
-                        Label(payload.expiryDate > Date() ? "等待扫码" : "已过期", systemImage: "qrcode.viewfinder")
-                            .foregroundStyle(payload.expiryDate > Date() ? .green : .orange)
-                        if let code = session.pairingCode, !code.isEmpty {
-                            Text(code)
-                                .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                                .textSelection(.enabled)
+                        Text("设备身份指纹")
+                        Text(SHA256.hash(data: Data(base64Encoded: payload.macIdentityPublicKey) ?? Data()).map { String(format: "%02x", $0) }.joined())
+                            .font(.system(size: 10, design: .monospaced)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                            Text(payload.expiryDate > timeline.date ? "剩余 \(Int(payload.expiryDate.timeIntervalSince(timeline.date))) 秒" : "已过期")
+                        }
+                        if let code = session.qrText {
+                            Button("复制配对码") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code, forType: .string) }
+                                .disabled(payload.expiryDate <= Date())
                         }
                         Text(store.snapshot?.trustedPhoneStatusLabel ?? "未配对")
                             .font(.system(size: 11))
@@ -138,7 +196,7 @@ struct BridgeMenuBarContentView: View {
                     }
                 }
             } else {
-                Label("启动 Bridge 后生成 QR 和短码", systemImage: "qrcode")
+                Label("启动 Bridge 后生成配对二维码", systemImage: "qrcode")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -271,33 +329,43 @@ struct BridgeMenuBarLabel: View {
 }
 
 private struct PairingQRCodeView: View {
-    let payload: BridgePairingPayload
-    private let context = CIContext()
-    private let filter = CIFilter.qrCodeGenerator()
+    let text: String
 
     var body: some View {
         Group {
-            if let image = qrImage {
+            if let image = PairingQRImageCache.image(text: text) {
                 Image(nsImage: image)
                     .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(8)
             } else {
                 Image(systemName: "qrcode")
                     .foregroundStyle(.secondary)
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .frame(width: 300, height: 300)
+        .background(.white)
+        .accessibilityLabel("手机配对二维码")
     }
+}
 
-    private var qrImage: NSImage? {
-        guard let data = try? JSONEncoder().encode(payload) else { return nil }
-        filter.setValue(data, forKey: "inputMessage")
+@MainActor
+private enum PairingQRImageCache {
+    static let cache: NSCache<NSString, NSImage> = { let cache = NSCache<NSString, NSImage>(); cache.countLimit = 12; return cache }()
+    static let context = CIContext()
+    static func image(text: String) -> NSImage? {
+        let backing = NSScreen.main?.backingScaleFactor ?? 2
+        let key = "\(backing):\(text)" as NSString
+        if let image = cache.object(forKey: key) { return image }
+        let filter = CIFilter.qrCodeGenerator()
+        filter.setValue(Data(text.utf8), forKey: "inputMessage")
         filter.correctionLevel = "M"
         guard let output = filter.outputImage else { return nil }
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let bounds = output.extent.insetBy(dx: -4, dy: -4)
+        let padded = output.composited(over: CIImage(color: .white).cropped(to: bounds)).cropped(to: bounds)
+        let factor = max(1, floor(300 * backing / bounds.width))
+        let scaled = padded.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
         guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
-        return NSImage(cgImage: cgImage, size: .zero)
+        let image = NSImage(cgImage: cgImage, size: NSSize(width: CGFloat(cgImage.width) / backing, height: CGFloat(cgImage.height) / backing))
+        cache.setObject(image, forKey: key)
+        return image
     }
 }

@@ -15,6 +15,8 @@
 import SwiftUI
 
 struct SidebarBottomActionBar: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var searchText: String
     @Binding var isSearchActive: Bool
     let isChatEnabled: Bool
@@ -23,6 +25,7 @@ struct SidebarBottomActionBar: View {
     let onTapTerminal: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 10) {
             SidebarSearchField(text: $searchText, isActive: $isSearchActive)
 
@@ -61,7 +64,7 @@ struct SidebarBottomActionBar: View {
             iconSystemName: "terminal.fill",
             style: .glass,
             hapticStyle: .light,
-            accessibilityLabel: "Terminal",
+            accessibilityLabel: L10n.string("Terminal"),
             onTap: onTapTerminal
         )
     }
@@ -72,7 +75,7 @@ struct SidebarBottomActionBar: View {
             style: .accent,
             isEnabled: isChatEnabled,
             isLoading: isCreatingThread,
-            accessibilityLabel: "New chat",
+            accessibilityLabel: L10n.string("New chat"),
             onTap: onTapChat
         )
     }

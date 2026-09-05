@@ -35,8 +35,43 @@ final class BridgeControlService {
     private var parentPipe: Pipe?
     private var stdoutHandle: FileHandle?
     private var stderrHandle: FileHandle?
+    private(set) var generation = UUID()
+    private(set) var lastExitCode: Int32?
+    private(set) var logFailure = false
+    private var recentDiagnostics: [String] = []
 
-    private init() {}
+    private init() { record("app_opened") }
+
+    // 只接受内部定义的事件码，不写入请求、凭据或未经脱敏的错误正文。
+    func record(_ event: String, operation: UUID? = nil, exit: Int32? = nil, stage: String? = nil, code: String? = nil, requestID: UUID? = nil, httpStatus: Int? = nil, durationMs: Int? = nil) {
+        func safe(_ value: String) -> String { value.range(of: "^[a-z][a-z0-9_]{0,79}$", options: .regularExpression) != nil ? value : "unknown" }
+        let summary = [safe(event), stage.map(safe), code.map(safe), operation.map { "operation=\($0.uuidString)" }, requestID.map { "request=\($0.uuidString)" }, httpStatus.map { "http=\($0)" }].compactMap { $0 }.joined(separator: " ")
+        recentDiagnostics.append(summary)
+        recentDiagnostics = Array(recentDiagnostics.suffix(20))
+        do {
+            try fileManager.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
+            let url = logsDirectory.appendingPathComponent("app.jsonl")
+            if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 2_000_000 {
+                let previous = logsDirectory.appendingPathComponent("app.previous.jsonl")
+                if fileManager.fileExists(atPath: previous.path) { try fileManager.removeItem(at: previous) }
+                try fileManager.moveItem(at: url, to: previous)
+            }
+            if !fileManager.fileExists(atPath: url.path) { fileManager.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) }
+            var row: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "event": safe(event), "generation": generation.uuidString,
+                                      "version": bundledVersion, "source": Bundle.main.object(forInfoDictionaryKey: "RemodexSourceSHA") as? String ?? "unknown"]
+            if let operation { row["operation"] = operation.uuidString }
+            if let exit { row["exit"] = exit }
+            if let stage { row["stage"] = safe(stage) }
+            if let code { row["code"] = safe(code) }
+            if let requestID { row["requestID"] = requestID.uuidString }
+            if let httpStatus { row["httpStatus"] = httpStatus }
+            if let durationMs { row["durationMs"] = durationMs }
+            var data = try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]); data.append(10)
+            let handle = try FileHandle(forWritingTo: url); defer { try? handle.close() }
+            try handle.seekToEnd(); try handle.write(contentsOf: data)
+            logFailure = false
+        } catch { logFailure = true }
+    }
 
     var isRunning: Bool {
         bridgeProcess?.isRunning == true
@@ -53,6 +88,8 @@ final class BridgeControlService {
 
     func startBridge(relayOverride: String?) async throws {
         guard !isRunning else { return }
+        generation = UUID(); lastExitCode = nil
+        record("preflight")
         try validateBundledRuntime()
         let activationBootstrap = try DeviceAccessService.shared.bootstrap(relay: relayOverride ?? "")
         guard let relay = relayOverride?.trimmingCharacters(in: .whitespacesAndNewlines), !relay.isEmpty else {
@@ -75,6 +112,7 @@ final class BridgeControlService {
         process.environment = ProcessInfo.processInfo.environment.merging([
             "REMODEX_RELAY": relay,
             "REMODEX_DEVICE_STATE_DIR": stateDirectory.path,
+            "REMODEX_OWNER_GENERATION": generation.uuidString,
             "REMODEX_KEEP_MAC_AWAKE": "0",
             "REMODEX_DESKTOP_IPC_LIVE_SYNC": "1",
             "REMODEX_DESKTOP_AUTO_FOLLOW": "1",
@@ -82,22 +120,33 @@ final class BridgeControlService {
         process.standardInput = parentPipe
         process.standardOutput = stdout
         process.standardError = stderr
-        process.terminationHandler = { [weak self] _ in
+        let launchedGeneration = generation
+        process.terminationHandler = { [weak self] terminated in
             Task { @MainActor in
-                self?.finishTerminatedProcess()
+                guard let self, self.generation == launchedGeneration else { return }
+                self.lastExitCode = terminated.terminationStatus
+                self.record("process_exited", exit: terminated.terminationStatus)
+                self.finishTerminatedProcess()
             }
         }
 
         do {
             try process.run()
+            bridgeProcess = process
+            self.parentPipe = parentPipe
+            stdoutHandle = stdout
+            stderrHandle = stderr
+            record("process_spawned")
             try parentPipe.fileHandleForWriting.write(contentsOf: activationBootstrap)
         } catch {
+            try? parentPipe.fileHandleForWriting.close()
+            if process.isRunning { process.terminate() }
+            record("process_start_failed")
             try? stdout.close()
             try? stderr.close()
-            throw error
+            throw BridgeRuntimeError.commandFailed("Bridge 启动失败，请查看诊断中的启动阶段。")
         }
 
-        _ = Darwin.setpgid(process.processIdentifier, process.processIdentifier)
         bridgeProcess = process
         self.parentPipe = parentPipe
         stdoutHandle = stdout
@@ -106,20 +155,21 @@ final class BridgeControlService {
 
     func stopBridge() async {
         guard let process = bridgeProcess else { return }
+        let stoppingGeneration = generation
         try? parentPipe?.fileHandleForWriting.close()
         for _ in 0..<20 where process.isRunning {
             try? await Task.sleep(for: .milliseconds(100))
         }
         if process.isRunning {
-            Darwin.kill(-process.processIdentifier, SIGTERM)
+            process.terminate()
         }
         for _ in 0..<10 where process.isRunning {
             try? await Task.sleep(for: .milliseconds(100))
         }
         if process.isRunning {
-            Darwin.kill(-process.processIdentifier, SIGKILL)
+            Darwin.kill(process.processIdentifier, SIGKILL)
         }
-        finishTerminatedProcess()
+        if generation == stoppingGeneration { finishTerminatedProcess() }
     }
 
     func restartBridge(relayOverride: String?) async throws {
@@ -128,7 +178,16 @@ final class BridgeControlService {
     }
 
     func refreshPairing(relayOverride: String?) async throws {
-        try await restartBridge(relayOverride: relayOverride)
+        guard isRunning, let parentPipe else { throw BridgeRuntimeError.commandFailed("请先启动 Bridge。") }
+        let old = loadSnapshot(relayOverride: relayOverride).pairingSession?.qrText
+        let currentGeneration = generation
+        try parentPipe.fileHandleForWriting.write(contentsOf: Data("{\"command\":\"refresh-pairing\"}\n".utf8))
+        for _ in 0..<100 {
+            try await Task.sleep(for: .milliseconds(200))
+            guard generation == currentGeneration, isRunning else { throw BridgeRuntimeError.commandFailed("Bridge 已停止，未刷新配对码。") }
+            if let next = loadSnapshot(relayOverride: relayOverride).pairingSession?.qrText, next != old { return }
+        }
+        throw BridgeRuntimeError.commandFailed("刷新配对邀请失败，请检查 Relay 连接后重试。旧邀请不会被延长。")
     }
 
     func resetPairing(relayOverride: String?) async throws {
@@ -145,7 +204,7 @@ final class BridgeControlService {
         guard let process = bridgeProcess else { return }
         try? parentPipe?.fileHandleForWriting.close()
         if process.isRunning {
-            Darwin.kill(-process.processIdentifier, SIGTERM)
+            process.terminate()
         }
         finishTerminatedProcess()
     }
@@ -169,6 +228,8 @@ final class BridgeControlService {
             codexEndpoint: nil,
             refreshEnabled: nil
         )
+        let status: BridgeRuntimeStatus? = readStateFile(named: "bridge-status.json")
+        let currentStatus = isRunning && status?.belongsTo(generation) == true ? status : nil
         return BridgeSnapshot(
             currentVersion: version,
             isRunning: isRunning,
@@ -176,8 +237,8 @@ final class BridgeControlService {
             runtimeAvailable: runtimeError == nil,
             runtimeError: runtimeError,
             daemonConfig: effectiveConfig,
-            bridgeStatus: readStateFile(named: "bridge-status.json"),
-            pairingSession: readStateFile(named: "pairing-session.json"),
+            bridgeStatus: currentStatus,
+            pairingSession: currentStatus == nil ? nil : readStateFile(named: "pairing-session.json"),
             trustedDevice: readTrustedDeviceSummary(),
             stdoutLogPath: stdoutLogURL.path,
             stderrLogPath: stderrLogURL.path
@@ -190,12 +251,16 @@ final class BridgeControlService {
             "Remodex \(snapshot.currentVersion)",
             "Bridge: \(snapshot.isRunning ? "running" : "stopped")",
             "PID: \(snapshot.processID.map(String.init) ?? "none")",
-            "Relay: \(snapshot.effectiveRelayURL)",
             "Connection: \(snapshot.bridgeStatus?.connectionStatus ?? "unknown")",
+            "Relay error: \(snapshot.bridgeStatus?.relayDiagnostic?.code ?? "none")",
+            "Relay HTTP: \(snapshot.bridgeStatus?.relayDiagnostic?.status.map(String.init) ?? "none")",
+            "Relay request: \(snapshot.bridgeStatus?.relayDiagnostic?.requestId ?? "none")",
             "Codex: \(snapshot.codexStatusLabel)",
             "Trusted phones: \(snapshot.trustedDevice?.trustedPhoneCount ?? 0)",
             "Last sync: \(snapshot.bridgeStatus?.updatedAt ?? "unknown")",
-            "Last error: \(snapshot.lastErrorMessage)",
+            "Last exit: \(lastExitCode.map(String.init) ?? "none")",
+            "App log: \(logFailure ? "unavailable" : "available")",
+            "Recent operations:\n\(recentDiagnostics.joined(separator: "\n"))",
         ].joined(separator: "\n")
     }
 

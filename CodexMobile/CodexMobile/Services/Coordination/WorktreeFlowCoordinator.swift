@@ -421,7 +421,7 @@ private extension WorktreeFlowCoordinator {
                 _ = try await rollbackService.transferManagedHandoff(targetProjectPath: sourceProjectPath)
             } catch {
                 canSafelyCleanupManagedWorktree = false
-                notices.append("Tracked changes could not be moved back automatically: \(rollbackFailureMessage(error)).")
+                notices.append(L10n.format("Tracked changes could not be moved back automatically: %@.", String(describing: rollbackFailureMessage(error))))
             }
         }
 
@@ -432,7 +432,7 @@ private extension WorktreeFlowCoordinator {
             do {
                 try await cleanupService.removeManagedWorktree(branch: nil)
             } catch {
-                notices.append("The temporary worktree could not be removed automatically: \(cleanupFailureMessage(error)).")
+                notices.append(L10n.format("The temporary worktree could not be removed automatically: %@.", String(describing: cleanupFailureMessage(error))))
             }
         } else if cleanupManagedWorktreeOnFailedRebind && !canSafelyCleanupManagedWorktree {
             notices.append("The temporary worktree was kept so the moved changes stay available.")
@@ -470,7 +470,7 @@ private extension WorktreeFlowCoordinator {
 
     static func failedNewWorktreeChatDisposition(for error: Error) -> WorktreeFlowCleanupDisposition {
         guard let serviceError = error as? CodexServiceError else {
-            return .preserveWorktree("The runtime may have created the new chat before the error reached the app.")
+            return .preserveWorktree(L10n.string("The runtime may have created the new chat before the error reached the app."))
         }
 
         switch serviceError {
@@ -519,7 +519,7 @@ private extension WorktreeFlowCoordinator {
             let trimmedDetail = cleanupMessage.trimmingCharacters(in: .whitespacesAndNewlines)
             let suffix = trimmedDetail.isEmpty
                 ? "We could not remove the temporary worktree automatically."
-                : "We could not remove the temporary worktree automatically: \(trimmedDetail)"
+                : L10n.format("We could not remove the temporary worktree automatically: %@", String(describing: trimmedDetail))
             return "\(baseMessage)\n\n\(suffix)"
         }
     }
@@ -566,7 +566,7 @@ private extension WorktreeFlowCoordinator {
 
     static func failedWorktreeForkDisposition(for error: Error) -> WorktreeFlowCleanupDisposition {
         guard let serviceError = error as? CodexServiceError else {
-            return .preserveWorktree("The runtime may have created the fork before the error reached the app.")
+            return .preserveWorktree(L10n.string("The runtime may have created the fork before the error reached the app."))
         }
 
         switch serviceError {
@@ -619,7 +619,7 @@ private extension WorktreeFlowCoordinator {
             let detail = cleanupMessage.trimmingCharacters(in: .whitespacesAndNewlines)
             let suffix = detail.isEmpty
                 ? "We could not remove the temporary worktree automatically."
-                : "We could not remove the temporary worktree automatically: \(detail)"
+                : L10n.format("We could not remove the temporary worktree automatically: %@", String(describing: detail))
             return "\(baseMessage)\n\n\(suffix)"
         }
     }

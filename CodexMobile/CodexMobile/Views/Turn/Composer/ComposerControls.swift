@@ -14,6 +14,8 @@ import UIKit
 // The composer "+" affordance: attachments plus the plan/fast-mode toggles.
 // Shared so the collapsed capsule opens the exact same menu as the full bar.
 struct ComposerAttachmentMenu: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let isPlanModeArmed: Bool
     let runtimeState: TurnComposerRuntimeState
     let runtimeActions: TurnComposerRuntimeActions
@@ -30,6 +32,7 @@ struct ComposerAttachmentMenu: View {
     private let metaLabelColor = Color(.secondaryLabel)
 
     var body: some View {
+        let _ = _localizationLocale
         UIKitMenuButton {
             RemodexIcon.image(systemName: "plus")
                 .font(AppFont.title3(weight: .regular))
@@ -47,7 +50,7 @@ struct ComposerAttachmentMenu: View {
     private func attachmentMenu() -> UIMenu {
         var modeActions: [UIMenuElement] = [
             UIAction(
-                title: "Plan mode",
+                title: L10n.string("Plan mode"),
                 image: RemodexIcon.menuUIImage(systemName: "remodex.plan-mode"),
                 state: isPlanModeArmed ? .on : .off
             ) { _ in
@@ -59,7 +62,7 @@ struct ComposerAttachmentMenu: View {
         if runtimeState.supportsFastMode {
             modeActions.append(
                 UIAction(
-                    title: "Fast Mode",
+                    title: L10n.string("Fast Mode"),
                     image: RemodexIcon.menuUIImage(systemName: fastModePlusMenuIconName),
                     state: runtimeState.isSelectedServiceTier(.fast) ? .on : .off
                 ) { _ in
@@ -71,7 +74,7 @@ struct ComposerAttachmentMenu: View {
 
         let attachmentActions: [UIMenuElement] = [
             UIAction(
-                title: "Photo library",
+                title: L10n.string("Photo library"),
                 image: RemodexIcon.menuUIImage(systemName: "photo"),
                 attributes: remainingAttachmentSlots == 0 ? .disabled : []
             ) { _ in
@@ -109,6 +112,8 @@ struct ComposerAttachmentMenu: View {
 // The composer mic. Routes every voice state (idle glyph, circular background,
 // progress spinner) through the same icon pipeline as the rest of the chrome.
 struct ComposerVoiceButton: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let presentation: TurnComposerVoiceButtonPresentation
     let onTap: () -> Void
     var circleDiameter: CGFloat = 32
@@ -118,6 +123,7 @@ struct ComposerVoiceButton: View {
     var tapTargetSide: CGFloat?
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             HapticFeedback.shared.triggerImpactFeedback()
             onTap()
@@ -177,6 +183,8 @@ struct ComposerVoiceButton: View {
 // being created (no turn id yet), then the palette-colored stop badge. Shared
 // so the collapsed capsule keeps Stop reachable exactly like the full bar.
 struct ComposerStopControl: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(UserBubbleColor.storageKey) private var userBubbleColorRawValue = UserBubbleColor.defaultStoredRawValue
 
@@ -191,6 +199,7 @@ struct ComposerStopControl: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         if isSending && activeTurnID == nil {
             ProgressView()
                 .tint(Color(.label))

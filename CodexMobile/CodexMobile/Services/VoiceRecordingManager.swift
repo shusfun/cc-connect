@@ -38,19 +38,19 @@ enum VoiceRecordingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .alreadyRecording:
-            return "Voice recording is already running."
+            return L10n.string("Voice recording is already running.")
         case .notRecording:
-            return "Voice recording is not running."
+            return L10n.string("Voice recording is not running.")
         case .microphonePermissionDenied:
-            return "Microphone access is required for voice transcription."
+            return L10n.string("Microphone access is required for voice transcription.")
         case .missingMicrophoneInput:
-            return "No valid microphone input is available right now."
+            return L10n.string("No valid microphone input is available right now.")
         case .unableToConfigureAudioSession:
-            return "Unable to configure the microphone session."
+            return L10n.string("Unable to configure the microphone session.")
         case .unableToPrepareAudioEngine:
-            return "Unable to prepare the microphone recorder."
+            return L10n.string("Unable to prepare the microphone recorder.")
         case .unableToCreateOutputFile:
-            return "Unable to create the temporary audio file."
+            return L10n.string("Unable to create the temporary audio file.")
         case .transcriptionFailed(let message):
             return message
         }

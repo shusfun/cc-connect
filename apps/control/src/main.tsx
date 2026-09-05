@@ -1,0 +1,11 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router';
+import { App } from './app';
+import { rememberActivationFromURL } from './activation';
+import './style.css';
+import { setNonce } from 'get-nonce';
+const styleNonce = document.querySelector<HTMLMetaElement>('meta[name="remodex-style-nonce"]')?.content;
+if (styleNonce && styleNonce !== '__REMODEX_STYLE_NONCE__') setNonce(styleNonce);
+rememberActivationFromURL();
+createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><App/></BrowserRouter></React.StrictMode>);

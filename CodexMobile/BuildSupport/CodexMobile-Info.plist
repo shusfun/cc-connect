@@ -36,7 +36,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Remodex needs camera access to let you take photos and attach them to your messages.</string>
+	<string>Remodex uses the camera to scan device pairing codes and attach photos to your messages.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -45,17 +45,17 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>CodexMobile needs local network access to connect to your Codex app-server running on your Mac.</string>
+	<string>Remodex uses your local network to connect to your development devices.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Remodex 使用麦克风在 iPhone 上进行离线语音转写。</string>
+	<string>Remodex uses the microphone for offline speech transcription on this iPhone. Audio is not sent to a server.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_remodex-permission._tcp</string>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>CodexMobile needs photo library access to let you attach images to your messages.</string>
+	<string>Remodex accesses photos you choose to attach to your messages.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Remodex needs photo library access to let you save rendered diagrams and attachments.</string>
+	<string>Remodex saves diagrams and attachments to Photos when you choose to save them.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>PHODEX_CHATGPT_CALLBACK_SCHEME</key>

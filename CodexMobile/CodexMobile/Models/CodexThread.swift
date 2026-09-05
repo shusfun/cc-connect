@@ -76,8 +76,8 @@ enum CodexThreadAutomationSource: Hashable, Sendable {
 
     var label: String {
         switch self {
-        case .scheduled: return "Automation"
-        case .pullRequestFix: return "PR fix"
+        case .scheduled: return L10n.string("Automation")
+        case .pullRequestFix: return L10n.string("PR fix")
         }
     }
 
@@ -85,8 +85,8 @@ enum CodexThreadAutomationSource: Hashable, Sendable {
     // full label.
     var accessibilityDescription: String {
         switch self {
-        case .scheduled: return "Started by automation"
-        case .pullRequestFix: return "Started by PR fix automation"
+        case .scheduled: return L10n.string("Started by automation")
+        case .pullRequestFix: return L10n.string("Started by PR fix automation")
         }
     }
 }
@@ -340,8 +340,8 @@ struct CodexThread: Identifiable, Codable, Hashable, Sendable {
 
 extension CodexThread {
     // --- UI helpers -----------------------------------------------------------
-    static let defaultDisplayTitle = "New Thread"
-    static let noProjectDisplayName = "No Project"
+    static let defaultDisplayTitle = L10n.string("New Thread")
+    static let noProjectDisplayName = L10n.string("No Project")
     private static let noProjectGroupKey = "__no_project__"
 
     // Old rollouts may still persist "Conversation", so treat both labels as the same placeholder.
@@ -351,7 +351,7 @@ extension CodexThread {
             return false
         }
 
-        return ["Conversation", defaultDisplayTitle].contains {
+        return [L10n.string("Conversation"), defaultDisplayTitle].contains {
             trimmed.localizedCaseInsensitiveCompare($0) == .orderedSame
         }
     }

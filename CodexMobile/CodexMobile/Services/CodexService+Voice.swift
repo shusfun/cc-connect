@@ -16,13 +16,13 @@ struct CodexVoiceTranscriptionPreflight: Equatable, Sendable {
 
     var failureMessage: String? {
         if !durationSeconds.isFinite || durationSeconds <= 0 {
-            return "语音录音中没有可识别的音频。"
+            return L10n.string("语音录音中没有可识别的音频。")
         }
         if durationSeconds > Self.maxDurationSeconds {
-            return "语音录音不能超过 \(Self.maxDurationDisplaySeconds) 秒。"
+            return L10n.format("语音录音不能超过 %@ 秒。", String(describing: Self.maxDurationDisplaySeconds))
         }
         if byteCount > Self.maxByteCount {
-            return "语音录音不能超过 10 MB。"
+            return L10n.string("语音录音不能超过 10 MB。")
         }
         return nil
     }

@@ -925,7 +925,7 @@ private extension CodexService {
         }
 
         let waiterID = UUID()
-        let timeoutMessage = "Timed out waiting for the secure Remodex \(kind) message."
+        let timeoutMessage = L10n.format("Timed out waiting for the secure Remodex %@ message.", String(describing: kind))
 
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
             pendingSecureControlContinuations[kind, default: []].append(
@@ -1131,13 +1131,13 @@ private extension CodexService {
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw CodexTrustedSessionResolveError.invalidResponse("The trusted device relay returned an invalid response.")
+            throw CodexTrustedSessionResolveError.invalidResponse(L10n.string("The trusted device relay returned an invalid response."))
         }
 
         if (200..<300).contains(httpResponse.statusCode) {
             guard let resolved = try? JSONDecoder().decode(CodexTrustedSessionResolveResponse.self, from: data),
                   resolved.ok else {
-                throw CodexTrustedSessionResolveError.invalidResponse("The trusted device relay returned malformed session data.")
+                throw CodexTrustedSessionResolveError.invalidResponse(L10n.string("The trusted device relay returned malformed session data."))
             }
             try validateResolvedTrustedSession(resolved, for: trustedMac)
             applyResolvedTrustedSession(resolved, relayURL: relayURL)

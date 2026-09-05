@@ -14,11 +14,14 @@ enum TerminalRunningIndicatorLayout {
 }
 
 struct TerminalRunningIndicator: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        let _ = _localizationLocale
         ShimmerText(
-            text: "Remodex is thinking",
+            text: L10n.string("Remodex is thinking"),
             font: AppFont.body(),
             foregroundStyle: .secondary
         )

@@ -15,7 +15,7 @@ async function fixture(t) {
   let now = Date.now();
   const store = new ControlStore({ filename: ':memory:', masterKey: randomBytes(32), now: () => now });
   t.after(() => store.close());
-  const admin = await store.setup({ login: 'owner', password: 'long-local-password-123', githubClientId: 'client', githubClientSecret: 'private-secret', origin: 'https://relay.example.test' });
+  const admin = await store.setup({ login: 'owner', password: 'Long-local-password-123', githubClientId: 'client', githubClientSecret: 'private-secret', origin: 'https://relay.example.test' });
   store.githubUser({ id: 1, login: 'owner' }, admin.id);
   function account(id = 2) { return store.githubUser({ id, login: `user-${id}` }); }
   function enabled(id = 2) { const user = account(id); store.review(admin, user.id, 'enabled', null); return store.user(user.id); }
@@ -52,7 +52,7 @@ test('pending user cannot activate; GitHub rename preserves identity', async t =
 test('password login verifies password and logout deletes the server session', async t => {
   const { store, admin } = await fixture(t);
   await assert.rejects(store.passwordLogin('owner', 'wrong'), error => error.code === 'login_failed');
-  assert.equal((await store.passwordLogin('owner', 'long-local-password-123')).id, admin.id);
+  assert.equal((await store.passwordLogin('owner', 'Long-local-password-123')).id, admin.id);
   const session = store.session(admin.id); assert.equal(store.browser(session.token).user.id, admin.id);
   store.db.prepare('DELETE FROM browser_sessions WHERE hash=?').run(digest(session.token));
   rejectsCode(() => store.browser(session.token), 'login_required');
@@ -125,7 +125,8 @@ test('production websocket rejects bearer-only clients and signed cross-device r
   assert.equal(await rejected({ authorization: `Bearer ${host.token}` }), 401);
   const ws = new WebSocket(`${address}/relay/test-session`, { headers: signedHeaders({ method: 'GET', path: '/relay/test-session', token: host.token, ...host.keys }) });
   await new Promise((resolve, reject) => { ws.once('open', resolve); ws.once('error', reject); });
-  assert.equal(await rejected(signedHeaders({ method: 'GET', path: '/relay/test-session', token: phone.token, ...phone.keys })), 401);
+  // 已认证但没有此设备权限，握手应保留 403，而非笼统改成 401。
+  assert.equal(await rejected(signedHeaders({ method: 'GET', path: '/relay/test-session', token: phone.token, ...phone.keys })), 403);
   assert.equal(ws.readyState, WebSocket.OPEN);
   const body = '{}'; const headers = signedHeaders({ method: 'POST', path: '/v1/access/device', body, token: host.token, ...host.keys });
   const endpoint = `http://127.0.0.1:${server.address().port}/v1/access/device`;

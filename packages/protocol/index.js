@@ -30,4 +30,19 @@ function verifyRequest(req, body, token, publicKey) {
   if (!verify(null, requestTranscript({ method: req.method, path, body, timestamp, nonce, token }), publicKeyObject(publicKey), Buffer.from(signature, 'base64'))) throw new Error('invalid_device_proof');
   return { timestamp, nonce };
 }
-module.exports = { REQUEST_TAG, publicKeyObject, requestTranscript, signedHeaders, verifyRequest };
+function relayOrigin(value) {
+  const url = new URL(value);
+  if (!['https:', 'wss:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || !['', '/', '/relay', '/relay/'].includes(url.pathname)) throw new Error('invalid_relay_address');
+  url.protocol = 'wss:';
+  return url.origin;
+}
+function relaySessionURL(relay, sessionId) {
+  if (!/^[a-zA-Z0-9-]{1,100}$/.test(sessionId)) throw new Error('invalid_session');
+  return `${relayOrigin(relay)}/relay/${sessionId}`;
+}
+function compactPairingCode({ relay, invitation, macIdentityPublicKey }) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(invitation || '')) throw new Error('invalid_invitation');
+  publicKeyObject(macIdentityPublicKey);
+  return 'RDX2:' + JSON.stringify([relayOrigin(relay), invitation, macIdentityPublicKey]);
+}
+module.exports = { REQUEST_TAG, publicKeyObject, requestTranscript, signedHeaders, verifyRequest, relayOrigin, relaySessionURL, compactPairingCode };

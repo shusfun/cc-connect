@@ -772,6 +772,14 @@ function loadBridgeWithTestDoubles({
   const originalLoad = Module._load;
   delete require.cache[bridgePath];
   Module._load = function loadWithBridgeDoubles(request, parent, isMain) {
+    // 此组只验证 IPC 路由，继续使用本地明文 transport；真实地址及二维码契约由 compact-pairing 测试验证。
+    if (parent?.filename === bridgePath && request === '@remodex/protocol') {
+      return {
+        relayOrigin: value => new URL(value).origin,
+        relaySessionURL: (origin, session) => `${origin}/relay/${session}`,
+        compactPairingCode: () => 'RDX2:["test-transport"]',
+      };
+    }
     if (parent?.filename === bridgePath && request === "./codex-transport") {
       return { createCodexTransport: createCodexTransportImpl };
     }

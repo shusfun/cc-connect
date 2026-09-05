@@ -24,6 +24,8 @@ struct TurnComposerInputChangeHandler {
 }
 
 struct TurnComposerView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var input: String
     let isInputFocused: Binding<Bool>
 
@@ -157,6 +159,7 @@ struct TurnComposerView: View {
 
     // ─── ENTRY POINT ─────────────────────────────────────────────
     var body: some View {
+        let _ = _localizationLocale
         VStack(spacing: 6) {
             // The capsule stays outside the glass container: its glass lives on
             // a `Color.clear` background layer (see VoiceRecordingCapsule), so
@@ -472,7 +475,7 @@ struct TurnComposerView: View {
     }
 
     private var placeholderText: String {
-        isEmptyThread ? "Ask Remodex" : "Follow up"
+        isEmptyThread ? L10n.string("Ask Remodex") : L10n.string("Follow up")
     }
 
     // The radius animates to the expanded card's 26 inside the same morph.
@@ -501,6 +504,8 @@ struct TurnComposerView: View {
 }
 
 private struct TurnComposerAutocompletePanels: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let state: TurnComposerAutocompleteState
     let onSelectFileAutocomplete: (CodexFuzzyFileMatch) -> Void
     let onSelectSkillAutocomplete: (CodexSkillMetadata) -> Void
@@ -511,6 +516,7 @@ private struct TurnComposerAutocompletePanels: View {
     let onCloseSlashCommandPanel: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 0) {
             if state.isFileAutocompleteVisible {
                 FileAutocompletePanel(
@@ -574,6 +580,8 @@ private struct TurnComposerAutocompletePanels: View {
 }
 
 private struct TurnComposerAccessorySection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let state: TurnComposerAccessoryState
     let onRemoveAttachment: (String) -> Void
     let onRemoveMentionedFile: (String) -> Void
@@ -583,6 +591,7 @@ private struct TurnComposerAccessorySection: View {
     let onRemoveComposerPlanModeSelection: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         Group {
             if state.showsComposerAttachments {
                 ComposerAttachmentsPreview(
@@ -615,6 +624,8 @@ private struct TurnComposerAccessorySection: View {
 }
 
 private struct QueuedDraftsPanelPreviewWrapper: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @State private var input = ""
     @State private var isInputFocused = false
 
@@ -625,6 +636,7 @@ private struct QueuedDraftsPanelPreviewWrapper: View {
     ]
 
     var body: some View {
+        let _ = _localizationLocale
         VStack {
             Spacer()
 
@@ -645,10 +657,13 @@ private struct QueuedDraftsPanelPreviewWrapper: View {
 }
 
 private struct ComposerInputRuntimePreviewWrapper: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @State private var input = ""
     @State private var isInputFocused = false
 
     var body: some View {
+        let _ = _localizationLocale
         VStack {
             Spacer()
 
@@ -670,6 +685,8 @@ private struct ComposerInputRuntimePreviewWrapper: View {
 
 // Shared preview fixture keeps the sample runtime controls aligned across composer previews.
 private struct ComposerPreviewContent: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var input: String
     @Binding var isInputFocused: Bool
 
@@ -779,6 +796,7 @@ private struct ComposerPreviewContent: View {
     ]
 
     var body: some View {
+        let _ = _localizationLocale
         TurnComposerView(
             input: $input,
             isInputFocused: $isInputFocused,

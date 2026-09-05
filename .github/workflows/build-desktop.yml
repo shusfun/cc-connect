@@ -2,6 +2,7 @@ name: Build Remodex desktop packages
 on:
   push: { branches: [main] }
   workflow_dispatch:
+  workflow_call:
 permissions: { contents: read }
 jobs:
   macos:
@@ -31,6 +32,10 @@ jobs:
       - name: Build macOS DMG
         run: |
           set -euo pipefail
+          swiftc -swift-version 5 -parse-as-library CodexMobile/RemodexMenuBar/ActivationPolicy.swift CodexMobile/RemodexMenuBar/WindowCoordinator.swift CodexMobile/scripts/test-macos-feedback.swift -o "$RUNNER_TEMP/remodex-feedback-tests"
+          "$RUNNER_TEMP/remodex-feedback-tests"
+          swiftc -swift-version 5 -parse-as-library CodexMobile/CodexMobile/Services/CompactPairingCode.swift CodexMobile/scripts/test-compact-pairing.swift -o "$RUNNER_TEMP/remodex-compact-parser-tests"
+          "$RUNNER_TEMP/remodex-compact-parser-tests"
           out="$GITHUB_WORKSPACE/build/macos/${{ matrix.arch }}"; rm -rf "$out"; mkdir -p "$out/dmg-root"
           xcodebuild -quiet -project CodexMobile/CodexMobile.xcodeproj -scheme RemodexMenuBar -configuration Debug -destination 'generic/platform=macOS' -archivePath "$out/Remodex.xcarchive" archive ARCHS=${{ matrix.arch }} ONLY_ACTIVE_ARCH=NO REMODEX_NODE_ARCH=${{ matrix.node-arch }} MACOSX_DEPLOYMENT_TARGET=14.0 MARKETING_VERSION="${REMODEX_VERSION%%-*}" CURRENT_PROJECT_VERSION=1 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" 2>&1 | tee "$out/xcodebuild.log"
           app="$(find "$out/Remodex.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"; test -n "$app"; ditto "$app" "$out/dmg-root/Remodex.app"

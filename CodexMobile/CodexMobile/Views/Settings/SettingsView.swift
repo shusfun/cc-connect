@@ -36,13 +36,25 @@ private enum SettingsActivePresentation: Equatable {
 }
 
 struct SettingsView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @AppStorage("codex.appFontStyle") private var appFontStyleRawValue = AppFont.defaultStoredStyleRawValue
     @State private var activePresentation: SettingsActivePresentation = .none
     @State private var isShowingAboutRemodex = false
+    @AppStorage(AppLanguage.storageKey) private var languagePreference = AppLanguage.system.rawValue
 
     var body: some View {
+        let _ = _localizationLocale
         List {
+            Section {
+                Picker("Language", selection: $languagePreference) {
+                    Text("Follow System").tag(AppLanguage.system.rawValue)
+                    Text(verbatim: "简体中文").tag(AppLanguage.simplifiedChinese.rawValue)
+                    Text(verbatim: "English").tag(AppLanguage.english.rawValue)
+                }
+                .accessibilityIdentifier("settings.language")
+            }
             SettingsAppearanceCard(appFontStyle: appFontStyleBinding)
             SettingsRuntimeDefaultsCard()
             SettingsBridgeVersionCard()
@@ -148,15 +160,18 @@ struct SettingsView: View {
 }
 
 private struct SettingsUsageCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isRefreshing = false
 
     var body: some View {
+        let _ = _localizationLocale
         SettingsCard(
-            title: "Usage",
-            footer: "Account-wide rate limits from your paired device."
+            title: L10n.string("Usage"),
+            footer: L10n.string("Account-wide rate limits from your paired device.")
         ) {
             UsageStatusSummaryContent(
                 contextWindowUsage: nil,
@@ -166,7 +181,7 @@ private struct SettingsUsageCard: View {
                 rateLimitsErrorMessage: codex.rateLimitsErrorMessage,
                 showsRateLimitHeader: false,
                 refreshControl: UsageStatusRefreshControl(
-                    title: "Refresh",
+                    title: L10n.string("Refresh"),
                     isRefreshing: isRefreshing,
                     action: refreshStatus
                 )
@@ -216,15 +231,18 @@ private struct SettingsUsageCard: View {
 }
 
 private struct SettingsAppearanceCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var appFontStyle: AppFont.Style
     @AppStorage(GlassPreference.storageKey) private var useLiquidGlass = true
     @AppStorage(UserBubbleColor.storageKey) private var userBubbleColorRawValue = UserBubbleColor.defaultStoredRawValue
     private let settingsAccentColor = Color.primary
 
     var body: some View {
-        SettingsCard(title: "Appearance") {
+        let _ = _localizationLocale
+        SettingsCard(title: L10n.string("Appearance")) {
             SettingsMenuPickerRow(
-                title: "Font",
+                title: L10n.string("Font"),
                 value: appFontStyle.title,
                 options: AppFont.Style.allCases.map { style in
                     SettingsMenuPickerOption(value: style, title: style.title)
@@ -276,17 +294,20 @@ private struct SettingsAppearanceCard: View {
 }
 
 private struct SettingsVoiceModelCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let onShowInfo: () -> Void
 
     var body: some View {
-        SettingsCard(title: "离线语音") {
+        let _ = _localizationLocale
+        SettingsCard(title: L10n.string("离线语音")) {
             Button {
                 HapticFeedback.shared.triggerImpactFeedback(style: .light)
                 onShowInfo()
             } label: {
                 SettingsLinkRow(
                     title: "WhisperKit small",
-                    subtitle: "在这台 iPhone 上下载、管理和离线转写"
+                    subtitle: L10n.string("在这台 iPhone 上下载、管理和离线转写")
                 ) {
                     RemodexIcon.image(systemName: "waveform")
                 }
@@ -296,22 +317,25 @@ private struct SettingsVoiceModelCard: View {
 }
 
 private struct SettingsBridgeVersionCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        let _ = _localizationLocale
         SettingsCard(
             title: "Bridge",
             footer: guidanceText
         ) {
             SettingsValueRow(
-                title: "Status",
+                title: L10n.string("Status"),
                 value: versionStatusLabel,
                 valueColor: versionStatusColor
             )
 
             SettingsValueRow(
-                title: "Installed",
+                title: L10n.string("Installed"),
                 value: installedVersionLabel,
                 valueColor: installedValueStyle,
                 usesMonospacedValue: true
@@ -330,13 +354,13 @@ private struct SettingsBridgeVersionCard: View {
     }
 
     private var installedVersionLabel: String {
-        normalizedVersion(codex.bridgeInstalledVersion) ?? "Unknown"
+        normalizedVersion(codex.bridgeInstalledVersion) ?? L10n.string("Unknown")
     }
 
     private var guidanceText: String? {
         installedVersion == nil
-            ? "连接已配对的 Mac 后读取内置 Bridge 版本。"
-            : "Bridge 随 Remodex.app 一起更新，不需要安装全局 CLI。"
+            ? L10n.string("连接已配对的 Mac 后读取内置 Bridge 版本。")
+            : L10n.string("Bridge 随 Remodex.app 一起更新，不需要安装全局 CLI。")
     }
 
     private var versionStatusColor: Color {
@@ -344,7 +368,7 @@ private struct SettingsBridgeVersionCard: View {
     }
 
     private var versionStatusLabel: String {
-        codex.isConnected ? "已连接" : "未连接"
+        codex.isConnected ? L10n.string("已连接") : L10n.string("未连接")
     }
 
     private var installedValueStyle: Color {
@@ -366,6 +390,8 @@ private struct SettingsBridgeVersionCard: View {
 }
 
 private struct SettingsArchivedChatsCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
 
     private var archivedCount: Int {
@@ -373,13 +399,14 @@ private struct SettingsArchivedChatsCard: View {
     }
 
     var body: some View {
-        SettingsCard(title: "Archived") {
+        let _ = _localizationLocale
+        SettingsCard(title: L10n.string("Archived")) {
             NavigationLink {
                 ArchivedChatsView()
             } label: {
                 SettingsLinkRow(
-                    title: "Archived Chats",
-                    subtitle: archivedCount > 0 ? "\(archivedCount) saved locally" : nil,
+                    title: L10n.string("Archived Chats"),
+                    subtitle: archivedCount > 0 ? L10n.format("%@ saved locally", String(describing: archivedCount)) : nil,
                     showsDisclosure: false
                 ) {
                     RemodexIcon.image(systemName: "archivebox")

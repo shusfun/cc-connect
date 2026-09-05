@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct TurnTimelineCommandGroupView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let group: TurnTimelineCommandGroup
     let isRetryAvailable: Bool
     let cachedBlockInfoByMessageID: [String: AssistantBlockAccessoryState]
@@ -28,23 +30,24 @@ struct TurnTimelineCommandGroupView: View {
     private var title: String {
         var parts: [String] = []
         if group.commandCount > 0 {
-            parts.append(group.commandCount == 1 ? "Ran 1 command" : "Ran \(group.commandCount) commands")
+            parts.append(group.commandCount == 1 ? "Ran 1 command" : L10n.format("Ran %@ commands", String(describing: group.commandCount)))
         }
         if group.toolCallCount > 0 {
-            parts.append(group.toolCallCount == 1 ? "1 tool call" : "\(group.toolCallCount) tool calls")
+            parts.append(group.toolCallCount == 1 ? L10n.string("1 tool call") : L10n.format("%@ tool calls", String(describing: group.toolCallCount)))
         }
         if group.failedCommandCount > 0 {
-            parts.append("\(group.failedCommandCount) failed")
+            parts.append(L10n.format("%@ failed", String(describing: group.failedCommandCount)))
         }
         if group.stoppedCommandCount > 0 {
-            parts.append("\(group.stoppedCommandCount) stopped")
+            parts.append(L10n.format("%@ stopped", String(describing: group.stoppedCommandCount)))
         }
         // Tool-only groups with blank activity text would otherwise render an
         // empty disclosure button.
-        return parts.isEmpty ? "Tool activity" : parts.joined(separator: " · ")
+        return parts.isEmpty ? L10n.string("Tool activity") : parts.joined(separator: " · ")
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 10) {
             Button(action: toggleExpanded) {
                 HStack(spacing: 8) {
@@ -62,7 +65,7 @@ struct TurnTimelineCommandGroupView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(title)
-            .accessibilityHint(isExpanded ? "Collapse commands" : "Expand commands")
+            .accessibilityHint(isExpanded ? L10n.string("Collapse commands") : L10n.string("Expand commands"))
 
             if isExpanded {
                 ForEach(group.orderedMessages) { message in

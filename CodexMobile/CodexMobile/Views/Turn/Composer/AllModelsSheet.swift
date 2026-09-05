@@ -10,6 +10,8 @@
 import SwiftUI
 
 struct AllModelsSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let models: [CodexModelOption]
     let selectedModelID: String?
     let isLoadingModels: Bool
@@ -19,6 +21,7 @@ struct AllModelsSheet: View {
     private let fastModeIconSide: CGFloat = 16
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             Group {
                 if isLoadingModels {
@@ -26,7 +29,7 @@ struct AllModelsSheet: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if models.isEmpty {
                     ContentUnavailableView {
-                        RemodexIcon.label("No models available", systemName: "square.stack.3d.up.slash")
+                        RemodexIcon.label(L10n.string("No models available"), systemName: "square.stack.3d.up.slash")
                     } description: {
                         Text("Reconnect to your local Codex bridge to refresh the model list.")
                     }

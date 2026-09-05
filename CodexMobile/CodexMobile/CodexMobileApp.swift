@@ -11,6 +11,7 @@ struct CodexMobileApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor(CodexMobileAppDelegate.self) private var appDelegate
     @AppStorage(AppFont.storageKey) private var appFontStyleRawValue = AppFont.defaultStoredStyleRawValue
+    @AppStorage(AppLanguage.storageKey) private var languagePreference = AppLanguage.system.rawValue
     @State private var codexService: CodexService
 
     init() {
@@ -21,8 +22,9 @@ struct CodexMobileApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            rootContent
                 .font(activeBodyFont)
+                .environment(\.locale, Locale(identifier: (AppLanguage(rawValue: languagePreference) ?? .system).resolved()))
                 .environment(codexService)
                 .onOpenURL { url in
                     Task { @MainActor in
@@ -55,6 +57,20 @@ struct CodexMobileApp: App {
                     TurnCacheManager.resetAll()
                 }
         }
+    }
+
+    @ViewBuilder private var rootContent: some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-RemodexLocalizationFixture") {
+            LocalizationFixtureView()
+        } else if ProcessInfo.processInfo.arguments.contains("-CodexUITestsFixture") {
+            TimelinePerformanceFixtureView()
+        } else {
+            ContentView()
+        }
+        #else
+        ContentView()
+        #endif
     }
 
     private var activeBodyFont: Font {

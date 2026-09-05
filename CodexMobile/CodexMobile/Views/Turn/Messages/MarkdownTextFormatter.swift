@@ -290,7 +290,7 @@ enum MarkdownTextFormatter {
         let label: String
         let destination: String
         if let lineNumber {
-            label = "\(basename) (line \(lineNumber))"
+            label = L10n.format("%@ (line %@)", String(describing: basename), String(describing: lineNumber))
             destination = "\(path):\(lineNumber)"
         } else {
             label = basename

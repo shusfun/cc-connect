@@ -18,6 +18,8 @@ struct AssistantRevertSheetState: Identifiable, Equatable {
 }
 
 struct AssistantRevertSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let state: AssistantRevertSheetState
     let onClose: () -> Void
     let onConfirm: () -> Void
@@ -56,6 +58,7 @@ struct AssistantRevertSheet: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -86,7 +89,7 @@ struct AssistantRevertSheet: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     if canConfirm {
-                        Button(state.isApplying ? "Undoing..." : "Undo") {
+                        Button(state.isApplying ? "Undoing..." : L10n.string("Undo")) {
                             onConfirm()
                         }
                         .disabled(state.isApplying)
@@ -104,7 +107,7 @@ struct AssistantRevertSheet: View {
                 .foregroundStyle(.primary)
 
             HStack(spacing: 8) {
-                Text("\(affectedFiles.count) file\(affectedFiles.count == 1 ? "" : "s")")
+                Text(L10n.count("files.count", affectedFiles.count))
                     .font(AppFont.mono(.caption))
                     .foregroundStyle(.secondary)
                 Text("+\(totalAdditions)")
@@ -129,7 +132,7 @@ struct AssistantRevertSheet: View {
 
             if effectiveRiskLevel == .warning {
                 issueSection(
-                    title: "Needs review",
+                    title: L10n.string("Needs review"),
                     lines: warningLines
                 )
             }
@@ -157,20 +160,20 @@ struct AssistantRevertSheet: View {
 
             if !preview.stagedFiles.isEmpty {
                 issueSection(
-                    title: "Staged files",
+                    title: L10n.string("Staged files"),
                     lines: preview.stagedFiles.map {
-                        "\($0): Unstage this file first to keep revert predictable."
+                        L10n.format("%@: Unstage this file first to keep revert predictable.", String(describing: $0))
                     }
                 )
             }
 
             if !preview.unsupportedReasons.isEmpty {
-                issueSection(title: "Unsupported", lines: preview.unsupportedReasons)
+                issueSection(title: L10n.string("Unsupported"), lines: preview.unsupportedReasons)
             }
 
             if !preview.conflicts.isEmpty {
                 issueSection(
-                    title: "Conflicts",
+                    title: L10n.string("Conflicts"),
                     lines: preview.conflicts.map { "\($0.path): \($0.message)" }
                 )
             }
@@ -185,7 +188,7 @@ struct AssistantRevertSheet: View {
         if let warningText = state.presentation.warningText, !warningText.isEmpty {
             lines.append(warningText)
         }
-        lines.append(contentsOf: state.presentation.overlappingFiles.map { "\($0): also touched by another chat." })
+        lines.append(contentsOf: state.presentation.overlappingFiles.map { L10n.format("%@: also touched by another chat.", String(describing: $0)) })
         return lines
     }
 

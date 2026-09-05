@@ -7,6 +7,7 @@
 import SwiftUI
 
 private struct TurnViewAlertModifier: ViewModifier {
+    @Environment(\.locale) private var locale
     @Binding var alertApprovalRequest: CodexApprovalRequest?
     @Binding var isApprovalAlertPresented: Bool
     @Binding var isShowingNothingToCommitAlert: Bool
@@ -21,9 +22,10 @@ private struct TurnViewAlertModifier: ViewModifier {
     let onConfirmMacHandoff: () -> Void
 
     func body(content: Content) -> some View {
+        let _ = locale
         content
             .alert(
-                "Approval request",
+                L10n.string("Approval request"),
                 isPresented: $isApprovalAlertPresented,
                 presenting: alertApprovalRequest
             ) { request in
@@ -69,14 +71,14 @@ private struct TurnViewAlertModifier: ViewModifier {
                 Text("Remodex will force close and reopen Codex.app on this device. Any desktop runs in progress will be stopped, and unsaved draft text there may be lost before this chat is opened.")
             }
             .alert(
-                "Couldn't continue on desktop app",
+                L10n.string("Couldn't continue on desktop app"),
                 isPresented: macHandoffErrorIsPresented
             ) {
                 Button("OK", role: .cancel) {
                     macHandoffErrorMessage = nil
                 }
             } message: {
-                Text(macHandoffErrorMessage ?? "Could not continue this chat on the desktop app.")
+                Text(macHandoffErrorMessage ?? L10n.string("Could not continue this chat on the desktop app."))
             }
     }
 
@@ -112,11 +114,11 @@ private struct TurnViewAlertModifier: ViewModifier {
 
         if let command = request.command?.trimmingCharacters(in: .whitespacesAndNewlines),
            !command.isEmpty {
-            lines.append("Command: \(command)")
+            lines.append(L10n.format("Command: %@", String(describing: command)))
         }
 
         if lines.isEmpty {
-            return "Codex is requesting permission to continue."
+            return L10n.string("Codex is requesting permission to continue.")
         }
 
         return lines.joined(separator: "\n\n")

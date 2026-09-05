@@ -1,116 +1,31 @@
-// FILE: QRScannerPairingValidatorTests.swift
-// Purpose: Verifies scanned and pasted pairing payloads validate before the user retries pairing.
-// Layer: Unit Test
-// Exports: QRScannerPairingValidatorTests
-// Depends on: XCTest, CodexMobile
-
 import XCTest
 @testable import CodexMobile
 
 final class QRScannerPairingValidatorTests: XCTestCase {
-    func testVersionMismatchRequiresBridgeUpdateBeforeScanning() {
-        let result = validatePairingQRCode(
-            pairingQRCode(
-                v: codexPairingQRVersion + 1,
-                expiresAt: 1_900_000_000_000
-            )
-        )
-
-        guard case .bridgeUpdateRequired(let prompt) = result else {
-            return XCTFail("Expected a bridge update prompt for mismatched QR versions.")
-        }
-
-        XCTAssertEqual(prompt.title, "Update Remodex on your Mac before scanning")
-        XCTAssertNil(prompt.command)
-        XCTAssertTrue(prompt.message.contains("不兼容"))
+    private let key = Data(repeating: 7, count: 32).base64EncodedString()
+    private let invitation = String(repeating: "A", count: 43)
+    private func code(relay: String = "wss://cc.syggu.cn", key: String? = nil, invitation: String? = nil) -> String {
+        let data = try! JSONEncoder().encode([relay, invitation ?? self.invitation, key ?? self.key])
+        return "RDX2:" + String(decoding: data, as: UTF8.self)
     }
-
-    func testLegacyBridgePayloadRequiresBridgeUpdateBeforeScanning() {
-        let result = validatePairingQRCode("""
-        {"relay":"wss://relay.example","sessionId":"session-123"}
-        """)
-
-        guard case .bridgeUpdateRequired(let prompt) = result else {
-            return XCTFail("Expected a bridge update prompt for legacy pairing payloads.")
-        }
-
-        XCTAssertNil(prompt.command)
-        XCTAssertTrue(prompt.message.contains("旧版"))
+    func testCompactCodePreservesFullIdentityAndInvitation() {
+        guard case .compact(let payload) = validatePairingQRCode(code()) else { return XCTFail("应接受紧凑配对码") }
+        XCTAssertEqual(payload.publicKey, key); XCTAssertEqual(payload.invitation, invitation)
+        XCTAssertEqual(payload.relay, "wss://cc.syggu.cn")
     }
-
-    func testValidPayloadReturnsSuccess() {
-        let result = validatePairingQRCode(
-            pairingQRCode(
-                v: codexPairingQRVersion,
-                expiresAt: 1_900_000_000_000
-            ),
-            now: Date(timeIntervalSince1970: 1_800_000_000)
-        )
-
-        guard case .success(let payload) = result else {
-            return XCTFail("Expected a valid payload.")
+    func testOldFormatsAlwaysRequireUpdate() {
+        for value in ["{\"v\":2,\"relay\":\"wss://example.test\"}", "RMX1:abc", "ABCDEFGHJK", "RDX3:[]"] {
+            guard case .bridgeUpdateRequired(let prompt) = validatePairingQRCode(value) else { XCTFail("不再支持旧格式"); continue }
+            XCTAssertNil(prompt.command)
+            XCTAssertEqual(prompt.message, L10n.string("该配对码来自旧版或不兼容的应用，请更新电脑和 iPhone 应用后重新扫码。"))
         }
-
-        XCTAssertEqual(payload.sessionId, "session-123")
-        XCTAssertEqual(payload.relay, "wss://relay.example")
     }
-
-    func testPasteablePairingCodeReturnsSuccess() {
-        let json = pairingQRCode(
-            v: codexPairingQRVersion,
-            expiresAt: 1_900_000_000_000
-        )
-        let encoded = Data(json.utf8)
-            .base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
-
-        let result = validatePairingQRCode(
-            "RMX1:\(encoded)",
-            now: Date(timeIntervalSince1970: 1_800_000_000)
-        )
-
-        guard case .success(let payload) = result else {
-            return XCTFail("Expected a valid pasted pairing code.")
+    func testRejectsUnsafeAddressAndTruncatedIdentity() {
+        for value in [code(relay: "ws://example.test"), code(relay: "wss://user:pass@example.test"), code(relay: "wss://example.test/relay"), code(relay: "wss://example.test?invitation=secret"), code(key: "short"), code(invitation: "short"), "RDX2:[]", "RDX2:[1,2,3]"] {
+            guard case .scanError = validatePairingQRCode(value) else { XCTFail("必须拒绝无效码"); continue }
         }
-
-        XCTAssertEqual(payload.macDeviceId, "mac-123")
-        XCTAssertEqual(payload.macIdentityPublicKey, "pub-key")
     }
-
-    func testShortPairingCodeReturnsLookupRequest() {
-        let result = validatePairingQRCode("ab23-cd34ef")
-
-        guard case .shortCode(let code) = result else {
-            return XCTFail("Expected a short pairing code lookup.")
-        }
-
-        XCTAssertEqual(code, "AB23CD34EF")
-    }
-
-    func testExpiredPayloadReturnsScanError() {
-        let result = validatePairingQRCode(
-            pairingQRCode(
-                v: codexPairingQRVersion,
-                expiresAt: 1_700_000_000_000
-            ),
-            now: Date(timeIntervalSince1970: 1_800_000_000)
-        )
-
-        guard case .scanError(let message) = result else {
-            return XCTFail("Expected an expiry error.")
-        }
-
-        XCTAssertEqual(message, "This pairing code has expired. Generate a new one from the Mac bridge.")
-    }
-
-    private func pairingQRCode(
-        v: Int,
-        expiresAt: Int64
-    ) -> String {
-        """
-        {"v":\(v),"relay":"wss://relay.example","sessionId":"session-123","macDeviceId":"mac-123","macIdentityPublicKey":"pub-key","expiresAt":\(expiresAt)}
-        """
+    func testUnrelatedQRCodeIsNotAPairing() {
+        guard case .scanError = validatePairingQRCode("https://example.test") else { return XCTFail("必须拒绝无关二维码") }
     }
 }

@@ -18,7 +18,7 @@ enum TurnVoiceButtonPresentationBuilder {
                 systemImageName: "waveform",
                 foregroundColor: Color(.secondaryLabel),
                 backgroundColor: Color(.systemGray5),
-                accessibilityLabel: "Transcribing voice note",
+                accessibilityLabel: L10n.string("Transcribing voice note"),
                 isDisabled: true,
                 showsProgress: true,
                 hasCircleBackground: true
@@ -30,7 +30,7 @@ enum TurnVoiceButtonPresentationBuilder {
                 systemImageName: "hourglass",
                 foregroundColor: Color(.secondaryLabel),
                 backgroundColor: Color(.systemGray5),
-                accessibilityLabel: "Preparing microphone",
+                accessibilityLabel: L10n.string("Preparing microphone"),
                 isDisabled: true,
                 showsProgress: true,
                 hasCircleBackground: true
@@ -42,7 +42,7 @@ enum TurnVoiceButtonPresentationBuilder {
                 systemImageName: "stop.fill",
                 foregroundColor: Color(.systemBackground),
                 backgroundColor: Color(.systemRed),
-                accessibilityLabel: "Stop voice recording",
+                accessibilityLabel: L10n.string("Stop voice recording"),
                 isDisabled: false,
                 showsProgress: false,
                 hasCircleBackground: true
@@ -53,7 +53,7 @@ enum TurnVoiceButtonPresentationBuilder {
             systemImageName: "mic",
             foregroundColor: Color.primary,
             backgroundColor: .clear,
-            accessibilityLabel: "开始设备端离线语音转写",
+            accessibilityLabel: L10n.string("开始设备端离线语音转写"),
             isDisabled: false,
             showsProgress: false,
             hasCircleBackground: false
@@ -67,18 +67,18 @@ enum TurnVoiceRecoveryPresentationBuilder {
         case .microphonePermissionRequired:
             return VoiceRecoveryPresentation(
                 snapshot: snapshot(
-                    summary: "Microphone access is off for Remodex.",
-                    detail: "Open iPhone Settings, allow Microphone for Remodex, then try recording again.",
+                    summary: L10n.string("Microphone access is off for Remodex."),
+                    detail: L10n.string("Open iPhone Settings, allow Microphone for Remodex, then try recording again."),
                     status: .actionRequired,
-                    trailingStyle: .action("Open Settings")
+                    trailingStyle: .action(L10n.string("Open Settings"))
                 ),
                 action: .openSystemSettings
             )
         case .microphoneUnavailable:
             return VoiceRecoveryPresentation(
                 snapshot: snapshot(
-                    summary: "No microphone input is available right now.",
-                    detail: "Check that another app is not holding the microphone, then try again.",
+                    summary: L10n.string("No microphone input is available right now."),
+                    detail: L10n.string("Check that another app is not holding the microphone, then try again."),
                     status: .actionRequired,
                     trailingStyle: .none
                 ),
@@ -87,8 +87,8 @@ enum TurnVoiceRecoveryPresentationBuilder {
         case .recorderUnavailable:
             return VoiceRecoveryPresentation(
                 snapshot: snapshot(
-                    summary: "Remodex could not start the recorder.",
-                    detail: "Close other audio-heavy apps, then try voice mode again.",
+                    summary: L10n.string("Remodex could not start the recorder."),
+                    detail: L10n.string("Close other audio-heavy apps, then try voice mode again."),
                     status: .actionRequired,
                     trailingStyle: .none
                 ),
@@ -97,17 +97,17 @@ enum TurnVoiceRecoveryPresentationBuilder {
         case .retryAvailable(let message):
             return VoiceRecoveryPresentation(
                 snapshot: snapshot(
-                    summary: message.isEmpty ? "设备端语音转写失败。" : message,
-                    detail: "录音已加密保留 24 小时，可直接重试，不会自动发送。",
+                    summary: message.isEmpty ? L10n.string("设备端语音转写失败。") : message,
+                    detail: L10n.string("录音已加密保留 24 小时，可直接重试，不会自动发送。"),
                     status: .actionRequired,
-                    trailingStyle: .action("重试")
+                    trailingStyle: .action(L10n.string("重试"))
                 ),
                 action: .retryVoice
             )
         case .generic(let message):
             return VoiceRecoveryPresentation(
                 snapshot: ConnectionRecoverySnapshot(
-                    title: "Voice Mode",
+                    title: L10n.string("Voice Mode"),
                     summary: message,
                     status: .actionRequired,
                     trailingStyle: .none
@@ -124,7 +124,7 @@ enum TurnVoiceRecoveryPresentationBuilder {
         trailingStyle: ConnectionRecoveryTrailingStyle
     ) -> ConnectionRecoverySnapshot {
         ConnectionRecoverySnapshot(
-            title: "Voice Mode",
+            title: L10n.string("Voice Mode"),
             summary: summary,
             detail: detail,
             status: status,

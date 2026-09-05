@@ -107,20 +107,20 @@ private extension CodexService {
 
     var trustedPairTitle: String {
         if isConnected || secureConnectionState == .encrypted {
-            return "Connected Pair"
+            return L10n.string("Connected Pair")
         }
 
         switch secureConnectionState {
         case .handshaking:
-            return "Pairing Device"
+            return L10n.string("Pairing Device")
         case .liveSessionUnresolved, .reconnecting, .trustedMac:
-            return "Saved Pair"
+            return L10n.string("Saved Pair")
         case .rePairRequired:
-            return "Previous Pair"
+            return L10n.string("Previous Pair")
         case .updateRequired, .notPaired:
-            return "Trusted Pair"
+            return L10n.string("Trusted Pair")
         case .encrypted:
-            return "Connected Pair"
+            return L10n.string("Connected Pair")
         }
     }
 

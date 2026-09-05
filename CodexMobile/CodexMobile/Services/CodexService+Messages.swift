@@ -6487,17 +6487,17 @@ extension CodexService {
         case .toolActivity:
             return "Working…"
         case .fileChange:
-            return "Applying file changes..."
+            return L10n.string("Applying file changes...")
         case .commandExecution:
-            return "Running command"
+            return L10n.string("Running command")
         case .subagentAction:
-            return "Coordinating agents..."
+            return L10n.string("Coordinating agents...")
         case .plan:
             return "Planning..."
         case .userInputPrompt:
-            return "Waiting for input..."
+            return L10n.string("Waiting for input...")
         case .autoApprovalReview:
-            return "Reviewing approval..."
+            return L10n.string("Reviewing approval...")
         case .chat:
             return "Updating..."
         }

@@ -44,6 +44,8 @@ private enum NewChatDraftRuntimeMode {
 }
 
 struct NewChatDraftView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
@@ -82,6 +84,7 @@ struct NewChatDraftView: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         // Keep the draft surface static while first send creates the real thread.
         VStack(spacing: 0) {
             if let pendingDraftUserMessage {
@@ -319,7 +322,7 @@ struct NewChatDraftView: View {
 
             if showsGitContextRows {
                 UIKitMenuButton {
-                    draftContextRowLabel(title: draftRuntimeMode == .newWorktree ? "New worktree" : "Work locally") {
+                    draftContextRowLabel(title: draftRuntimeMode == .newWorktree ? L10n.string("New worktree") : L10n.string("Work locally")) {
                         if draftRuntimeMode == .newWorktree {
                             CodexWorktreeIcon(pointSize: 19)
                         } else {
@@ -330,7 +333,7 @@ struct NewChatDraftView: View {
                     draftRuntimeModeMenu()
                 }
                 .accessibilityLabel("Where to work")
-                .accessibilityValue(draftRuntimeMode == .newWorktree ? "New worktree" : "Work locally")
+                .accessibilityValue(draftRuntimeMode == .newWorktree ? L10n.string("New worktree") : L10n.string("Work locally"))
 
                 UIKitMenuButton {
                     draftContextRowLabel(title: draftBranchLabel) {
@@ -340,7 +343,7 @@ struct NewChatDraftView: View {
                     draftBranchMenu()
                 }
                 .disabled(viewModel.isSwitchingGitBranch || viewModel.isLoadingGitBranchTargets)
-                .accessibilityLabel(draftRuntimeMode == .newWorktree ? "Worktree base branch" : "Current branch")
+                .accessibilityLabel(draftRuntimeMode == .newWorktree ? L10n.string("Worktree base branch") : L10n.string("Current branch"))
                 .accessibilityValue(draftBranchLabel)
             }
         }
@@ -368,11 +371,11 @@ struct NewChatDraftView: View {
 
     private var toolbarTitleLabel: some View {
         TurnChatToolbarTitleLabel(
-            title: "New thread",
+            title: L10n.string("New thread"),
             subtitle: placeholderFolderName ?? trustedHostName,
             // General chat uses the inline context menu; folder-backed drafts can still open the sheet.
             onTap: !isFromGeneralChat && hasSelectedProject ? { activeSheet = .projectPicker } : nil,
-            accessibilityHint: !isFromGeneralChat && hasSelectedProject ? "Opens the project picker" : nil
+            accessibilityHint: !isFromGeneralChat && hasSelectedProject ? L10n.string("Opens the project picker") : nil
         )
     }
 
@@ -428,7 +431,7 @@ struct NewChatDraftView: View {
     private var draftThreadActions: [TurnThreadActionMenuItem] {
         [
             TurnThreadActionMenuItem(
-                title: "Open Terminal Here",
+                title: L10n.string("Open Terminal Here"),
                 icon: .system("terminal"),
                 isEnabled: !areDraftToolbarActionsDisabled && onOpenTerminal != nil
             ) {
@@ -512,8 +515,8 @@ struct NewChatDraftView: View {
                 let result = try await gitService.diff()
                 guard let presentation = TurnDiffPresentationBuilder.repositoryPresentation(from: result.patch) else {
                     viewModel.gitSyncAlert = TurnGitSyncAlert(
-                        title: "Git Error",
-                        message: "There are no repository changes to show.",
+                        title: L10n.string("Git Error"),
+                        message: L10n.string("There are no repository changes to show."),
                         action: .dismissOnly
                     )
                     return
@@ -521,13 +524,13 @@ struct NewChatDraftView: View {
                 repositoryDiffPresentation = presentation
             } catch let error as GitActionsError {
                 viewModel.gitSyncAlert = TurnGitSyncAlert(
-                    title: "Git Error",
-                    message: error.errorDescription ?? "Could not load repository changes.",
+                    title: L10n.string("Git Error"),
+                    message: error.errorDescription ?? L10n.string("Could not load repository changes."),
                     action: .dismissOnly
                 )
             } catch {
                 viewModel.gitSyncAlert = TurnGitSyncAlert(
-                    title: "Git Error",
+                    title: L10n.string("Git Error"),
                     message: error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -566,7 +569,7 @@ struct NewChatDraftView: View {
     // Always reads the same way as the toolbar subtitle so the inline pill and
     // the navigation block never disagree on the currently bound folder.
     private var folderPillLabel: String {
-        placeholderFolderName ?? "Quick Chat"
+        placeholderFolderName ?? L10n.string("Quick Chat")
     }
 
     // Builds the folder-only context menu used by the draft's folder row.
@@ -574,7 +577,7 @@ struct NewChatDraftView: View {
         guard !projectChoices.isEmpty else {
             return UIMenu(children: [
                 UIAction(
-                    title: "No folders available",
+                    title: L10n.string("No folders available"),
                     image: RemodexIcon.menuUIImage(systemName: "folder"),
                     attributes: [.disabled]
                 ) { _ in },
@@ -608,7 +611,7 @@ struct NewChatDraftView: View {
 
     private func draftRuntimeModeMenu() -> UIMenu {
         let localAction = UIAction(
-            title: "Work locally",
+            title: L10n.string("Work locally"),
             image: RemodexIcon.menuUIImage(systemName: "laptopcomputer"),
             state: draftRuntimeMode == .local ? .on : .off
         ) { _ in
@@ -616,7 +619,7 @@ struct NewChatDraftView: View {
             draftRuntimeMode = .local
         }
         let worktreeAction = UIAction(
-            title: "New worktree",
+            title: L10n.string("New worktree"),
             image: CodexWorktreeIcon.menuImage(pointSize: 16),
             state: draftRuntimeMode == .newWorktree ? .on : .off
         ) { _ in
@@ -673,7 +676,7 @@ struct NewChatDraftView: View {
             }
         }
         let recentSection = UIMenu(
-            title: "Recent branches",
+            title: L10n.string("Recent branches"),
             options: [.displayInline, .singleSelection],
             children: branchActions
         )
@@ -683,7 +686,7 @@ struct NewChatDraftView: View {
             // Creating a branch only makes sense when it becomes the checkout;
             // a worktree base must already exist.
             trailingActions.append(UIAction(
-                title: "New branch...",
+                title: L10n.string("New branch..."),
                 image: RemodexIcon.menuUIImage(systemName: "plus")
             ) { _ in
                 newDraftBranchName = "remodex/"
@@ -692,7 +695,7 @@ struct NewChatDraftView: View {
         }
         if orderedBranches.count > recentBranches.count {
             trailingActions.append(UIAction(
-                title: "All branches...",
+                title: L10n.string("All branches..."),
                 image: RemodexIcon.menuUIImage(systemName: "magnifyingglass")
             ) { _ in
                 isShowingAllBranchesPicker = true
@@ -753,8 +756,8 @@ struct NewChatDraftView: View {
                 ),
                 currentBranch: viewModel.currentGitBranch,
                 allowsSelectingCurrentBranch: true,
-                sectionTitle: "Branches",
-                navigationTitle: draftRuntimeMode == .newWorktree ? "Base Branch" : "Current Branch",
+                sectionTitle: L10n.string("Branches"),
+                navigationTitle: draftRuntimeMode == .newWorktree ? L10n.string("Base Branch") : L10n.string("Current Branch"),
                 isLoading: viewModel.isLoadingGitBranchTargets,
                 isSwitching: viewModel.isSwitchingGitBranch,
                 onSelect: { branch in
@@ -868,7 +871,7 @@ struct NewChatDraftView: View {
     private var draftThread: CodexThread {
         CodexThread(
             id: route.id,
-            title: "New thread",
+            title: L10n.string("New thread"),
             cwd: selectedProjectPath
         )
     }

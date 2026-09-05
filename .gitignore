@@ -51,3 +51,4 @@ $TMP_PLACEHOLDER
 
 # VS Code
 .vscode/
+relay/public/app/

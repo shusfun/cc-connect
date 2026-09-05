@@ -22,12 +22,12 @@ private struct GitBranchAlertState {
         case .create(let branchName):
             if isDirty {
                 return TurnGitSyncAlert(
-                    title: "Bring local changes to '\(branchName)'?",
+                    title: L10n.format("Bring local changes to '%@'?", String(describing: branchName)),
                     message: newBranchDirtyAlertMessage(branchName: branchName),
                     buttons: [
-                        TurnGitSyncAlertButton(title: "Cancel", role: .cancel, action: .dismissOnly),
+                        TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
                         TurnGitSyncAlertButton(
-                            title: "Carry to New Branch",
+                            title: L10n.string("Carry to New Branch"),
                             role: nil,
                             action: .continueGitBranchOperation
                         ),
@@ -41,17 +41,17 @@ private struct GitBranchAlertState {
             }
 
             if onDefaultBranch && localOnlyCommitCount > 0 {
-                let commitLabel = localOnlyCommitCount == 1 ? "1 local commit" : "\(localOnlyCommitCount) local commits"
+                let commitLabel = localOnlyCommitCount == 1 ? L10n.string("1 local commit") : L10n.format("%@ local commits", String(describing: localOnlyCommitCount))
                 var message = "\(defaultBranch) already has \(commitLabel) that are not on the remote. Creating '\(branchName)' now starts the new branch from the current HEAD, but those commits stay in \(defaultBranch)'s history."
                 if isDirty {
-                    message += " Uncommitted changes also stay in this working copy and will follow onto the new branch after checkout."
+                    message += L10n.string(" Uncommitted changes also stay in this working copy and will follow onto the new branch after checkout.")
                 }
                 return TurnGitSyncAlert(
-                    title: "Local commits stay on \(defaultBranch)",
+                    title: L10n.format("Local commits stay on %@", String(describing: defaultBranch)),
                     message: message,
                     buttons: [
-                        TurnGitSyncAlertButton(title: "Cancel", role: .cancel, action: .dismissOnly),
-                        TurnGitSyncAlertButton(title: "Create Anyway", role: nil, action: .continueGitBranchOperation)
+                        TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
+                        TurnGitSyncAlertButton(title: L10n.string("Create Anyway"), role: nil, action: .continueGitBranchOperation)
                     ]
                 )
             }
@@ -61,7 +61,7 @@ private struct GitBranchAlertState {
         case .createWorktree(let branchName, let baseBranch, let changeTransfer):
             return worktreeAlert(
                 titleNoun: "'\(branchName)'",
-                worktreeNoun: "the new worktree",
+                worktreeNoun: L10n.string("the new worktree"),
                 baseBranch: baseBranch,
                 changeTransfer: changeTransfer,
                 createMessage: "Creating '\(branchName)' can %@ local changes only from the current branch. Switch the base branch to '\(currentBranch)' or clean up local changes before creating the worktree."
@@ -70,7 +70,7 @@ private struct GitBranchAlertState {
         case .createManagedWorktree(let baseBranch, let changeTransfer):
             return worktreeAlert(
                 titleNoun: "a managed worktree",
-                worktreeNoun: "the managed worktree",
+                worktreeNoun: L10n.string("the managed worktree"),
                 baseBranch: baseBranch,
                 changeTransfer: changeTransfer,
                 createMessage: "Creating a managed worktree can %@ local changes only from the current branch. Switch the base branch to '\(currentBranch)' or clean up local changes before creating the worktree."
@@ -93,14 +93,14 @@ private struct GitBranchAlertState {
         if isDirty && changeTransfer != .none && currentBranch != baseBranch {
             let transferVerb = changeTransfer.transferVerb ?? "move"
             return TurnGitSyncAlert(
-                title: "\(transferVerb.capitalized) local changes from the current branch",
+                title: L10n.format("%@ local changes from the current branch", String(describing: transferVerb.capitalized)),
                 message: createMessage.replacingOccurrences(of: "%@", with: transferVerb),
                 action: .dismissOnly
             )
         }
 
         if onDefaultBranch && currentBranch == baseBranch && localOnlyCommitCount > 0 {
-            let commitLabel = localOnlyCommitCount == 1 ? "1 local commit" : "\(localOnlyCommitCount) local commits"
+            let commitLabel = localOnlyCommitCount == 1 ? L10n.string("1 local commit") : L10n.format("%@ local commits", String(describing: localOnlyCommitCount))
             let dirtySuffix: String
             if isDirty, changeTransfer == .move {
                 dirtySuffix = " Local changes will move into \(worktreeNoun); ignored files stay here."
@@ -110,11 +110,11 @@ private struct GitBranchAlertState {
                 dirtySuffix = ""
             }
             return TurnGitSyncAlert(
-                title: "Local commits stay on \(defaultBranch)",
+                title: L10n.format("Local commits stay on %@", String(describing: defaultBranch)),
                 message: "\(defaultBranch) already has \(commitLabel) that are not on the remote. Creating \(titleNoun) from \(baseBranch) starts from the current HEAD, but those commits stay in \(defaultBranch)'s history too.\(dirtySuffix)",
                 buttons: [
-                    TurnGitSyncAlertButton(title: "Cancel", role: .cancel, action: .dismissOnly),
-                    TurnGitSyncAlertButton(title: "Create Anyway", role: nil, action: .continueGitBranchOperation)
+                    TurnGitSyncAlertButton(title: L10n.string("Cancel"), role: .cancel, action: .dismissOnly),
+                    TurnGitSyncAlertButton(title: L10n.string("Create Anyway"), role: nil, action: .continueGitBranchOperation)
                 ]
             )
         }
@@ -136,13 +136,13 @@ private struct GitBranchAlertState {
     }
 
     private func newBranchDirtyAlertMessage(branchName: String) -> String {
-        let sourceBranch = currentBranch.isEmpty ? "the current branch" : currentBranch
-        var intro = "You're creating '\(branchName)' from \(sourceBranch). Carry your local changes onto the new branch, or commit first and then create + switch."
+        let sourceBranch = currentBranch.isEmpty ? L10n.string("the current branch") : currentBranch
+        var intro = L10n.format("You're creating '%@' from %@. Carry your local changes onto the new branch, or commit first and then create + switch.", String(describing: branchName), String(describing: sourceBranch))
 
         if !defaultBranch.isEmpty,
            sourceBranch == defaultBranch,
            localOnlyCommitCount > 0 {
-            let commitLabel = localOnlyCommitCount == 1 ? "1 local commit" : "\(localOnlyCommitCount) local commits"
+            let commitLabel = localOnlyCommitCount == 1 ? L10n.string("1 local commit") : L10n.format("%@ local commits", String(describing: localOnlyCommitCount))
             intro = "\(defaultBranch) already has \(commitLabel) that are not on the remote. Those commits stay on \(defaultBranch)'s history. " + intro
         }
 
@@ -240,14 +240,14 @@ extension TurnViewModel {
                 }
             } catch let error as GitActionsError {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Branch Creation Failed",
-                    message: error.errorDescription ?? "Could not create branch.",
+                    title: L10n.string("Branch Creation Failed"),
+                    message: error.errorDescription ?? L10n.string("Could not create branch."),
                     action: .dismissOnly
                 )
                 return
             } catch {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Branch Creation Failed",
+                    title: L10n.string("Branch Creation Failed"),
                     message: error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -306,8 +306,8 @@ extension TurnViewModel {
 
         if gitBranchesCheckedOutElsewhere.contains(trimmedBranch) {
             gitSyncAlert = TurnGitSyncAlert(
-                title: "Branch Switch Failed",
-                message: "Cannot switch branches: this branch is already open in another worktree.",
+                title: L10n.string("Branch Switch Failed"),
+                message: L10n.string("Cannot switch branches: this branch is already open in another worktree."),
                 action: .dismissOnly
             )
             return
@@ -421,8 +421,8 @@ extension TurnViewModel {
 
             if gitBranchesCheckedOutElsewhere.contains(branch) {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Branch Switch Failed",
-                    message: "Cannot switch branches: this branch is already open in another worktree.",
+                    title: L10n.string("Branch Switch Failed"),
+                    message: L10n.string("Cannot switch branches: this branch is already open in another worktree."),
                     action: .dismissOnly
                 )
                 return
@@ -440,13 +440,13 @@ extension TurnViewModel {
                 }
             } catch let error as GitActionsError {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Branch Switch Failed",
-                    message: error.errorDescription ?? "Could not switch branch.",
+                    title: L10n.string("Branch Switch Failed"),
+                    message: error.errorDescription ?? L10n.string("Could not switch branch."),
                     action: .dismissOnly
                 )
             } catch {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Branch Switch Failed",
+                    title: L10n.string("Branch Switch Failed"),
                     message: error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -503,13 +503,13 @@ extension TurnViewModel {
                 onOpenWorktree(result)
             } catch let error as GitActionsError {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Worktree Creation Failed",
-                    message: error.errorDescription ?? "Could not create worktree.",
+                    title: L10n.string("Worktree Creation Failed"),
+                    message: error.errorDescription ?? L10n.string("Could not create worktree."),
                     action: .dismissOnly
                 )
             } catch {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Worktree Creation Failed",
+                    title: L10n.string("Worktree Creation Failed"),
                     message: error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -555,13 +555,13 @@ extension TurnViewModel {
                 onOpenWorktree(result)
             } catch let error as GitActionsError {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Worktree Creation Failed",
-                    message: error.errorDescription ?? "Could not create worktree.",
+                    title: L10n.string("Worktree Creation Failed"),
+                    message: error.errorDescription ?? L10n.string("Could not create worktree."),
                     action: .dismissOnly
                 )
             } catch {
                 gitSyncAlert = TurnGitSyncAlert(
-                    title: "Worktree Creation Failed",
+                    title: L10n.string("Worktree Creation Failed"),
                     message: error.localizedDescription,
                     action: .dismissOnly
                 )
@@ -692,7 +692,7 @@ extension TurnViewModel {
                     }
                 } catch {
                     gitSyncAlert = TurnGitSyncAlert(
-                        title: "Pull Failed",
+                        title: L10n.string("Pull Failed"),
                         message: error.localizedDescription,
                         action: .dismissOnly
                     )
@@ -735,7 +735,7 @@ extension TurnViewModel {
                     )
                 } catch {
                     gitSyncAlert = TurnGitSyncAlert(
-                        title: "Commit Failed",
+                        title: L10n.string("Commit Failed"),
                         message: error.localizedDescription,
                         action: .dismissOnly
                     )
@@ -761,7 +761,7 @@ extension TurnViewModel {
                     }
                 } catch {
                     gitSyncAlert = TurnGitSyncAlert(
-                        title: "Discard Failed",
+                        title: L10n.string("Discard Failed"),
                         message: error.localizedDescription,
                         action: .dismissOnly
                     )

@@ -26,6 +26,8 @@ struct SidebarOverflowMenuActions {
 }
 
 struct SidebarHeaderView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var showsCloseButton: Bool = true
     var onClose: () -> Void
     var overflowActions: SidebarOverflowMenuActions
@@ -33,6 +35,7 @@ struct SidebarHeaderView: View {
     var isConnected: Bool = false
 
     var body: some View {
+        let _ = _localizationLocale
         AdaptiveGlassContainer(spacing: 10) {
             // ZStack keeps the brand block centered on the bar regardless of
             // how wide the flanking circle buttons are.
@@ -92,8 +95,8 @@ struct SidebarHeaderView: View {
 
     private var accessibilityTitleLabel: String {
         guard let connectedComputerName else { return "Remodex" }
-        let status = isConnected ? "connected to" : "paired with"
-        return "Remodex, \(status) \(connectedComputerName)"
+        let status = isConnected ? L10n.string("connected to") : L10n.string("paired with")
+        return L10n.format("Remodex, %@ %@", String(describing: status), String(describing: connectedComputerName))
     }
 
     // Close affordance kept inside the sidebar so both drawer and full-width
@@ -101,7 +104,7 @@ struct SidebarHeaderView: View {
     private var hamburgerButton: some View {
         SidebarToolbarIconButton(
             icon: .custom { TwoLineHamburgerIcon() },
-            accessibilityLabel: "Close menu",
+            accessibilityLabel: L10n.string("Close menu"),
             action: onClose
         )
     }
@@ -111,7 +114,7 @@ struct SidebarHeaderView: View {
     private var settingsButton: some View {
         SidebarToolbarIconButton(
             icon: .systemImage("gearshape"),
-            accessibilityLabel: "Settings",
+            accessibilityLabel: L10n.string("Settings"),
             action: overflowActions.onOpenSettings
         )
     }
@@ -126,7 +129,7 @@ struct SidebarHeaderView: View {
                 // matches the surrounding header glyphs exactly.
                 SidebarToolbarIconButton(
                     icon: .systemImage("ellipsis"),
-                    accessibilityLabel: "More actions",
+                    accessibilityLabel: L10n.string("More actions"),
                     action: {}
                 )
                 .allowsHitTesting(false)
@@ -143,21 +146,21 @@ struct SidebarHeaderView: View {
                 options: [.displayInline],
                 children: [
                     overflowAction(
-                        title: "New Chat",
+                        title: L10n.string("New Chat"),
                         systemName: "square.and.pencil",
                         isEnabled: overflowActions.isEnabled
                     ) {
                         overflowActions.onNewChat()
                     },
                     overflowAction(
-                        title: "Quick Chat",
+                        title: L10n.string("Quick Chat"),
                         systemName: "message",
                         isEnabled: overflowActions.isEnabled
                     ) {
                         overflowActions.onQuickChat()
                     },
                     overflowAction(
-                        title: "New Project",
+                        title: L10n.string("New Project"),
                         systemName: "folder.badge.plus",
                         isEnabled: overflowActions.isEnabled
                     ) {
@@ -169,7 +172,7 @@ struct SidebarHeaderView: View {
                 title: "",
                 options: [.displayInline],
                 children: [
-                    overflowAction(title: "Connections", systemName: "globe") {
+                    overflowAction(title: L10n.string("Connections"), systemName: "globe") {
                         overflowActions.onOpenConnections()
                     },
                 ]
@@ -184,7 +187,7 @@ struct SidebarHeaderView: View {
                     title: "",
                     options: [.displayInline],
                     children: [
-                        overflowAction(title: "Settings", systemName: "gearshape") {
+                        overflowAction(title: L10n.string("Settings"), systemName: "gearshape") {
                             overflowActions.onOpenSettings()
                         },
                     ]

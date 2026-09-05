@@ -13,32 +13,34 @@ enum TurnWorktreeOverlayMode {
     var title: String {
         switch self {
         case .handoff:
-            return "Hand off thread to worktree"
+            return L10n.string("Hand off thread to worktree")
         case .fork:
-            return "Fork thread into new worktree"
+            return L10n.string("Fork thread into new worktree")
         }
     }
 
     var message: String {
         switch self {
         case .handoff:
-            return "Create and check out a branch in a new worktree to continue in parallel. The branch is normalized with the remodex/ prefix."
+            return L10n.string("Create and check out a branch in a new worktree to continue in parallel. The branch is normalized with the remodex/ prefix.")
         case .fork:
-            return "Create and check out a branch in a new worktree, then fork this conversation into that checkout as a new chat."
+            return L10n.string("Create and check out a branch in a new worktree, then fork this conversation into that checkout as a new chat.")
         }
     }
 
     var submitLabel: String {
         switch self {
         case .handoff:
-            return "Hand off"
+            return L10n.string("Hand off")
         case .fork:
-            return "Fork"
+            return L10n.string("Fork")
         }
     }
 }
 
 struct TurnWorktreeHandoffOverlay: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let mode: TurnWorktreeOverlayMode
     let preferredBaseBranch: String
     let isHandoffAvailable: Bool
@@ -59,6 +61,7 @@ struct TurnWorktreeHandoffOverlay: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             Color.black.opacity(0.45)
                 .ignoresSafeArea()

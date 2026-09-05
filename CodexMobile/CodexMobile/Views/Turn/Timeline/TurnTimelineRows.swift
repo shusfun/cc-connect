@@ -163,6 +163,8 @@ private struct AssistantBlockRevertMessageSignature: Equatable {
 }
 
 struct TurnTimelineMessageRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.inlineCommitAndPushAction) private var inlineCommitAndPushAction
     @Environment(\.inlineCommitAndPushPhase) private var inlineCommitAndPushPhase
 
@@ -184,6 +186,7 @@ struct TurnTimelineMessageRow: View {
     let onTapSubagent: (CodexSubagentThreadPresentation) -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         MessageRow(
             message: message,
             isRetryAvailable: isRetryAvailable,
@@ -218,6 +221,8 @@ struct TurnTimelineMessageRow: View {
 }
 
 private struct TurnTimelineToolBurstView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let group: TurnTimelineToolBurstGroup
     let isRetryAvailable: Bool
     let cachedBlockInfoByMessageID: [String: AssistantBlockAccessoryState]
@@ -236,15 +241,8 @@ private struct TurnTimelineToolBurstView: View {
 
     @State private var isExpanded = false
 
-    private var summaryCountLabel: String {
-        "+\(group.hiddenCount)"
-    }
-
-    private var summaryNounLabel: String {
-        group.hiddenCount == 1 ? "tool call" : "tool calls"
-    }
-
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 14) {
             if isExpanded {
                 ForEach(group.overflowMessages) { message in
@@ -268,7 +266,7 @@ private struct TurnTimelineToolBurstView: View {
                         RemodexIcon.image(systemName: "chevron.right", size: 13, relativeTo: .body)
                             .foregroundStyle(.secondary)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        Text("\(summaryCountLabel) \(summaryNounLabel)")
+                        Text(L10n.count("tools.additional.count", group.hiddenCount))
                             .font(AppFont.body(weight: .regular))
                             .foregroundStyle(.secondary)
                     }
@@ -315,6 +313,8 @@ private struct TurnTimelineToolBurstView: View {
 }
 
 private struct TurnTimelinePreviousMessagesView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let group: TurnTimelinePreviousMessagesGroup
     let isRetryAvailable: Bool
     let cachedBlockInfoByMessageID: [String: AssistantBlockAccessoryState]
@@ -334,10 +334,11 @@ private struct TurnTimelinePreviousMessagesView: View {
     @State private var isExpanded = false
 
     private var title: String {
-        group.hiddenCount == 1 ? "1 previous message" : "\(group.hiddenCount) previous messages"
+        group.hiddenCount == 1 ? L10n.string("1 previous message") : L10n.format("%@ previous messages", String(describing: group.hiddenCount))
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 10) {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
@@ -358,7 +359,7 @@ private struct TurnTimelinePreviousMessagesView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(title)
-            .accessibilityHint(isExpanded ? "Collapse previous messages" : "Expand previous messages")
+            .accessibilityHint(isExpanded ? L10n.string("Collapse previous messages") : L10n.string("Expand previous messages"))
 
             if isExpanded {
                 ForEach(group.messages) { message in
@@ -396,6 +397,8 @@ private struct TurnTimelinePreviousMessagesView: View {
 }
 
 struct TurnTimelineRowsSection: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let shouldWarmRecentTailProgressively: Bool
     let hasEarlierMessages: Bool
     let isLoadingEarlierMessages: Bool
@@ -421,6 +424,7 @@ struct TurnTimelineRowsSection: View {
     private static let runningIndicatorRowID = "turn-timeline-running-indicator-row"
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 14) {
             if shouldWarmRecentTailProgressively {
                 HStack(spacing: 8) {
@@ -550,8 +554,8 @@ struct TurnTimelineRowsSection: View {
 
     private var earlierMessagesButtonTitle: String {
         if isLoadingEarlierMessages {
-            return "Loading earlier messages..."
+            return L10n.string("Loading earlier messages...")
         }
-        return earlierMessagesErrorMessage ?? "Load earlier messages"
+        return earlierMessagesErrorMessage ?? L10n.string("Load earlier messages")
     }
 }

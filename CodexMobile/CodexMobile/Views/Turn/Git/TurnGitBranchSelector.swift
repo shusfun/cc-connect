@@ -30,7 +30,7 @@ func remodexVisibleBranchLabel(currentBranch: String, defaultBranch: String) -> 
         return normalizedCurrentBranch
     }
     let normalizedDefaultBranch = defaultBranch.trimmingCharacters(in: .whitespacesAndNewlines)
-    return normalizedDefaultBranch.isEmpty ? "Branch" : normalizedDefaultBranch
+    return normalizedDefaultBranch.isEmpty ? L10n.string("Branch") : normalizedDefaultBranch
 }
 
 // Shared "New branch" prompt so every branch surface keeps one copy of the
@@ -113,15 +113,15 @@ private enum TurnGitBranchPickerMode: String, Identifiable {
     var id: String { rawValue }
 
     var sectionTitle: String {
-        "Branches"
+        L10n.string("Branches")
     }
 
     var navigationTitle: String {
         switch self {
         case .currentBranch:
-            return "Current Branch"
+            return L10n.string("Current Branch")
         case .pullRequestTarget:
-            return "Base Branch"
+            return L10n.string("Base Branch")
         }
     }
 }
@@ -198,6 +198,7 @@ struct TurnGitBranchSelector: View, Equatable {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
             activePickerMode = .currentBranch
@@ -242,6 +243,8 @@ struct TurnGitBranchSelector: View, Equatable {
 }
 
 struct TurnGitBranchPickerSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(\.dismiss) private var dismiss
 
     let branches: [String]
@@ -306,13 +309,14 @@ struct TurnGitBranchPickerSheet: View {
         }
 
         if allowsSelectingCurrentBranch, gitWorktreePathsByBranch[branch] != nil {
-            return "Open worktree"
+            return L10n.string("Open worktree")
         }
 
-        return "Open elsewhere"
+        return L10n.string("Open elsewhere")
     }
 
     var body: some View {
+        let _ = _localizationLocale
         List {
             Section(sectionTitle) {
                 if showsDefaultBranchRow, let defaultBranch {
@@ -365,7 +369,7 @@ struct TurnGitBranchPickerSheet: View {
 
                 if orderedBranches.isEmpty {
                     ContentUnavailableView {
-                        RemodexIcon.label("No branches found", systemName: "arrow.triangle.branch")
+                        RemodexIcon.label(L10n.string("No branches found"), systemName: "arrow.triangle.branch")
                     } description: {
                         Text("Try a different search or refresh the branch list.")
                     }
@@ -381,7 +385,7 @@ struct TurnGitBranchPickerSheet: View {
                             onCreateBranch(suggestedCreateBranchName)
                             dismiss()
                         } label: {
-                            Label("Create and checkout '\(suggestedCreateBranchName)'", systemImage: "plus")
+                            Label(L10n.format("Create and checkout '%@'", String(describing: suggestedCreateBranchName)), systemImage: "plus")
                         }
                         .disabled(isLoading || isSwitching)
                     }
@@ -404,7 +408,7 @@ struct TurnGitBranchPickerSheet: View {
                     if isSwitching {
                         Text("Switching...")
                     } else {
-                        Text(isLoading ? "Refreshing..." : "Reload branch list")
+                        Text(isLoading ? "Refreshing..." : L10n.string("Reload branch list"))
                     }
                 }
                 .disabled(isLoading || isSwitching)
@@ -425,6 +429,8 @@ struct TurnGitBranchPickerSheet: View {
 
 // Reuses the same row styling for both branch-switching and base-branch selection.
 private struct TurnGitBranchOptionRow: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let branch: String
     let isSelected: Bool
     let isDefault: Bool
@@ -433,6 +439,7 @@ private struct TurnGitBranchOptionRow: View {
     let isDisabled: Bool
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(branch)
@@ -442,10 +449,10 @@ private struct TurnGitBranchOptionRow: View {
 
                 HStack(spacing: 4) {
                     if isCurrent {
-                        TurnGitBranchBadge(title: "Current")
+                        TurnGitBranchBadge(title: L10n.string("Current"))
                     }
                     if isDefault {
-                        TurnGitBranchBadge(title: "Default")
+                        TurnGitBranchBadge(title: L10n.string("Default"))
                     }
                     if let checkedOutBadgeTitle {
                         TurnGitBranchBadge(title: checkedOutBadgeTitle)
@@ -467,9 +474,12 @@ private struct TurnGitBranchOptionRow: View {
 }
 
 private struct TurnGitBranchBadge: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
 
     var body: some View {
+        let _ = _localizationLocale
         Text(title)
             .font(AppFont.mono(.caption2))
             .foregroundStyle(.secondary)

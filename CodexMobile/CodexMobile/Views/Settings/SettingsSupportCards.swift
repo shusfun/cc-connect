@@ -7,18 +7,21 @@
 import SwiftUI
 
 struct SettingsAboutCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let onShowHowItWorks: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         SettingsCard(
-            title: "About",
-            footer: "Chats are end-to-end encrypted between your iPhone and paired device."
+            title: L10n.string("About"),
+            footer: L10n.string("Chats are end-to-end encrypted between your iPhone and paired device.")
         ) {
             Button {
                 HapticFeedback.shared.triggerImpactFeedback(style: .light)
                 onShowHowItWorks()
             } label: {
-                SettingsLinkRow(title: "How Remodex Works") {
+                SettingsLinkRow(title: L10n.string("How Remodex Works")) {
                     RemodexIcon.image(systemName: "info.circle")
                 }
             }
@@ -27,11 +30,15 @@ struct SettingsAboutCard: View {
 }
 
 struct SettingsTrustedComputerCard: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let presentation: CodexTrustedPairPresentation
     let connectionStatusLabel: String
+    let isConnected: Bool
     let onEditName: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 RemodexIcon.image(systemName: "laptopcomputer", size: 18, weight: .semibold)
@@ -75,7 +82,7 @@ struct SettingsTrustedComputerCard: View {
             HStack(spacing: 8) {
                 SettingsStatusPill(
                     label: connectionStatusLabel,
-                    tint: connectionStatusLabel == "Connected" ? .green : .secondary
+                    tint: isConnected ? .green : .secondary
                 )
 
                 if let title = compactTitle {
@@ -99,6 +106,8 @@ struct SettingsTrustedComputerCard: View {
 }
 
 struct SettingsComputerNameSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Binding var nickname: String
     let currentName: String
     let systemName: String
@@ -107,6 +116,7 @@ struct SettingsComputerNameSheet: View {
     @State private var draftNickname = ""
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {

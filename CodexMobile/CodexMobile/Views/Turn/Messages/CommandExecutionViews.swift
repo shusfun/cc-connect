@@ -57,7 +57,7 @@ nonisolated struct AssistantMarkdownImageReference: Identifiable, Equatable {
 
     var displayTitle: String {
         let trimmedAlt = altText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedAlt.isEmpty ? "Image" : trimmedAlt
+        return trimmedAlt.isEmpty ? L10n.string("Image") : trimmedAlt
     }
 
     var isTemporaryScreenshotImage: Bool {
@@ -363,7 +363,7 @@ nonisolated enum AssistantMarkdownImageReferenceParser {
         }
 
         let basename = (match.path as NSString).lastPathComponent
-        return basename.isEmpty ? "Image" : basename
+        return basename.isEmpty ? L10n.string("Image") : basename
     }
 }
 
@@ -591,6 +591,8 @@ enum CommandOutputImageReferenceParser {
 // MARK: - Card Body
 
 struct CommandExecutionCardBody: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let command: String
     let statusLabel: String
     let accent: CommandExecutionStatusAccent
@@ -619,6 +621,7 @@ struct CommandExecutionCardBody: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 6) {
             RemodexIcon.image(
                 systemName: iconSystemName,
@@ -680,44 +683,44 @@ enum CommandHumanizer {
         switch tool {
         case "cat", "nl", "head", "tail", "sed", "less", "more":
             return Info(
-                verb: isRunning ? "Reading" : "Read",
+                verb: isRunning ? L10n.string("Reading") : L10n.string("Read"),
                 target: lastPathComponents(from: args, fallback: "file")
             )
         case "rg", "grep", "ag", "ack":
             return Info(
-                verb: isRunning ? "Searching" : "Searched",
+                verb: isRunning ? L10n.string("Searching") : L10n.string("Searched"),
                 target: searchSummary(from: args)
             )
         case "ls":
             return Info(
-                verb: isRunning ? "Listing" : "Listed",
+                verb: isRunning ? L10n.string("Listing") : L10n.string("Listed"),
                 target: lastPathComponents(from: args, fallback: "directory")
             )
         case "find", "fd":
             return Info(
-                verb: isRunning ? "Finding" : "Found",
+                verb: isRunning ? L10n.string("Finding") : L10n.string("Found"),
                 target: lastPathComponents(from: args, fallback: "files")
             )
         case "mkdir":
             return Info(
-                verb: isRunning ? "Creating" : "Created",
+                verb: isRunning ? L10n.string("Creating") : L10n.string("Created"),
                 target: lastPathComponents(from: args, fallback: "directory")
             )
         case "rm":
             return Info(
-                verb: isRunning ? "Removing" : "Removed",
+                verb: isRunning ? L10n.string("Removing") : L10n.string("Removed"),
                 target: lastPathComponents(from: args, fallback: "file")
             )
         case "cp", "mv":
             return Info(
-                verb: isRunning ? (tool == "cp" ? "Copying" : "Moving") : (tool == "cp" ? "Copied" : "Moved"),
+                verb: isRunning ? (tool == "cp" ? L10n.string("Copying") : L10n.string("Moving")) : (tool == "cp" ? L10n.string("Copied") : L10n.string("Moved")),
                 target: lastPathComponents(from: args, fallback: "file")
             )
         case "git":
             return gitInfo(args, isRunning: isRunning)
         default:
             return Info(
-                verb: isRunning ? "Running" : "Ran",
+                verb: isRunning ? L10n.string("Running") : L10n.string("Ran"),
                 target: command
             )
         }
@@ -921,20 +924,20 @@ enum CommandHumanizer {
         let sub = parts.first.map(String.init) ?? ""
 
         switch sub {
-        case "status": return Info(verb: isRunning ? "Checking" : "Checked", target: "git status")
-        case "diff":   return Info(verb: isRunning ? "Comparing" : "Compared", target: "changes")
-        case "log":    return Info(verb: isRunning ? "Viewing" : "Viewed", target: "git log")
-        case "add":    return Info(verb: isRunning ? "Staging" : "Staged", target: "changes")
-        case "commit": return Info(verb: isRunning ? "Committing" : "Committed", target: "changes")
-        case "push":   return Info(verb: isRunning ? "Pushing" : "Pushed", target: "to remote")
-        case "pull":   return Info(verb: isRunning ? "Pulling" : "Pulled", target: "from remote")
+        case "status": return Info(verb: isRunning ? L10n.string("Checking") : L10n.string("Checked"), target: "git status")
+        case "diff":   return Info(verb: isRunning ? L10n.string("Comparing") : L10n.string("Compared"), target: "changes")
+        case "log":    return Info(verb: isRunning ? L10n.string("Viewing") : L10n.string("Viewed"), target: "git log")
+        case "add":    return Info(verb: isRunning ? L10n.string("Staging") : L10n.string("Staged"), target: "changes")
+        case "commit": return Info(verb: isRunning ? L10n.string("Committing") : L10n.string("Committed"), target: "changes")
+        case "push":   return Info(verb: isRunning ? L10n.string("Pushing") : L10n.string("Pushed"), target: L10n.string("to remote"))
+        case "pull":   return Info(verb: isRunning ? L10n.string("Pulling") : L10n.string("Pulled"), target: L10n.string("from remote"))
         case "checkout", "switch":
             let branch = parts.count > 1
                 ? String(parts[1]).split(separator: " ").last.map(String.init) ?? ""
                 : ""
-            return Info(verb: isRunning ? "Switching to" : "Switched to", target: branch.isEmpty ? "branch" : branch)
+            return Info(verb: isRunning ? L10n.string("Switching to") : L10n.string("Switched to"), target: branch.isEmpty ? "branch" : branch)
         default:
-            return Info(verb: isRunning ? "Running" : "Ran", target: "git " + args)
+            return Info(verb: isRunning ? L10n.string("Running") : L10n.string("Ran"), target: "git " + args)
         }
     }
 }
@@ -942,6 +945,8 @@ enum CommandHumanizer {
 // MARK: - Detail Sheet
 
 struct CommandExecutionDetailSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let status: CommandExecutionStatusModel
     let details: CommandExecutionDetails?
     @Environment(\.dismiss) private var dismiss
@@ -949,6 +954,7 @@ struct CommandExecutionDetailSheet: View {
     private let commandAccent = CommandExecutionStatusAccent.running.color
 
     var body: some View {
+        let _ = _localizationLocale
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 commandSection
@@ -964,7 +970,7 @@ struct CommandExecutionDetailSheet: View {
 
     private var commandSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            RemodexIcon.label("Command", systemName: "terminal.fill")
+            RemodexIcon.label(L10n.string("Command"), systemName: "terminal.fill")
                 .font(AppFont.mono(.caption))
                 .foregroundStyle(commandAccent)
 
@@ -983,19 +989,19 @@ struct CommandExecutionDetailSheet: View {
     private var metadataSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let cwd = details?.cwd, !cwd.isEmpty {
-                metadataRow(label: "Directory", value: cwd)
+                metadataRow(label: L10n.string("Directory"), value: cwd)
             }
             if let exitCode = details?.exitCode {
                 metadataRow(
-                    label: "Exit code",
+                    label: L10n.string("Exit code"),
                     value: "\(exitCode)",
                     valueColor: exitCode == 0 ? .green : .red
                 )
             }
             if let durationMs = details?.durationMs {
-                metadataRow(label: "Duration", value: formattedDuration(durationMs))
+                metadataRow(label: L10n.string("Duration"), value: formattedDuration(durationMs))
             }
-            metadataRow(label: "Status", value: status.statusLabel, valueColor: status.accent.color)
+            metadataRow(label: L10n.string("Status"), value: status.statusLabel, valueColor: status.accent.color)
         }
     }
 
@@ -1022,7 +1028,7 @@ struct CommandExecutionDetailSheet: View {
                 HStack(spacing: 6) {
                     RemodexIcon.image(systemName: isOutputExpanded ? "chevron.down" : "chevron.right")
                         .font(AppFont.system(size: 10, weight: .semibold))
-                    Text("Output (last \(CommandExecutionDetails.maxOutputLines) lines)")
+                    Text(L10n.format("Output (last %@ lines)", String(describing: CommandExecutionDetails.maxOutputLines)))
                         .font(AppFont.mono(.caption))
                 }
                 .foregroundStyle(.secondary)

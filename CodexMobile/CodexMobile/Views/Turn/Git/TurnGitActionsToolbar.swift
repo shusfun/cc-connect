@@ -57,6 +57,8 @@ extension TurnGitActionKind {
 }
 
 struct TurnGitActionsToolbarButton: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let isEnabled: Bool
     let disabledActions: Set<TurnGitActionKind>
     let isRunningAction: Bool
@@ -85,29 +87,30 @@ struct TurnGitActionsToolbarButton: View {
     private var syncStatusAccessibilityValue: String? {
         switch gitSyncState {
         case "not_initialized":
-            return "Git is not initialized"
+            return L10n.string("Git is not initialized")
         case "up_to_date":
-            return "Repository up to date"
+            return L10n.string("Repository up to date")
         case "ahead_only":
-            return "Local branch ahead of remote"
+            return L10n.string("Local branch ahead of remote")
         case "behind_only":
-            return "Remote branch ahead of local branch"
+            return L10n.string("Remote branch ahead of local branch")
         case "diverged":
-            return "Local and remote branches diverged"
+            return L10n.string("Local and remote branches diverged")
         case "dirty":
-            return "Local repository has uncommitted changes"
+            return L10n.string("Local repository has uncommitted changes")
         case "dirty_and_behind":
-            return "Local changes exist and remote branch moved ahead"
+            return L10n.string("Local changes exist and remote branch moved ahead")
         case "no_upstream":
-            return "Branch not published yet"
+            return L10n.string("Branch not published yet")
         case "detached_head":
-            return "Current branch unavailable"
+            return L10n.string("Current branch unavailable")
         default:
             return nil
         }
     }
 
     var body: some View {
+        let _ = _localizationLocale
         UIKitGitActionsMenuButton(
             isEnabled: isEnabled,
             disabledActions: disabledActions,
@@ -137,7 +140,7 @@ struct TurnGitActionsToolbarButton: View {
         .contentShape(Circle())
         .adaptiveToolbarItem(if: usesToolbarChrome, in: Circle())
         .accessibilityLabel("Git actions")
-        .accessibilityValue(loadingTitle ?? syncStatusAccessibilityValue ?? "Repository status unavailable")
+        .accessibilityValue(loadingTitle ?? syncStatusAccessibilityValue ?? L10n.string("Repository status unavailable"))
     }
 
     private let triggerIconSize: CGFloat = 24
@@ -265,7 +268,7 @@ private struct UIKitGitActionsMenuButton: UIViewRepresentable {
 
         func buildMenu() -> UIMenu {
             if snapshot.gitSyncState == "not_initialized" {
-                let setup = UIMenu(title: "Setup", options: .displayInline, children: [
+                let setup = UIMenu(title: L10n.string("Setup"), options: .displayInline, children: [
                     makeAction(for: .initialize),
                 ])
                 return UIMenu(title: "", children: [setup])
@@ -277,14 +280,14 @@ private struct UIKitGitActionsMenuButton: UIViewRepresentable {
             // so the spinner has a home and the section doesn't pop in late.
             if snapshot.onTapRepoDiff != nil {
                 sections.append(
-                    UIMenu(title: "Changes", options: .displayInline, children: [
+                    UIMenu(title: L10n.string("Changes"), options: .displayInline, children: [
                         changesElement(),
                     ])
                 )
             }
 
             sections.append(
-                UIMenu(title: "Write", options: .displayInline, children: [
+                UIMenu(title: L10n.string("Write"), options: .displayInline, children: [
                     makeAction(for: .commit),
                     makeAction(for: .push),
                     makeAction(for: .commitAndPush),
@@ -294,7 +297,7 @@ private struct UIKitGitActionsMenuButton: UIViewRepresentable {
             )
 
             sections.append(
-                UIMenu(title: "Update", options: .displayInline, children: [
+                UIMenu(title: L10n.string("Update"), options: .displayInline, children: [
                     makeAction(for: .syncNow),
                 ])
             )
@@ -308,7 +311,7 @@ private struct UIKitGitActionsMenuButton: UIViewRepresentable {
                 // repo (state present), emit the resolved row immediately —
                 // never park a spinner when we already know the answer.
                 return resolvedChangesElements().first
-                    ?? makePlaceholderChangesRow(title: "Changes unavailable", systemImage: "exclamationmark.circle")
+                    ?? makePlaceholderChangesRow(title: L10n.string("Changes unavailable"), systemImage: "exclamationmark.circle")
             }
 
             // Deferred path: gitSyncState == nil means we're still waiting for
@@ -333,10 +336,10 @@ private struct UIKitGitActionsMenuButton: UIViewRepresentable {
         // the deferred-element spinner is never left hanging.
         private func resolvedChangesElements() -> [UIMenuElement] {
             guard let totals = snapshot.repoDiffTotals else {
-                return [makePlaceholderChangesRow(title: "Changes unavailable", systemImage: "exclamationmark.circle")]
+                return [makePlaceholderChangesRow(title: L10n.string("Changes unavailable"), systemImage: "exclamationmark.circle")]
             }
             if totals.additions == 0, totals.deletions == 0, totals.binaryFiles == 0 {
-                return [makePlaceholderChangesRow(title: "No changes", systemImage: "checkmark.circle")]
+                return [makePlaceholderChangesRow(title: L10n.string("No changes"), systemImage: "checkmark.circle")]
             }
             return [makeChangesAction(totals: totals)]
         }

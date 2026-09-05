@@ -63,10 +63,10 @@ extension CodexService {
     func moveThreadToProjectPath(threadId: String, projectPath: String) async throws -> CodexThread {
         let normalizedThreadId = normalizedInterruptIdentifier(threadId) ?? threadId
         guard let normalizedProjectPath = CodexThreadStartProjectBinding.normalizedProjectPath(projectPath) else {
-            throw CodexServiceError.invalidInput("A valid project path is required.")
+            throw CodexServiceError.invalidInput(L10n.string("A valid project path is required."))
         }
         guard var currentThread = thread(for: normalizedThreadId) else {
-            throw CodexServiceError.invalidInput("Thread not found.")
+            throw CodexServiceError.invalidInput(L10n.string("Thread not found."))
         }
 
         let previousThread = currentThread

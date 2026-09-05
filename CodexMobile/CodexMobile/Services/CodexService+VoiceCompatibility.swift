@@ -42,6 +42,6 @@ extension CodexService {
 
     private func normalizedVoiceErrorMessage(_ error: Error) -> String {
         let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        return message.isEmpty ? "设备端语音转写失败。" : message
+        return message.isEmpty ? L10n.string("设备端语音转写失败。") : message
     }
 }

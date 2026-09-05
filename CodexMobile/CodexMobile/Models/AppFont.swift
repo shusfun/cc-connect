@@ -20,7 +20,7 @@ enum AppFont {
 
         var title: String {
             switch self {
-            case .system: return "System"
+            case .system: return L10n.string("System")
             case .systemRounded: return "SF Pro Rounded"
             case .geist: return "Geist"
             case .geistMono: return "Geist Mono"
@@ -31,15 +31,15 @@ enum AppFont {
         var subtitle: String {
             switch self {
             case .system:
-                return "Use the native iOS font for regular text. Code stays monospaced."
+                return L10n.string("Use the native iOS font for regular text. Code stays monospaced.")
             case .systemRounded:
-                return "Use the rounded native iOS font for regular text. Code stays monospaced."
+                return L10n.string("Use the rounded native iOS font for regular text. Code stays monospaced.")
             case .geist:
-                return "Use Geist for regular text. Code stays monospaced."
+                return L10n.string("Use Geist for regular text. Code stays monospaced.")
             case .geistMono:
-                return "Use Geist Mono for regular text and code."
+                return L10n.string("Use Geist Mono for regular text and code.")
             case .jetBrainsMono:
-                return "Use JetBrains Mono for regular text and code."
+                return L10n.string("Use JetBrains Mono for regular text and code.")
             }
         }
     }
@@ -491,20 +491,20 @@ enum UserBubbleColor: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .default: return "Default"
-        case .red: return "Red"
-        case .orange: return "Orange"
-        case .yellow: return "Yellow"
-        case .green: return "Green"
-        case .mint: return "Mint"
-        case .blue: return "Blue"
-        case .indigo: return "Indigo"
-        case .teal: return "Teal"
-        case .cyan: return "Cyan"
-        case .pink: return "Pink"
-        case .purple: return "Purple"
-        case .brown: return "Brown"
-        case .black: return "Primary"
+        case .default: return L10n.string("Default")
+        case .red: return L10n.string("Red")
+        case .orange: return L10n.string("Orange")
+        case .yellow: return L10n.string("Yellow")
+        case .green: return L10n.string("Green")
+        case .mint: return L10n.string("Mint")
+        case .blue: return L10n.string("Blue")
+        case .indigo: return L10n.string("Indigo")
+        case .teal: return L10n.string("Teal")
+        case .cyan: return L10n.string("Cyan")
+        case .pink: return L10n.string("Pink")
+        case .purple: return L10n.string("Purple")
+        case .brown: return L10n.string("Brown")
+        case .black: return L10n.string("Primary")
         }
     }
 

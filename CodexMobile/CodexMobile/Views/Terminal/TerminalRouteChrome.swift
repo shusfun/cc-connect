@@ -10,11 +10,14 @@ import UIKit
 // MARK: - Navigation title
 
 struct TerminalRouteTitle: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let topLine: String
     let bottomLine: String
     let theme: RemodexTerminalTheme
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(spacing: 1) {
             Text(topLine)
                 .font(AppFont.system(size: 13, weight: .bold))
@@ -40,6 +43,8 @@ struct TerminalRouteTitle: View {
 /// circle has its own native Liquid Glass material (with `.thinMaterial` fallback on iOS < 26).
 /// The scroll view spans under the fixed controls so narrow phones keep all command keys reachable.
 struct TerminalRouteAccessoryBar: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let clusters: [TerminalToolbarCluster]
     let pendingModifier: TerminalPendingModifier?
     let theme: RemodexTerminalTheme
@@ -50,6 +55,7 @@ struct TerminalRouteAccessoryBar: View {
     let onDirectionalInput: (String) -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack(alignment: .trailing) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -74,7 +80,7 @@ struct TerminalRouteAccessoryBar: View {
             HStack(spacing: 6) {
                 TerminalRouteCircleAction(
                     systemImage: "keyboard.chevron.compact.down",
-                    accessibilityLabel: "Dismiss keyboard",
+                    accessibilityLabel: L10n.string("Dismiss keyboard"),
                     theme: theme,
                     isEnabled: true,
                     action: onDismissKeyboard
@@ -114,6 +120,8 @@ struct TerminalRouteAccessoryBar: View {
 // MARK: - Armed modifier badge
 
 private struct TerminalArmedModifierBadge: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let modifier: TerminalPendingModifier
     let theme: RemodexTerminalTheme
 
@@ -122,10 +130,11 @@ private struct TerminalArmedModifierBadge: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 5) {
             RemodexIcon.image(systemName: modifier.menuSymbolName)
                 .font(.system(size: 9, weight: .bold))
-            Text("\(modifier.menuTitle.uppercased()) armed")
+            Text(L10n.format("%@ armed", String(describing: modifier.menuTitle.uppercased())))
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .tracking(0.4)
         }
@@ -147,6 +156,8 @@ private struct TerminalArmedModifierBadge: View {
 /// between adjacent keys. Touch targets are full-height segments so the cluster reads as one
 /// pill from the screenshot's reference design but each segment still gets independent taps.
 private struct TerminalRouteKeyCluster: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let actions: [TerminalToolbarAction]
     let pendingModifier: TerminalPendingModifier?
     let theme: RemodexTerminalTheme
@@ -159,6 +170,7 @@ private struct TerminalRouteKeyCluster: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 0) {
             ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
                 TerminalRouteKeySegment(
@@ -186,6 +198,8 @@ private struct TerminalRouteKeyCluster: View {
 // MARK: - Single key segment
 
 private struct TerminalRouteKeySegment: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let action: TerminalToolbarAction
     let isActive: Bool
     let theme: RemodexTerminalTheme
@@ -212,6 +226,7 @@ private struct TerminalRouteKeySegment: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         if action.isModifier {
             modifierSegment
         } else {
@@ -245,7 +260,7 @@ private struct TerminalRouteKeySegment: View {
                 }
             )
         }
-        .accessibilityLabel("\(action.label) modifier")
+        .accessibilityLabel(L10n.format("%@ modifier", String(describing: action.label)))
         .accessibilityHint("Tap to arm. Long-press to choose between cmd, shift, alt, and ctrl.")
     }
 
@@ -287,6 +302,8 @@ private struct TerminalRouteKeySegment: View {
 // MARK: - Circle action (glass)
 
 private struct TerminalRouteCircleAction: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let systemImage: String
     let accessibilityLabel: String
     let theme: RemodexTerminalTheme
@@ -304,6 +321,7 @@ private struct TerminalRouteCircleAction: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         Button {
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
             action()
@@ -349,10 +367,10 @@ private enum TerminalDPadDirection {
 
     var accessibilityLabel: String {
         switch self {
-        case .up: return "Up"
-        case .down: return "Down"
-        case .left: return "Left"
-        case .right: return "Right"
+        case .up: return L10n.string("Up")
+        case .down: return L10n.string("Down")
+        case .left: return L10n.string("Left")
+        case .right: return L10n.string("Right")
         }
     }
 
@@ -367,6 +385,8 @@ private enum TerminalDPadDirection {
 }
 
 private struct TerminalRouteDPadControl: View {
+    @Environment(\.locale) private var _localizationLocale
+
     private static let controlSize: CGFloat = 56
     private static let deadZoneRadius: CGFloat = 9
     private static let centerCircleSize: CGFloat = 18
@@ -390,6 +410,7 @@ private struct TerminalRouteDPadControl: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         GeometryReader { proxy in
             ZStack {
                 Circle()
@@ -521,12 +542,15 @@ private struct TerminalRouteDPadControl: View {
 }
 
 private struct DPadArrows: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let activeDirection: TerminalDPadDirection?
     let foreground: Color
     let activeForeground: Color
     let accent: Color
 
     var body: some View {
+        let _ = _localizationLocale
         ZStack {
             arrow(.up).offset(y: -16)
             arrow(.down).offset(y: 16)
@@ -551,12 +575,15 @@ private struct DPadArrows: View {
 // MARK: - Empty / unavailable state
 
 struct TerminalRouteUnavailableView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let title: String
     let detail: String
     let theme: RemodexTerminalTheme
     let action: () -> Void
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(spacing: 12) {
             RemodexIcon.image(systemName: "terminal")
                 .font(.system(size: 28, weight: .semibold))

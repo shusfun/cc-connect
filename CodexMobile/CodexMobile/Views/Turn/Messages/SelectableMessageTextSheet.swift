@@ -13,9 +13,9 @@ enum SelectableMessageTextSheetContentKind {
     var title: String {
         switch self {
         case .systemPlainText:
-            return "System Message"
+            return L10n.string("System Message")
         case .streamingAssistantMarkdown:
-            return "Assistant Message"
+            return L10n.string("Assistant Message")
         }
     }
 }
@@ -29,10 +29,13 @@ struct SelectableMessageTextSheetState: Identifiable {
 }
 
 struct SelectableMessageTextSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let state: SelectableMessageTextSheetState
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             ScrollView {
                 selectableContent

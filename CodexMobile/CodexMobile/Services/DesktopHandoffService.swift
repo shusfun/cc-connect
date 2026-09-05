@@ -14,9 +14,9 @@ enum DesktopHandoffError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .disconnected:
-            return "Not connected to your paired device."
+            return L10n.string("Not connected to your paired device.")
         case .invalidResponse:
-            return "The desktop app did not return a valid response."
+            return L10n.string("The desktop app did not return a valid response.")
         case .bridgeError(let code, let message):
             return userMessage(for: code, fallback: message)
         }
@@ -135,7 +135,7 @@ final class DesktopHandoffService {
             return nil
         }
 
-        return "\(relayURL)/\(sessionId)"
+        return try? RelayDeviceAccess.sessionURL(relay: relayURL, sessionId: sessionId)
     }
 
     // Prefers a freshly resolved trusted session so display wake still works when the saved live session is gone.
@@ -146,7 +146,7 @@ final class DesktopHandoffService {
                 guard let relayURL = codex.normalizedRelayURL ?? codex.preferredWakeRelayURL else {
                     return nil
                 }
-                return "\(relayURL)/\(resolved.sessionId)"
+                return try RelayDeviceAccess.sessionURL(relay: relayURL, sessionId: resolved.sessionId)
             } catch let error as CodexTrustedSessionResolveError {
                 if let savedReconnectURL {
                     if case .rePairRequired = error {
@@ -169,27 +169,27 @@ private extension DesktopHandoffError {
     static func userMessage(for code: String?, fallback: String?) -> String {
         switch code {
         case "missing_thread_id":
-            return "This chat does not have a valid thread id yet."
+            return L10n.string("This chat does not have a valid thread id yet.")
         case "unsupported_platform":
-            return "Desktop app handoff works only when the bridge is running on a supported desktop platform."
+            return L10n.string("Desktop app handoff works only when the bridge is running on a supported desktop platform.")
         case "handoff_failed":
-            return fallback ?? "Could not relaunch Codex.app on this device."
+            return fallback ?? L10n.string("Could not relaunch Codex.app on this device.")
         case "wake_display_failed":
-            return fallback ?? "Could not wake this device's display right now."
+            return fallback ?? L10n.string("Could not wake this device's display right now.")
         case "saved_pair_required":
-            return fallback ?? "Reconnect to your paired device or scan a new QR code first."
+            return fallback ?? L10n.string("Reconnect to your paired device or scan a new QR code first.")
         case "unsupported_bridge_preferences":
-            return fallback ?? "Update the Remodex bridge on your device to sync this setting."
+            return fallback ?? L10n.string("Update the Remodex bridge on your device to sync this setting.")
         case "invalid_bridge_preferences":
-            return fallback ?? "The device bridge rejected this setting update."
+            return fallback ?? L10n.string("The device bridge rejected this setting update.")
         case "bridge_preferences_persist_failed":
-            return fallback ?? "The device bridge could not save this setting."
+            return fallback ?? L10n.string("The device bridge could not save this setting.")
         case "unsupported_bridge_update":
-            return fallback ?? "Update the Remodex bridge on your device before updating it from iPhone."
+            return fallback ?? L10n.string("Update the Remodex bridge on your device before updating it from iPhone.")
         case "bridge_update_failed":
-            return fallback ?? "The device bridge could not update itself."
+            return fallback ?? L10n.string("The device bridge could not update itself.")
         default:
-            return fallback ?? "Could not continue this chat on the desktop app."
+            return fallback ?? L10n.string("Could not continue this chat on the desktop app.")
         }
     }
 }

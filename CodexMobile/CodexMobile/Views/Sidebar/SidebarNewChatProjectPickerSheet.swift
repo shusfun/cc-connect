@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct SidebarNewChatProjectPickerSheet: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let choices: [SidebarProjectChoice]
     var showsWithoutProjectOption = true
     var showsWorktreeOptions = true
@@ -19,6 +21,7 @@ struct SidebarNewChatProjectPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let _ = _localizationLocale
         NavigationStack {
             List {
                 if !choices.isEmpty {
@@ -61,7 +64,7 @@ struct SidebarNewChatProjectPickerSheet: View {
                                                 .foregroundStyle(.secondary)
                                         ),
                                         title: choice.label,
-                                        subtitle: "Detached worktree from the default branch."
+                                        subtitle: L10n.string("Detached worktree from the default branch.")
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -88,8 +91,8 @@ struct SidebarNewChatProjectPickerSheet: View {
                                     .font(AppFont.body(weight: .medium))
                                     .foregroundStyle(.secondary)
                             ),
-                            title: "Add Local Folder",
-                            subtitle: "Browse or create a folder on your device."
+                            title: L10n.string("Add Local Folder"),
+                            subtitle: L10n.string("Browse or create a folder on your device.")
                         )
                     }
                     .buttonStyle(.plain)
@@ -112,8 +115,8 @@ struct SidebarNewChatProjectPickerSheet: View {
                                         .font(AppFont.body(weight: .medium))
                                         .foregroundStyle(.secondary)
                                 ),
-                                title: "Quick Chat",
-                                subtitle: "Start a chat without a working directory."
+                                title: L10n.string("Quick Chat"),
+                                subtitle: L10n.string("Start a chat without a working directory.")
                             )
                         }
                         .buttonStyle(.plain)

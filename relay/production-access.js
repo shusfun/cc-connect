@@ -1,6 +1,7 @@
-const { readFileSync } = require('node:fs');
+const { readFileSync, existsSync } = require('node:fs');
 const { ControlStore, fail } = require('./control-store');
 const { createControlHTTP } = require('./control-http');
+const { beginDiagnostic } = require('./diagnostics');
 
 function createProductionAccess({ store, setupToken, fetchImpl, env = process.env } = {}) {
   const ownsStore = !store;
@@ -19,11 +20,18 @@ function createProductionAccess({ store, setupToken, fetchImpl, env = process.en
       catch { connection.ws.close(4003, 'access_revoked'); }
     }
   }
-  const control = createControlHTTP({ store, setupToken, fetchImpl, onRevoked: revokeConnections });
+  const maintenance = () => env.REMODEX_MAINTENANCE_FILE && existsSync(env.REMODEX_MAINTENANCE_FILE);
+  const control = createControlHTTP({ store, setupToken, fetchImpl, onRevoked: revokeConnections,
+    updater: require('./updater-client').updaterClient(env),
+    liveStatus: () => ({ available: true, devices: [...hosts].filter(([,host]) => host.ws.readyState === 1).map(([id]) => id) }) });
   const sweep = setInterval(revokeConnections, 1000); sweep.unref();
   return {
     store,
     async route(req, res) {
+      if (req.url.startsWith('/v1/')) beginDiagnostic(req, res, new URL(req.url, 'http://localhost').pathname);
+      if (maintenance() && (req.method !== 'GET' || req.url.startsWith('/v1/control/github/'))) {
+        res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({code:'maintenance'})); return true;
+      }
       if (new URL(req.url, 'http://localhost').pathname === '/v1/access/session' && req.method === 'POST') {
         try {
           const chunks = []; let size = 0;
@@ -41,6 +49,7 @@ function createProductionAccess({ store, setupToken, fetchImpl, env = process.en
     },
     authorizeUpgrade(req) {
       const access = control.deviceAuth(req);
+      if (maintenance()) fail(503, 'maintenance');
       const pathname = new URL(req.url, 'http://localhost').pathname;
       const match = /^\/relay\/([a-zA-Z0-9-]{1,100})$/.exec(pathname);
       if (!match) fail(400, 'invalid_session');

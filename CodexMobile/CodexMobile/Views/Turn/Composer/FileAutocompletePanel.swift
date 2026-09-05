@@ -7,6 +7,8 @@
 import SwiftUI
 
 struct FileAutocompletePanel: View {
+    @Environment(\.locale) private var _localizationLocale
+
     let items: [CodexFuzzyFileMatch]
     var pluginItems: [CodexPluginMetadata] = []
     let isLoading: Bool
@@ -43,10 +45,11 @@ struct FileAutocompletePanel: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 0) {
             if items.isEmpty && pluginItems.isEmpty && !isLoading && !isLoadingPlugins {
                 let effectiveQuery = pluginQuery.isEmpty ? query : pluginQuery
-                Text("No files or plugins for @\(effectiveQuery)")
+                Text(L10n.format("No files or plugins for @%@", String(describing: effectiveQuery)))
                     .font(AppFont.footnote())
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
@@ -55,11 +58,11 @@ struct FileAutocompletePanel: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if isLoadingPlugins {
-                            loadingRow("Loading plugins...")
+                            loadingRow(L10n.string("Loading plugins..."))
                         }
 
                         if !pluginItems.isEmpty {
-                            sectionHeader("Plugins")
+                            sectionHeader(L10n.string("Plugins"))
                         }
 
                         ForEach(pluginItems) { item in
@@ -91,11 +94,11 @@ struct FileAutocompletePanel: View {
                         }
 
                         if !items.isEmpty || isLoading {
-                            sectionHeader("Files")
+                            sectionHeader(L10n.string("Files"))
                         }
 
                         if isLoading {
-                            loadingRow("Searching files...")
+                            loadingRow(L10n.string("Searching files..."))
                         }
 
                         ForEach(items) { item in

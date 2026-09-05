@@ -1,9 +1,9 @@
 services:
   relay:
-    build:
-      context: ..
-      dockerfile: relay/Dockerfile
+    image: ${REMODEX_IMAGE:?Set REMODEX_IMAGE to the verified image ID or version digest}
     container_name: remodex-relay
+    labels:
+      cn.syggu.remodex.owner: remodex
     restart: unless-stopped
     init: true
     read_only: true
@@ -18,10 +18,16 @@ services:
       REMODEX_DATABASE: /data/remodex.sqlite
       REMODEX_MASTER_KEY_FILE: /run/secrets/remodex_master_key
       REMODEX_SETUP_TOKEN_FILE: /run/secrets/remodex_setup_token
+      REMODEX_UPDATER_TOKEN_FILE: /run/secrets/updater_token
+      REMODEX_UPDATER_SOCKET: /control/updater.sock
+      REMODEX_MAINTENANCE_FILE: /update-state/maintenance
     volumes:
       - remodex-control-data:/data
       - ./secrets/master-key:/run/secrets/remodex_master_key:ro
       - ./secrets/setup-token:/run/secrets/remodex_setup_token:ro
+      - ./secrets/updater-token:/run/secrets/updater_token:ro
+      - remodex-update-control:/control:ro
+      - remodex-update-state:/update-state:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m,uid=10001,gid=10001
     healthcheck:
@@ -29,7 +35,7 @@ services:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:9820/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+        - fetch('http://127.0.0.1:9820/health').then(async r=>{if(!r.ok||await r.text()!=='{"ok":true}')process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
       timeout: 3s
       retries: 6
@@ -40,5 +46,34 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  updater:
+    image: ${REMODEX_UPDATER_IMAGE:?Set verified updater image digest}
+    container_name: remodex-updater
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    environment:
+      XDG_CACHE_HOME: /tmp/cache
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - remodex-control-data:/data
+      - remodex-update-state:/state
+      - remodex-update-control:/control
+      - /opt/remodex-relay:/deployment
+      - ./secrets/master-key:/run/secrets/master-key:ro
+      - ./secrets/updater-token:/run/secrets/updater-token:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   remodex-control-data:
+  remodex-update-state:
+  remodex-update-control:

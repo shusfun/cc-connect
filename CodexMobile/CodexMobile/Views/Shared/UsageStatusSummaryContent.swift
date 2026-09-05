@@ -13,6 +13,8 @@ struct UsageStatusRefreshControl {
 }
 
 struct UsageStatusSummaryContent: View {
+    @Environment(\.locale) private var _localizationLocale
+
     enum ContextPlacement {
         case top
         case bottom
@@ -48,6 +50,7 @@ struct UsageStatusSummaryContent: View {
     }
 
     var body: some View {
+        let _ = _localizationLocale
         VStack(alignment: .leading, spacing: 14) {
             if showsContextWindowSection && contextPlacement == .top {
                 contextSection
@@ -123,7 +126,7 @@ struct UsageStatusSummaryContent: View {
                 .font(AppFont.subheadline(weight: .semibold))
 
             metricRow(
-                label: "Context",
+                label: L10n.string("Context"),
                 value: contextValue(for: displayUsage),
                 detail: contextDetail(for: displayUsage),
                 monospace: true
@@ -168,7 +171,7 @@ struct UsageStatusSummaryContent: View {
 
                 Spacer(minLength: 12)
 
-                Text("\(row.window.remainingPercent)% left")
+                Text(L10n.format("%@%% left", String(describing: row.window.remainingPercent)))
                     .font(AppFont.mono(.callout))
                     .foregroundStyle(.primary)
 
@@ -248,12 +251,12 @@ struct UsageStatusSummaryContent: View {
     }
 
     private func contextValue(for usage: ContextWindowUsage) -> String {
-        usage.tokenLimit > 0 ? "\(usage.percentRemaining)% left" : "0 used"
+        usage.tokenLimit > 0 ? L10n.format("%@%% left", String(describing: usage.percentRemaining)) : "0 used"
     }
 
     private func contextDetail(for usage: ContextWindowUsage) -> String? {
         guard usage.tokenLimit > 0 else { return nil }
-        return "(\(compactTokenCount(usage.tokensUsed)) used / \(compactTokenCount(usage.tokenLimit)))"
+        return L10n.format("(%@ used / %@)", String(describing: compactTokenCount(usage.tokensUsed)), String(describing: compactTokenCount(usage.tokenLimit)))
     }
 
     private func groupedTokenCount(_ count: Int) -> String {
@@ -270,12 +273,15 @@ struct UsageStatusSummaryContent: View {
 
         if calendar.isDate(resetsAt, inSameDayAs: now) {
             let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            return "resets \(formatter.string(from: resetsAt))"
+            formatter.locale = L10n.locale
+            formatter.timeStyle = .short
+            return L10n.format("Resets %@", formatter.string(from: resetsAt))
         }
 
         let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM HH:mm"
-        return "resets \(formatter.string(from: resetsAt))"
+        formatter.locale = L10n.locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return L10n.format("Resets %@", formatter.string(from: resetsAt))
     }
 }

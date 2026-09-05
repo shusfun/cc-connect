@@ -25,7 +25,7 @@ extension CodexService {
         baseBranch: String? = nil
     ) async throws {
         guard let target else {
-            throw CodexServiceError.invalidInput("Choose a review target first.")
+            throw CodexServiceError.invalidInput(L10n.string("Choose a review target first."))
         }
 
         let request = ReviewStartRequest(
@@ -104,7 +104,7 @@ extension CodexService {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard let resolvedBaseBranch = normalizedBaseBranch,
                   !resolvedBaseBranch.isEmpty else {
-                throw CodexServiceError.invalidInput("Choose a base branch before starting this review.")
+                throw CodexServiceError.invalidInput(L10n.string("Choose a base branch before starting this review."))
             }
             targetObject = [
                 "type": .string("baseBranch"),
@@ -241,13 +241,13 @@ extension CodexService {
     private func reviewPromptText(target: CodexReviewTarget, baseBranch: String?) -> String {
         switch target {
         case .uncommittedChanges:
-            return "Review current changes"
+            return L10n.string("Review current changes")
         case .baseBranch:
             let trimmedBaseBranch = baseBranch?.trimmingCharacters(in: .whitespacesAndNewlines)
             if let trimmedBaseBranch, !trimmedBaseBranch.isEmpty {
-                return "Review against base branch \(trimmedBaseBranch)"
+                return L10n.format("Review against base branch %@", String(describing: trimmedBaseBranch))
             }
-            return "Review against base branch"
+            return L10n.string("Review against base branch")
         }
     }
 }

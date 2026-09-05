@@ -27,6 +27,8 @@
 import SwiftUI
 
 struct SidebarView<ConnectionEmptyStatePanel: View, ConnectionEmptyStateFooter: View>: View {
+    @Environment(\.locale) private var _localizationLocale
+
     @Environment(CodexService.self) private var codex
 
     @Binding var selectedThread: CodexThread?
@@ -68,6 +70,7 @@ struct SidebarView<ConnectionEmptyStatePanel: View, ConnectionEmptyStateFooter: 
     private var collapsedProjectGroupIDsStorage = ""
 
     var body: some View {
+        let _ = _localizationLocale
         // The header is hosted via `adaptiveTopBar` — `safeAreaBar(edge:.top)`
         // on iOS 26 (system-rendered Liquid Glass bar, same look as the chat
         // navigation bar) and `safeAreaInset(edge:.top)` with an opaque
@@ -169,7 +172,7 @@ struct SidebarView<ConnectionEmptyStatePanel: View, ConnectionEmptyStateFooter: 
             threadDeletePresented: deleteThreadPromptPresented,
             confirmDeleteThread: confirmDeletePendingThread,
             cancelDeleteThread: { threadPendingDeletion = nil },
-            errorMessage: createThreadErrorMessage ?? "Please try again.",
+            errorMessage: createThreadErrorMessage ?? L10n.string("Please try again."),
             errorPresented: errorAlertPresented,
             dismissError: { createThreadErrorMessage = nil }
         )
@@ -311,7 +314,7 @@ struct SidebarView<ConnectionEmptyStatePanel: View, ConnectionEmptyStateFooter: 
             } catch {
                 guard let message = codex.userFacingTurnErrorMessageForFooter(from: error) else { return }
                 codex.lastErrorMessage = message
-                createThreadErrorMessage = message.isEmpty ? "Unable to create a chat right now." : message
+                createThreadErrorMessage = message.isEmpty ? L10n.string("Unable to create a chat right now.") : message
             }
         }
     }
@@ -337,7 +340,7 @@ struct SidebarView<ConnectionEmptyStatePanel: View, ConnectionEmptyStateFooter: 
             } catch {
                 guard let message = codex.userFacingTurnErrorMessageForFooter(from: error) else { return }
                 codex.lastErrorMessage = message
-                createThreadErrorMessage = message.isEmpty ? "Unable to create a worktree chat right now." : message
+                createThreadErrorMessage = message.isEmpty ? L10n.string("Unable to create a worktree chat right now.") : message
             }
         }
     }
@@ -557,18 +560,18 @@ struct SidebarView<ConnectionEmptyStatePanel: View, ConnectionEmptyStateFooter: 
     private var emptySidebarTitle: String {
         switch selectedContentScope {
         case .projects:
-            return "No project chats"
+            return L10n.string("No project chats")
         case .chats:
-            return "No chats"
+            return L10n.string("No chats")
         }
     }
 
     private var emptySidebarFilterTitle: String {
         switch selectedContentScope {
         case .projects:
-            return "No matching projects"
+            return L10n.string("No matching projects")
         case .chats:
-            return "No matching chats"
+            return L10n.string("No matching chats")
         }
     }
 
@@ -841,7 +844,10 @@ private struct SidebarHeaderBackdropModifier: ViewModifier {
 }
 
 private struct SidebarThreadsInlineLoadingView: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
@@ -904,7 +910,7 @@ private struct SidebarPromptsModifier: ViewModifier {
                 Text("All active chats in this project will be archived.")
             }
             .alert(
-                "Remove \"\(projectDeleteTitle)\" from this phone?",
+                L10n.format("Remove \"%@\" from this phone?", String(describing: projectDeleteTitle)),
                 isPresented: projectDeletePresented
             ) {
                 Button("Remove from Phone", role: .destructive, action: confirmDeleteProjectGroup)
@@ -913,7 +919,7 @@ private struct SidebarPromptsModifier: ViewModifier {
                 Text("Chats for this project will be deleted only from Remodex on this phone. Nothing is removed from your device or Codex observer.")
             }
             .alert(
-                "Remove \"\(threadDeleteTitle)\" from this phone?",
+                L10n.format("Remove \"%@\" from this phone?", String(describing: threadDeleteTitle)),
                 isPresented: threadDeletePresented
             ) {
                 Button("Remove from Phone", role: .destructive, action: confirmDeleteThread)

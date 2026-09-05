@@ -7,7 +7,10 @@
 import SwiftUI
 
 struct OnboardingFeaturesPage: View {
+    @Environment(\.locale) private var _localizationLocale
+
     var body: some View {
+        let _ = _localizationLocale
         VStack(spacing: 0) {
             Spacer()
 
@@ -28,32 +31,32 @@ struct OnboardingFeaturesPage: View {
                     featureRow(
                         icon: "hare.fill",
                         color: .yellow,
-                        title: "Fast mode",
-                        subtitle: "Lower-latency turns for quick interactions"
+                        title: L10n.string("Fast mode"),
+                        subtitle: L10n.string("Lower-latency turns for quick interactions")
                     )
                     featureRow(
                         icon: "arrow.triangle.branch",
                         color: .green,
-                        title: "Git from your phone",
-                        subtitle: "Commit, push, pull, and switch branches"
+                        title: L10n.string("Git from your phone"),
+                        subtitle: L10n.string("Commit, push, pull, and switch branches")
                     )
                     featureRow(
                         icon: "lock.shield.fill",
                         color: .cyan,
-                        title: "End-to-end encrypted",
-                        subtitle: "The relay never sees your prompts or code"
+                        title: L10n.string("End-to-end encrypted"),
+                        subtitle: L10n.string("The relay never sees your prompts or code")
                     )
                     featureRow(
                         icon: "waveform",
                         color: .purple,
-                        title: "Voice mode",
-                        subtitle: "Talk to Codex with speech-to-text"
+                        title: L10n.string("Voice mode"),
+                        subtitle: L10n.string("Talk to Codex with speech-to-text")
                     )
                     featureRow(
                         icon: "point.3.connected.trianglepath.dotted",
                         color: .orange,
-                        title: "Subagents, skills and /commands",
-                        subtitle: "Spawn and monitor parallel agents from your phone"
+                        title: L10n.string("Subagents, skills and /commands"),
+                        subtitle: L10n.string("Spawn and monitor parallel agents from your phone")
                     )
                 }
                 .padding(.horizontal, 4)

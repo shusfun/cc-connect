@@ -149,7 +149,7 @@ extension CodexService {
                 try? await sendErrorResponse(
                     id: requestID,
                     code: -32601,
-                    message: "Unsupported request method: \(method)"
+                    message: L10n.format("Unsupported request method: %@", String(describing: method))
                 )
             }
         }
@@ -880,7 +880,7 @@ extension CodexService {
             if !shouldSuppressRuntimeMessageInChat(turnFailureMessage) {
                 appendSystemMessage(
                     threadId: threadId,
-                    text: "Turn error: \(userFacingFailureMessage)",
+                    text: L10n.format("Turn error: %@", String(describing: userFacingFailureMessage)),
                     turnId: completedTurnID
                 )
             }
@@ -921,7 +921,7 @@ extension CodexService {
         if let threadId = resolveThreadID(from: paramsObject, turnIdHint: turnId) {
             let resolvedTurnID = turnId ?? activeTurnIdByThread[threadId]
             if !shouldSuppressErrorMessage {
-                appendSystemMessage(threadId: threadId, text: "Error: \(userFacingErrorMessage)", turnId: turnId)
+                appendSystemMessage(threadId: threadId, text: L10n.format("Error: %@", String(describing: userFacingErrorMessage)), turnId: turnId)
             }
             recordTurnTerminalState(threadId: threadId, turnId: resolvedTurnID, state: .failed)
             noteTurnFinished(threadId: threadId, turnId: resolvedTurnID)
@@ -2123,9 +2123,9 @@ extension CodexService {
                 firstString(forKey: "file_path", in: .object(payload)),
                 firstString(forKey: "file", in: .object(payload)),
             ]) {
-                return "Read \(path)"
+                return L10n.format("Read %@", String(describing: path))
             }
-            return "Read file"
+            return L10n.string("Read file")
 
         case "search":
             if let query = firstNonEmptyString([
@@ -2133,18 +2133,18 @@ extension CodexService {
                 firstString(forKey: "pattern", in: .object(payload)),
                 firstString(forKey: "regex", in: .object(payload)),
             ]) {
-                return "Search \(query)"
+                return L10n.format("Search %@", String(describing: query))
             }
-            return "Search files"
+            return L10n.string("Search files")
 
         case "list_files":
             if let path = firstNonEmptyString([
                 firstString(forKey: "path", in: .object(payload)),
                 firstString(forKey: "cwd", in: .object(payload)),
             ]) {
-                return "List files \(path)"
+                return L10n.format("List files %@", String(describing: path))
             }
-            return "List files"
+            return L10n.string("List files")
 
         default:
             return nil
@@ -2419,7 +2419,7 @@ extension CodexService {
                 itemObject["review"]?.stringValue,
                 firstString(forKey: "review", in: .object(itemObject)),
             ]) ?? "changes"
-            body = "Reviewing \(reviewLabel)..."
+            body = L10n.format("Reviewing %@...", String(describing: reviewLabel))
         case "contextcompaction":
             kind = .commandExecution
             body = isCompleted ? "Context compacted" : "Compacting context…"
@@ -2732,7 +2732,7 @@ extension CodexService {
     private func decodeFileChangeItemBody(_ itemObject: IncomingParamsObject) -> String {
         let status = itemObject["status"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedStatus = (status?.isEmpty == false) ? status! : "inProgress"
-        var sections: [String] = ["Status: \(normalizedStatus)"]
+        var sections: [String] = [L10n.format("Status: %@", String(describing: normalizedStatus))]
 
         let changes = decodeFileChangeEntries(from: itemObject["changes"])
         let renderedChanges = changes.map { entry -> String in
