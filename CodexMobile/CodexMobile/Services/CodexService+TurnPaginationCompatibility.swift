@@ -95,8 +95,8 @@ extension CodexService {
         }
 
         bridgeUpdatePrompt = CodexBridgeUpdatePrompt(
-            title: "请更新 Mac 上的 Remodex.app",
-            message: "当前 Mac App 内置的 Bridge 或 Codex 不支持增量任务读取。更新 Mac App 和 Codex 后重新连接。",
+            title: L10n.string("请更新 Mac 上的 Remodex.app"),
+            message: L10n.string("当前 Mac App 内置的 Bridge 或 Codex 不支持增量任务读取。更新 Mac App 和 Codex 后重新连接。"),
             command: nil
         )
     }

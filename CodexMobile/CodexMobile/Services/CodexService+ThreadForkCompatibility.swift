@@ -56,8 +56,8 @@ extension CodexService {
 private extension CodexService {
     var threadForkBridgeUpdatePrompt: CodexBridgeUpdatePrompt {
         CodexBridgeUpdatePrompt(
-            title: "请更新 Mac 上的 Remodex.app 以使用 /fork",
-            message: "当前 Mac App 内置的 Bridge 不支持原生任务分叉。更新 Mac App 后重新连接。",
+            title: L10n.string("请更新 Mac 上的 Remodex.app 以使用 /fork"),
+            message: L10n.string("当前 Mac App 内置的 Bridge 不支持原生任务分叉。更新 Mac App 后重新连接。"),
             command: nil
         )
     }

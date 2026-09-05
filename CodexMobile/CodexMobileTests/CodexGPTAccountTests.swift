@@ -619,7 +619,7 @@ final class CodexGPTAccountTests: XCTestCase {
         )
 
         XCTAssertThrowsError(try preflight.validate()) { error in
-            XCTAssertEqual(error.localizedDescription, "语音录音不能超过 10 MB。")
+            XCTAssertEqual(error.localizedDescription, L10n.string("语音录音不能超过 10 MB。"))
         }
     }
 
@@ -630,7 +630,7 @@ final class CodexGPTAccountTests: XCTestCase {
         )
 
         XCTAssertThrowsError(try preflight.validate()) { error in
-            XCTAssertEqual(error.localizedDescription, "语音录音不能超过 150 秒。")
+            XCTAssertEqual(error.localizedDescription, L10n.format("语音录音不能超过 %@ 秒。", "150"))
         }
     }
 
@@ -641,7 +641,7 @@ final class CodexGPTAccountTests: XCTestCase {
         )
 
         XCTAssertThrowsError(try preflight.validate()) { error in
-            XCTAssertEqual(error.localizedDescription, "语音录音中没有可识别的音频。")
+            XCTAssertEqual(error.localizedDescription, L10n.string("语音录音中没有可识别的音频。"))
         }
     }
 

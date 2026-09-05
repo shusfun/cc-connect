@@ -897,7 +897,7 @@ private extension CodexService {
     // Centralizes bundled Mac App update guidance for protocol mismatches.
     func presentBridgeUpdatePrompt(message: String) {
         bridgeUpdatePrompt = CodexBridgeUpdatePrompt(
-            title: "请更新 Mac 上的 Remodex.app",
+            title: L10n.string("请更新 Mac 上的 Remodex.app"),
             message: message,
             command: nil
         )

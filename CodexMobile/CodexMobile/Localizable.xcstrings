@@ -2461,7 +2461,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bridge 不支持 Remodex 私有增量同步协议 v%@，请升级 Mac App。"
+            "value": "Bridge 不支持 Remodex 私有增量同步协议 v%@，请升级 桌面应用。"
           }
         }
       }
@@ -9941,7 +9941,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mac App 会启动内置 Bridge 并显示配对二维码。Codex、Git、项目和任务始终运行在 Mac。"
+            "value": "桌面应用 会启动内置 Bridge 并显示配对二维码。Codex、Git、项目和任务始终运行在开发设备。"
           }
         }
       }
@@ -9975,7 +9975,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mac 上的 Codex 版本过旧。Remodex 当前要求 codex-cli 0.147.0 或更高版本。"
+            "value": "设备上的 Codex 版本过旧。Remodex 当前要求 codex-cli 0.147.0 或更高版本。"
           }
         }
       }
@@ -9992,7 +9992,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mac 上的 Remodex.app 内置 Bridge 版本为 %@，iPhone 端要求 %@ 或更高版本。请更新 Mac App 后重新连接。"
+            "value": "设备上的 Remodex 内置 Bridge 版本为 %@，iPhone 端要求 %@ 或更高版本。请更新 桌面应用 后重新连接。"
           }
         }
       }
@@ -10009,7 +10009,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mac 上的 Remodex.app 版本过旧。请更新到内置 Bridge %@ 或更高版本的 Mac App 后重新连接。"
+            "value": "设备上的 Remodex 版本过旧。请更新到内置 Bridge %@ 或更高版本的 桌面应用 后重新连接。"
           }
         }
       }
@@ -14072,7 +14072,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Relay 只负责设备会合与端到端密文转发；Codex、Git、项目和聊天正文始终留在你的 Mac 与 iPhone。"
+            "value": "Relay 负责设备会合、授权与端到端密文转发；Codex、Git 和项目运行在开发设备，任务内容只在开发设备与 iPhone 之间加密传输。"
           }
         }
       }
@@ -22948,7 +22948,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前 Mac App 内置的 Bridge 不支持原生任务分叉。更新 Mac App 后重新连接。"
+            "value": "当前 桌面应用 内置的 Bridge 不支持原生任务分叉。更新 桌面应用 后重新连接。"
           }
         }
       }
@@ -22965,7 +22965,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前 Mac App 内置的 Bridge 不支持所选速度设置。更新 Mac App 后重新连接。"
+            "value": "当前 桌面应用 内置的 Bridge 不支持所选速度设置。更新 桌面应用 后重新连接。"
           }
         }
       }
@@ -22982,7 +22982,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前 Mac App 内置的 Bridge 或 Codex 不支持增量任务读取。更新 Mac App 和 Codex 后重新连接。"
+            "value": "当前 桌面应用 内置的 Bridge 或 Codex 不支持增量任务读取。更新 桌面应用 和 Codex 后重新连接。"
           }
         }
       }
@@ -23016,7 +23016,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前内置 Bridge 为 %@。请更新到内置 Bridge %@ 的 Mac App 后重新连接。"
+            "value": "当前内置 Bridge 为 %@。请更新到内置 Bridge %@ 的 桌面应用 后重新连接。"
           }
         }
       }
@@ -23033,7 +23033,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前内置 Bridge 为 %@，最新版本为 %@。更新 Mac App 后重新连接即可使用新版本。"
+            "value": "当前内置 Bridge 为 %@，最新版本为 %@。更新 桌面应用 后重新连接即可使用新版本。"
           }
         }
       }
@@ -23135,7 +23135,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "扫码前请更新 Mac 上的 Remodex.app"
+            "value": "扫码前请更新 设备上的 Remodex"
           }
         }
       }
@@ -23713,7 +23713,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "该二维码来自不兼容的 Mac App。更新后重新生成二维码。"
+            "value": "该二维码来自不兼容的 桌面应用。更新后重新生成二维码。"
           }
         }
       }
@@ -23849,7 +23849,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请更新 Mac 上的 Remodex.app 以使用 /fork"
+            "value": "请更新 设备上的 Remodex 以使用 /fork"
           }
         }
       }
@@ -23866,7 +23866,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请更新 Mac 上的 Remodex.app 以使用速度控制"
+            "value": "请更新 设备上的 Remodex 以使用速度控制"
           }
         }
       }
@@ -23883,7 +23883,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请更新 Mac 上的 Remodex.app"
+            "value": "请更新 设备上的 Remodex"
           }
         }
       }

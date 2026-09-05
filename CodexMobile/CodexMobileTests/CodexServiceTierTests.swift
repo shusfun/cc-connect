@@ -186,7 +186,7 @@ final class CodexServiceTierTests: XCTestCase {
         XCTAssertEqual(capturedTurnStartParams.count, 1)
         XCTAssertEqual(capturedTurnStartParams[0].objectValue?["serviceTier"]?.stringValue, "fast")
         XCTAssertFalse(service.supportsServiceTier)
-        XCTAssertEqual(service.bridgeUpdatePrompt?.title, "请更新 Mac 上的 Remodex.app 以使用速度控制")
+        XCTAssertEqual(service.bridgeUpdatePrompt?.title, L10n.string("请更新 Mac 上的 Remodex.app 以使用速度控制"))
         XCTAssertEqual(
             service.bridgeUpdatePrompt?.message,
             "当前 Mac App 内置的 Bridge 不支持所选速度设置。更新 Mac App 后重新连接。"

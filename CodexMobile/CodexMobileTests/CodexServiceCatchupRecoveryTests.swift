@@ -490,7 +490,7 @@ final class CodexServiceCatchupRecoveryTests: XCTestCase {
 
         XCTAssertEqual(recordedMethods, ["thread/turns/list"])
         XCTAssertTrue(service.supportsTurnPagination)
-        XCTAssertEqual(service.bridgeUpdatePrompt?.title, "请更新 Mac 上的 Remodex.app")
+        XCTAssertEqual(service.bridgeUpdatePrompt?.title, L10n.string("请更新 Mac 上的 Remodex.app"))
     }
 
     func testForcedHistorySkipsFreshFirstTurnWhileThreadIsStillMaterializing() async throws {

@@ -826,7 +826,7 @@ extension CodexService {
         }
 
         return CodexBridgeUpdatePrompt(
-            title: "请更新 Mac 上的 Remodex.app",
+            title: L10n.string("请更新 Mac 上的 Remodex.app"),
             message: message,
             command: minimumBridgePackageUpdateCommand
         )
@@ -887,7 +887,7 @@ extension CodexService {
         latestVersion: String
     ) -> CodexBridgeUpdatePrompt {
         CodexBridgeUpdatePrompt(
-            title: "Mac 上有较新的 Remodex.app 可用",
+            title: L10n.string("Mac 上有较新的 Remodex.app 可用"),
             message: L10n.format("当前内置 Bridge 为 %@，最新版本为 %@。更新 Mac App 后重新连接即可使用新版本。", String(describing: currentVersion), String(describing: latestVersion)),
             command: minimumBridgePackageUpdateCommand
         )
@@ -895,7 +895,7 @@ extension CodexService {
 
     private func forcedBridgePackageUpdatePrompt(currentVersion: String) -> CodexBridgeUpdatePrompt {
         CodexBridgeUpdatePrompt(
-            title: "请更新 Mac 上的 Remodex.app",
+            title: L10n.string("请更新 Mac 上的 Remodex.app"),
             message: L10n.format("当前内置 Bridge 为 %@。请更新到内置 Bridge %@ 的 Mac App 后重新连接。", String(describing: currentVersion), String(describing: forcedBridgeUpgradeTargetVersion)),
             command: forcedBridgeUpgradeCommand
         )

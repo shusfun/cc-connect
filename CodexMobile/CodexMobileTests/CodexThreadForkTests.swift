@@ -298,7 +298,7 @@ final class CodexThreadForkTests: XCTestCase {
             }
             XCTAssertEqual(rpcError.code, -32601)
             XCTAssertFalse(service.supportsThreadFork)
-            XCTAssertEqual(service.bridgeUpdatePrompt?.title, "请更新 Mac 上的 Remodex.app 以使用 /fork")
+            XCTAssertEqual(service.bridgeUpdatePrompt?.title, L10n.string("请更新 Mac 上的 Remodex.app 以使用 /fork"))
         }
     }
 
