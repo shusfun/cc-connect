@@ -57,7 +57,7 @@ struct GoalStatusSheet: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
             }
-            .navigationTitle("Goal")
+            .localizedNavigationTitle("Goal")
             .navigationBarTitleDisplayMode(.inline)
             .adaptiveNavigationBar()
         }

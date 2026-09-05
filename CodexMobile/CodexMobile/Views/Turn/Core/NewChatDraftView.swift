@@ -102,7 +102,7 @@ struct NewChatDraftView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             composer
         }
-        .navigationTitle("New thread")
+        .localizedNavigationTitle("New thread")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if case .hamburger(let action) = leadingControl {

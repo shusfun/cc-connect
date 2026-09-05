@@ -137,7 +137,7 @@ struct RuntimeDebugLogSheet: View {
                     .background(Color(.systemBackground))
                 }
             }
-            .navigationTitle("Runtime Logs")
+            .localizedNavigationTitle("Runtime Logs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

@@ -43,7 +43,8 @@ for (const file of files(root)) {
   const text = fs.readFileSync(file, 'utf8').split('#Preview')[0];
   for (const item of literals(text)) {
     const before = text.slice(text.lastIndexOf('\n', item.start) + 1, item.start);
-    if (!/\b(?:Text|Button|Label|Section|Picker|Toggle|TextField|SecureField|NavigationLink|Menu|ProgressView|ContentUnavailableView|navigationTitle|navigationBarTitle|accessibilityLabel|accessibilityHint|alert|confirmationDialog|help|L10n\.string|L10n\.format|L10n\.count)\(\s*$/.test(before)) continue;
+    if (!/\b(?:Text|Button|Label|Section|Picker|Toggle|TextField|SecureField|NavigationLink|Menu|ProgressView|ContentUnavailableView|navigationTitle|localizedNavigationTitle|navigationBarTitle|accessibilityLabel|accessibilityHint|alert|confirmationDialog|help|L10n\.string|L10n\.format|L10n\.count)\(\s*$/.test(before)) continue;
+    if (/\.navigationTitle\(\s*$/.test(before)) failures.push(`${path.relative(root, file)}: literal navigation title must use localizedNavigationTitle to refresh UIKit chrome`);
     let key = item.parts.map(part => typeof part === 'string' ? part : '%@').join('');
     if (!/[A-Za-z\u4e00-\u9fff]/.test(key) || labels.has(key) || formats.has(key)) continue;
     try { key = JSON.parse('"' + key + '"'); } catch { /* Swift Unicode 转义由明确白名单处理。 */ }

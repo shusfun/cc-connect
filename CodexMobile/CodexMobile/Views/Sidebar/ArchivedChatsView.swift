@@ -44,7 +44,7 @@ struct ArchivedChatsView: View {
                 .listStyle(.insetGrouped)
             }
         }
-        .navigationTitle("Archived Chats")
+        .localizedNavigationTitle("Archived Chats")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             L10n.format("Remove \"%@\" from this phone?", String(describing: threadPendingDeletion?.displayTitle ?? "conversation")),

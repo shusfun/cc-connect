@@ -85,7 +85,7 @@ struct MyDevicesSettingsSheet: View {
             }
             .listStyle(.insetGrouped)
             .font(AppFont.body())
-            .navigationTitle("Connections")
+            .localizedNavigationTitle("Connections")
             .navigationBarTitleDisplayMode(.inline)
             .tint(.primary)
             .toolbar {

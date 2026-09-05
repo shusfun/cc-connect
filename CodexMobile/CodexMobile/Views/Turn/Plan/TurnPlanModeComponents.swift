@@ -414,7 +414,7 @@ struct PlanExecutionSheet: View {
                 .padding(16)
             }
             .background(Color(.systemBackground))
-            .navigationTitle("Active plan")
+            .localizedNavigationTitle("Active plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -554,7 +554,7 @@ struct StructuredUserInputSheet: View {
                 .padding(16)
             }
             .background(Color(.systemBackground))
-            .navigationTitle("Questions")
+            .localizedNavigationTitle("Questions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

@@ -2115,7 +2115,7 @@ private struct NewChatOpeningStateView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
-        .navigationTitle("New Chat")
+        .localizedNavigationTitle("New Chat")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

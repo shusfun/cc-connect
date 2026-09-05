@@ -53,7 +53,7 @@ struct TerminalSelectableTextSheet: View {
                     .padding(16)
             }
             .background(Color(hexString: theme.background))
-            .navigationTitle("Select Text")
+            .localizedNavigationTitle("Select Text")
             .navigationBarTitleDisplayMode(.inline)
             .adaptiveNavigationBar()
             .toolbar {

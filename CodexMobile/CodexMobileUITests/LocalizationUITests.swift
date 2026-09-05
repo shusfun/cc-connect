@@ -52,9 +52,9 @@ final class LocalizationUITests: XCTestCase {
     func testPairingAtAccessibilityTextSize() {
         let app = launch("pairing", language: "zh-Hans", theme: "dark", large: true)
         XCTAssertTrue(app.staticTexts["确认配对设备"].waitForExistence(timeout: 15))
-        app.swipeUp()
         let confirm = app.buttons["确认设备，申请配对"]
-        if !confirm.isHittable { app.swipeUp() }
+        let details = app.scrollViews["pairing.details"]
+        for _ in 0..<6 where !confirm.isHittable { details.swipeUp() }
         XCTAssertTrue(confirm.isHittable)
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "pairing-zh-accessibility"; attachment.lifetime = .keepAlways; add(attachment)
     }

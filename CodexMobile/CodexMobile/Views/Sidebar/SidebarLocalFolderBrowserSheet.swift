@@ -60,7 +60,7 @@ struct SidebarLocalFolderBrowserSheet: View {
                     onSelect: openDirectory
                 )
             }
-            .navigationTitle("Add Local Folder")
+            .localizedNavigationTitle("Add Local Folder")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search folders")
             .toolbar {

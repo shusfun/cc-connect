@@ -82,7 +82,7 @@ struct TerminalConnectionHelpSheet: View {
                 .animation(.easeInOut(duration: 0.2), value: platform)
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("SSH Setup")
+            .localizedNavigationTitle("SSH Setup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

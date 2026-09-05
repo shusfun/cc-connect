@@ -84,7 +84,7 @@ struct TerminalConnectionEditorSheet: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 22)
             }
-            .navigationTitle("New Server")
+            .localizedNavigationTitle("New Server")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

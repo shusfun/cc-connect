@@ -74,7 +74,7 @@ struct SettingsView: View {
         .listSectionSpacing(10)
         .font(AppFont.body())
         .tint(.primary)
-        .navigationTitle("Settings")
+        .localizedNavigationTitle("Settings")
         // Keep the About push anchored to SettingsView so custom List rows do
         // not depend on NavigationLink behavior inside rebuilt sections.
         .navigationDestination(isPresented: $isShowingAboutRemodex) {

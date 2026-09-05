@@ -125,7 +125,7 @@ struct SidebarNewChatProjectPickerSheet: View {
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .navigationTitle("Start new chat")
+            .localizedNavigationTitle("Start new chat")
             .navigationBarTitleDisplayMode(.inline)
             .tint(.primary)
             .toolbar {

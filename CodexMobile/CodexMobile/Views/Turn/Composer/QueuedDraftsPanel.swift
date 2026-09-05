@@ -64,7 +64,7 @@ struct QueuedDraftsSheet: View {
                 .padding(.top, 8)
             }
             .background(Color(.systemBackground))
-            .navigationTitle("Queued")
+            .localizedNavigationTitle("Queued")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

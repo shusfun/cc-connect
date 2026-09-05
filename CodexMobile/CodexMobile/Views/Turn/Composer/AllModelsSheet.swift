@@ -49,7 +49,7 @@ struct AllModelsSheet: View {
                     .listStyle(.insetGrouped)
                 }
             }
-            .navigationTitle("Choose model")
+            .localizedNavigationTitle("Choose model")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

@@ -185,7 +185,7 @@ struct SettingsComputerNameSheet: View {
             .padding(20)
             .presentationDetents([.height(300)])
             .presentationDragIndicator(.visible)
-            .navigationTitle("Edit Device Name")
+            .localizedNavigationTitle("Edit Device Name")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

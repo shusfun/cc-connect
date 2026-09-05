@@ -76,7 +76,7 @@ struct AssistantRevertSheet: View {
                 }
                 .padding(16)
             }
-            .navigationTitle("Undo this response")
+            .localizedNavigationTitle("Undo this response")
             .navigationBarTitleDisplayMode(.inline)
             .adaptiveNavigationBar()
             .toolbar {

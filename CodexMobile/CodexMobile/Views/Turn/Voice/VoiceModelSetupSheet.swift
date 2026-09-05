@@ -43,7 +43,7 @@ struct VoiceModelSetupSheet: View {
                 Spacer(minLength: 0)
             }
             .padding(20)
-            .navigationTitle("离线语音模型")
+            .localizedNavigationTitle("离线语音模型")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

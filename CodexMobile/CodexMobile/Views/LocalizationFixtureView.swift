@@ -13,7 +13,7 @@ struct LocalizationFixtureView: View {
         NavigationStack {
             Group {
                 switch route {
-                case "onboarding": OnboardingWelcomePage()
+                case "onboarding": OnboardingView(onScanQRCode: {}, onPairWithCode: {})
                 case "about": AboutRemodexView()
                 case "terminal": TerminalConnectionHelpSheet()
                 case "pairing": PairingConfirmationView(device: device, onConfirm: {}, onCancel: {})
@@ -37,10 +37,15 @@ struct LocalizationFixtureView: View {
                     Text(verbatim: "TEST FIXTURE — NOT A LIVE CONNECTION").font(.caption2)
                     TextField("Draft", text: $draft).accessibilityIdentifier("fixture.draft")
                     Text(verbatim: String(describing: ObjectIdentifier(codex))).accessibilityIdentifier("fixture.service")
-                }.padding(8).background(.regularMaterial)
+                }
+                // 诊断面板不是被测产品 UI，不能随超大字体占满屏幕并截获滑动。
+                .font(.caption2)
+                .dynamicTypeSize(.medium)
+                .padding(8).background(.regularMaterial)
             }
         }
-        .preferredColorScheme(UserDefaults.standard.string(forKey: "FixtureTheme") == "dark" ? .dark : .light)
+        // 正式引导流程固定深色；测试不对它强行施加正式入口没有的浅色环境。
+        .preferredColorScheme(route == "onboarding" || UserDefaults.standard.string(forKey: "FixtureTheme") == "dark" ? .dark : .light)
     }
 }
 

@@ -18,6 +18,8 @@ struct PairingConfirmationView: View {
                 Button("确认设备，申请配对", action: onConfirm).buttonStyle(.borderedProminent).frame(minHeight: 44)
                 Button("取消，重新扫码", action: onCancel).frame(minHeight: 44)
             }.padding(28)
-        }.foregroundStyle(.white).background(.black)
+        }
+        .accessibilityIdentifier("pairing.details")
+        .foregroundStyle(.white).background(.black)
     }
 }

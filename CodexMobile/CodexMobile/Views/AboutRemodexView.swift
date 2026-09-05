@@ -36,7 +36,7 @@ struct AboutRemodexView: View {
             .padding(.bottom, 40)
         }
         .font(AppFont.body())
-        .navigationTitle("About Remodex")
+        .localizedNavigationTitle("About Remodex")
         .navigationBarTitleDisplayMode(.inline)
     }
 
