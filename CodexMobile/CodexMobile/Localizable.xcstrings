@@ -1,6 +1,57 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Bridge (Device)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bridge (Device)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bridge（设备端）"
+          }
+        }
+      }
+    },
+    "terminal.setup.prompt.mac": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'm setting up Remodex on my iPhone so I can open a terminal on my Mac over SSH.\n\nPlease walk me through the whole setup, one step at a time:\n1. Help me find my Mac's local address and username.\n2. Turn on Remote Login (SSH) on this Mac.\n3. Create a dedicated SSH key pair for Remodex and add the public key to this Mac.\n4. Tell me exactly what to enter in Remodex: connection string (user@host), nickname, private key, and port.\n\nKeep it beginner-friendly. Tell me exactly what to click or type, and ask me one question at a time if you need more info."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我正在 iPhone 上设置 Remodex，希望通过 SSH 打开 Mac 的终端。\n\n请按步骤引导我完成设置：\n1. 帮我找到这台 Mac 的本地地址和用户名。\n2. 在 Mac 上启用远程登录（SSH）。\n3. 为 Remodex 创建专用 SSH 密钥对，并将公钥添加到 Mac。\n4. 告诉我应在 Remodex 中填写的连接地址（user@host）、备注、私钥和端口。\n\n请使用适合初学者的说明，明确告诉我要点击或输入什么。需要更多信息时，每次只问一个问题。"
+          }
+        }
+      }
+    },
+    "terminal.setup.prompt.windows": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'm setting up Remodex on my iPhone so I can open a terminal on my Windows PC over SSH.\n\nPlease walk me through the whole setup, one step at a time:\n1. Help me find my Windows PC's local IP address and username.\n2. Install and enable the OpenSSH Server on this Windows machine.\n3. Create a dedicated SSH key pair for Remodex and add the public key to this PC.\n4. Tell me exactly what to enter in Remodex: connection string (user@host), nickname, private key, and port.\n\nKeep it beginner-friendly. Tell me exactly what to click or type, and ask me one question at a time if you need more info."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我正在 iPhone 上设置 Remodex，希望通过 SSH 打开 Windows 设备的终端。\n\n请按步骤引导我完成设置：\n1. 帮我找到这台 Windows 设备的本地 IP 地址和用户名。\n2. 在 Windows 上安装并启用 OpenSSH Server。\n3. 为 Remodex 创建专用 SSH 密钥对，并将公钥添加到这台设备。\n4. 告诉我应在 Remodex 中填写的连接地址（user@host）、备注、私钥和端口。\n\n请使用适合初学者的说明，明确告诉我要点击或输入什么。需要更多信息时，每次只问一个问题。"
+          }
+        }
+      }
+    },
     " Uncommitted changes also stay in this working copy and will follow onto the new branch after checkout.": {
       "extractionState": "manual",
       "localizations": {
@@ -2478,7 +2529,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bridge 身份与当前已配对 Mac 不一致，请重新配对。"
+            "value": "Bridge 身份与当前已配对设备不一致，请重新配对。"
           }
         }
       }
@@ -9941,7 +9992,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "桌面应用 会启动内置 Bridge 并显示配对二维码。Codex、Git、项目和任务始终运行在开发设备。"
+            "value": "桌面应用会启动内置 Bridge 并显示配对二维码。Codex、Git、项目和任务始终运行在开发设备上。"
           }
         }
       }
@@ -9958,7 +10009,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mac 上有较新的 Remodex.app 可用"
+            "value": "设备上的 Remodex 桌面应用有新版本可用"
           }
         }
       }
@@ -9992,7 +10043,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "设备上的 Remodex 内置 Bridge 版本为 %@，iPhone 端要求 %@ 或更高版本。请更新 桌面应用 后重新连接。"
+            "value": "设备上的 Remodex 内置 Bridge 版本为 %@，iPhone 端要求 %@ 或更高版本。请更新桌面应用后重新连接。"
           }
         }
       }
@@ -10009,7 +10060,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "设备上的 Remodex 版本过旧。请更新到内置 Bridge %@ 或更高版本的 桌面应用 后重新连接。"
+            "value": "设备上的 Remodex 版本过旧。请更新到内置 Bridge %@ 或更高版本的桌面应用后重新连接。"
           }
         }
       }
@@ -21756,7 +21807,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "WhisperKit small 多语言模型只在这台 iPhone 上运行，录音不会发送到 Mac、Relay 或模型服务。"
+            "value": "WhisperKit small 多语言模型只在这台 iPhone 上运行，录音不会发送到开发设备、Relay 或模型服务。"
           }
         }
       }
@@ -22676,7 +22727,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 Mac 打开 Remodex"
+            "value": "在设备上打开 Remodex"
           }
         }
       }
@@ -22948,7 +22999,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前 桌面应用 内置的 Bridge 不支持原生任务分叉。更新 桌面应用 后重新连接。"
+            "value": "当前桌面应用内置的 Bridge 不支持原生任务分叉。更新桌面应用后重新连接。"
           }
         }
       }
@@ -22965,7 +23016,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前 桌面应用 内置的 Bridge 不支持所选速度设置。更新 桌面应用 后重新连接。"
+            "value": "当前桌面应用内置的 Bridge 不支持所选速度设置。更新桌面应用后重新连接。"
           }
         }
       }
@@ -22982,7 +23033,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前 桌面应用 内置的 Bridge 或 Codex 不支持增量任务读取。更新 桌面应用 和 Codex 后重新连接。"
+            "value": "当前桌面应用内置的 Bridge 或 Codex 不支持增量任务读取。更新桌面应用和 Codex 后重新连接。"
           }
         }
       }
@@ -23016,7 +23067,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前内置 Bridge 为 %@。请更新到内置 Bridge %@ 的 桌面应用 后重新连接。"
+            "value": "当前内置 Bridge 为 %@。请更新到内置 Bridge %@ 的桌面应用后重新连接。"
           }
         }
       }
@@ -23033,7 +23084,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前内置 Bridge 为 %@，最新版本为 %@。更新 桌面应用 后重新连接即可使用新版本。"
+            "value": "当前内置 Bridge 为 %@，最新版本为 %@。更新桌面应用后重新连接即可使用新版本。"
           }
         }
       }
@@ -24053,7 +24104,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "连接已配对的 Mac 后读取内置 Bridge 版本。"
+            "value": "连接已配对的设备后读取内置 Bridge 版本。"
           }
         }
       }

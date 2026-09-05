@@ -1596,7 +1596,7 @@ final class CodexServiceIncomingRunIndicatorTests: XCTestCase {
             XCTAssertNil(service.relayUrl)
             XCTAssertEqual(
                 service.lastErrorMessage,
-                "This relay session was replaced by another Mac connection. Scan a new QR code to reconnect."
+                L10n.string("This relay session was replaced by another device connection. Scan a new QR code to reconnect.")
             )
         }
     }
@@ -1624,7 +1624,7 @@ final class CodexServiceIncomingRunIndicatorTests: XCTestCase {
             XCTAssertEqual(service.relayUrl, SecureStore.readString(for: CodexSecureKeys.relayUrl))
             XCTAssertEqual(
                 service.lastErrorMessage,
-                "The saved Mac session is temporarily unavailable. Remodex will keep retrying. If you restarted the bridge on your Mac, scan the new QR code."
+                L10n.string("Trying to reach your saved device. Remodex will keep retrying. If you restarted the bridge on that device, scan the new QR code.")
             )
             XCTAssertEqual(service.connectionRecoveryState, .retrying(attempt: 0, message: "Reconnecting..."))
         }
@@ -1670,7 +1670,7 @@ final class CodexServiceIncomingRunIndicatorTests: XCTestCase {
             XCTAssertEqual(service.relayUrl, SecureStore.readString(for: CodexSecureKeys.relayUrl))
             XCTAssertEqual(
                 service.lastErrorMessage,
-                "The Mac was temporarily unavailable and this message could not be delivered. Wait a moment, then try again."
+                L10n.string("The paired device was temporarily unavailable and this message could not be delivered. Wait a moment, then try again.")
             )
         }
     }

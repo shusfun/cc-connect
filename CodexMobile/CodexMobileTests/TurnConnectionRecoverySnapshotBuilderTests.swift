@@ -23,7 +23,7 @@ final class TurnConnectionRecoverySnapshotBuilderTests: XCTestCase {
 
         XCTAssertEqual(snapshot?.status, .reconnecting)
         XCTAssertEqual(snapshot?.trailingStyle, .progress)
-        XCTAssertEqual(snapshot?.summary, "Trying to reconnect to your computer.")
+        XCTAssertEqual(snapshot?.summary, L10n.string("Trying to reconnect to your device."))
     }
 
     func testReconnectProgressStillShowsBeforeManualWakeFallbackIsUnlocked() {
@@ -41,7 +41,7 @@ final class TurnConnectionRecoverySnapshotBuilderTests: XCTestCase {
 
         XCTAssertEqual(snapshot?.status, .reconnecting)
         XCTAssertEqual(snapshot?.trailingStyle, .progress)
-        XCTAssertEqual(snapshot?.summary, "Trying to reconnect to your computer.")
+        XCTAssertEqual(snapshot?.summary, L10n.string("Trying to reconnect to your device."))
     }
 
     func testWakeInFlightShowsProgressInsteadOfReconnectAction() {

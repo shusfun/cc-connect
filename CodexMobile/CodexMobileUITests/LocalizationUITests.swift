@@ -20,6 +20,8 @@ final class LocalizationUITests: XCTestCase {
             ("questions", "Questions", "问题"),
             ("git", "Checking whether the reverse patch applies cleanly...", "正在检查反向补丁能否无冲突应用…"),
             ("voice", "On-device offline voice", "设备端离线语音"),
+            ("about", "How It Works", "工作原理"),
+            ("terminal", "SSH Setup", "SSH 配置"),
             ("errors", "Device offline. Open the desktop app and reconnect.", "设备离线，请打开桌面应用后重新连接。")
         ]
         for language in ["en", "zh-Hans"] {

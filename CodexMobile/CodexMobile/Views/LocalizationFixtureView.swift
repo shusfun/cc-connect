@@ -14,6 +14,8 @@ struct LocalizationFixtureView: View {
             Group {
                 switch route {
                 case "onboarding": OnboardingWelcomePage()
+                case "about": AboutRemodexView()
+                case "terminal": TerminalConnectionHelpSheet()
                 case "pairing": PairingConfirmationView(device: device, onConfirm: {}, onCancel: {})
                 case "voice": VoiceModelSetupSheet()
                 case "devices": MyDevicesSettingsSheet(isSwitchingMac: false, switchingDeviceId: nil, switchNotice: nil, onSelectDevice: { _ in }, onForgetDevice: { _ in }, onAddConnection: {}, onPairWithCode: {}, onCancelSwitch: {})

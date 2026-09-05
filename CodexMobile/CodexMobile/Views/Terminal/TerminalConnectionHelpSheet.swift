@@ -16,29 +16,9 @@ private enum TerminalConnectionHelpPlatform: String, CaseIterable, Identifiable 
     var masterPrompt: String {
         switch self {
         case .mac:
-            return """
-            I'm setting up Remodex on my iPhone so I can open a terminal on my Mac over SSH.
-
-            Please walk me through the whole setup, one step at a time:
-            1. Help me find my Mac's local address and username.
-            2. Turn on Remote Login (SSH) on this Mac.
-            3. Create a dedicated SSH key pair for Remodex and add the public key to this Mac.
-            4. Tell me exactly what to enter in Remodex: connection string (user@host), nickname, private key, and port.
-
-            Keep it beginner-friendly. Tell me exactly what to click or type, and ask me one question at a time if you need more info.
-            """
+            return L10n.string("terminal.setup.prompt.mac")
         case .windows:
-            return """
-            I'm setting up Remodex on my iPhone so I can open a terminal on my Windows PC over SSH.
-
-            Please walk me through the whole setup, one step at a time:
-            1. Help me find my Windows PC's local IP address and username.
-            2. Install and enable the OpenSSH Server on this Windows machine.
-            3. Create a dedicated SSH key pair for Remodex and add the public key to this PC.
-            4. Tell me exactly what to enter in Remodex: connection string (user@host), nickname, private key, and port.
-
-            Keep it beginner-friendly. Tell me exactly what to click or type, and ask me one question at a time if you need more info.
-            """
+            return L10n.string("terminal.setup.prompt.windows")
         }
     }
 }

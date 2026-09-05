@@ -91,8 +91,8 @@ struct AboutRemodexView: View {
             sectionTitle(L10n.string("Architecture"))
 
             VStack(spacing: 0) {
-                diagramStep(from: "Remodex iOS", to: "Bridge (Device)", via: "WebSocket")
-                diagramStep(from: "Bridge (Device)", to: "codex app-server", via: "JSON-RPC")
+                diagramStep(from: "Remodex iOS", to: L10n.string("Bridge (Device)"), via: "WebSocket")
+                diagramStep(from: L10n.string("Bridge (Device)"), to: "codex app-server", via: "JSON-RPC")
                 diagramStep(from: "codex app-server", to: "~/.codex/sessions", via: L10n.string("JSONL rollout"), isLast: true)
             }
             .padding(16)

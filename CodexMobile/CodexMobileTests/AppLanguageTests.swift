@@ -19,6 +19,10 @@ final class AppLanguageTests: XCTestCase {
         XCTAssertEqual(L10n.string("确认配对设备", language: .english), "Confirm pairing device")
         XCTAssertEqual(L10n.string("A source thread id is required.", language: .simplifiedChinese), "缺少来源任务标识。")
         XCTAssertEqual(L10n.string("user supplied project name", language: .simplifiedChinese), "user supplied project name")
+        XCTAssertEqual(L10n.string("Bridge (Device)", language: .simplifiedChinese), "Bridge（设备端）")
+        XCTAssertTrue(L10n.string("terminal.setup.prompt.mac", language: .english).contains("Remote Login (SSH)"))
+        XCTAssertTrue(L10n.string("terminal.setup.prompt.mac", language: .simplifiedChinese).contains("远程登录（SSH）"))
+        XCTAssertTrue(L10n.string("terminal.setup.prompt.windows", language: .simplifiedChinese).contains("Windows 设备"))
     }
 
     func testLanguagePreferenceDoesNotModifyOtherDefaultsAndPluralFormatting() {

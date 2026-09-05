@@ -145,7 +145,7 @@ final class CodexGPTAccountTests: XCTestCase {
         XCTAssertEqual(service.latestBridgePackageVersion, "3.2.1")
         XCTAssertEqual(
             service.bridgeUpdatePrompt?.title,
-            "Mac 上有较新的 Remodex.app 可用"
+            L10n.string("Mac 上有较新的 Remodex.app 可用")
         )
         XCTAssertNil(service.bridgeUpdatePrompt?.command)
         XCTAssertEqual(service.gptAccountSnapshot.status, .unknown)
@@ -177,7 +177,7 @@ final class CodexGPTAccountTests: XCTestCase {
 
         XCTAssertEqual(
             service.bridgeUpdatePrompt?.message,
-            "Mac 上的 Remodex.app 内置 Bridge 版本为 3.1.0，iPhone 端要求 3.2.0 或更高版本。请更新 Mac App 后重新连接。"
+            L10n.format("Mac 上的 Remodex.app 内置 Bridge 版本为 %@，iPhone 端要求 %@ 或更高版本。请更新 Mac App 后重新连接。", "3.1.0", "3.2.0")
         )
         XCTAssertNil(service.bridgeUpdatePrompt?.command)
     }
@@ -273,7 +273,7 @@ final class CodexGPTAccountTests: XCTestCase {
         XCTAssertEqual(service.latestBridgePackageVersion, "3.2.1")
         XCTAssertEqual(
             service.bridgeUpdatePrompt?.title,
-            "A newer Remodex update is available on your Mac"
+            L10n.string("Mac 上有较新的 Remodex.app 可用")
         )
     }
 
