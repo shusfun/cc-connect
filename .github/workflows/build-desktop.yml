@@ -6,7 +6,7 @@ permissions: { contents: read }
 jobs:
   macos:
     runs-on: macos-26
-    strategy: { matrix: { arch: [x86_64, arm64] } }
+    strategy: { matrix: { arch: [x86_64] } }
     steps:
       - uses: actions/checkout@v4
       - name: Build macOS DMG
