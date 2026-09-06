@@ -227,7 +227,7 @@ final class PairingFlowTests: XCTestCase {
     }
 
     func testServiceFailuresPreserveStatusCodeAndDiagnosticReference() async throws {
-        for (status, code) in [(410, "invitation_expired"), (404, "device_offline"), (403, "credential_invalid"), (503, "maintenance"), (429, "rate_limited")] {
+        for (status, code) in [(410, "invitation_expired"), (404, "device_offline"), (403, "credential_invalid"), (503, "maintenance"), (429, "rate_limited"), (401, "invalid_device_proof"), (403, "phone_account_conflict"), (401, "credential_revoked")] {
             let trace = PairingDiagnostics()
             trace.transition(.verification)
             let reference = UUID()
@@ -245,6 +245,36 @@ final class PairingFlowTests: XCTestCase {
             XCTAssertEqual(trace.events.last?.code, code)
             XCTAssertFalse(trace.exportJSON().contains("SENSITIVE_SERVER_BODY"))
         }
+    }
+
+    func testExpiredSuccessfulPreviewIsNotReportedAsIdentityMismatch() async throws {
+        let scanned = code()
+        let trace = PairingDiagnostics()
+        let model = PairingFlowModel { _, context in
+            let transportContext = PairingRequestContext(trace, transport: { request in
+                let body: [String: Any] = ["device": ["id": "fixture", "public_key": scanned.publicKey], "accountId": "fixture", "instanceId": "fixture", "expiresAt": 1, "serverTime": 2]
+                return (try JSONSerialization.data(withJSONObject: body), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+            })
+            try context.checkCancellation()
+            return try await RelayDeviceAccess.preview(scanned, context: transportContext)
+        }
+        model.recognize(scanned)
+        try await waitUntil { model.phase == .failed }
+        XCTAssertEqual(model.failureCode, "invitation_expired")
+        XCTAssertFalse(model.mayRetryVerification)
+        XCTAssertNil(model.verified)
+        XCTAssertEqual(trace.events.last?.status, 200)
+    }
+
+    func testZeroMetadataCallbacksAreNotACameraFailure() {
+        let trace = PairingDiagnostics()
+        trace.cameraUpdate(PairingCameraSnapshot(running: true, qrEnabled: true, fullFrame: true))
+        XCTAssertEqual(trace.stage, .scanning)
+        XCTAssertEqual(trace.camera.metadataCallbacks, 0)
+        XCTAssertFalse(trace.events.contains { $0.outcome == "failed" })
+        trace.cameraFailure(code: "camera_unavailable")
+        XCTAssertEqual(trace.events.last?.code, "camera_unavailable")
+        XCTAssertEqual(trace.events.last?.outcome, "failed")
     }
 
     func testDiagnosticExportIsBoundedAndRedacted() throws {

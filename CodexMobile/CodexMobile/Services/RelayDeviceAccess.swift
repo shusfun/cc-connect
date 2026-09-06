@@ -34,11 +34,13 @@ enum RelayDeviceAccess {
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw accessFailure(data: data, response: response)
         }
-        guard let value = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let device = value["device"] as? [String: Any], device["public_key"] as? String == code.publicKey,
+        guard let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let device = value["device"] as? [String: Any], let publicKey = device["public_key"] as? String,
               let id = device["id"] as? String, let account = value["accountId"] as? String, let instance = value["instanceId"] as? String,
-              let expires = value["expiresAt"] as? Int64, let serverTime = value["serverTime"] as? Int64, expires > serverTime
-        else { throw PairingFlowFailure.identityMismatch }
+              let expires = value["expiresAt"] as? Int64, let serverTime = value["serverTime"] as? Int64
+        else { throw PairingFlowFailure.invalidResponse }
+        guard publicKey == code.publicKey else { throw PairingFlowFailure.identityMismatch }
+        guard expires > serverTime else { throw PairingFlowFailure.invitationExpired }
         // 预览尚无会话权限；sessionId 只在授权完成后从 session 接口取得。
         return CodexPairingQRPayload(v: codexPairingQRVersion, relay: code.relay, sessionId: "", macDeviceId: id, macIdentityPublicKey: code.publicKey, expiresAt: expires, displayName: device["remark"] as? String, invitation: code.invitation, accountId: account, instanceId: instance, platform: device["platform"] as? String)
     }

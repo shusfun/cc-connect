@@ -30,6 +30,7 @@ enum PairingRoute: String, Codable {
 
 enum PairingFlowFailure: String, Error {
     case identityMismatch = "identity_mismatch"
+    case invitationExpired = "invitation_expired"
     case invalidResponse = "invalid_response"
     case submissionUncertain = "submission_uncertain"
     case connectionIncomplete = "connection_incomplete"
@@ -224,7 +225,8 @@ final class PairingDiagnostics {
     static func safeCode(_ value: String?) -> String? {
         guard let value else { return nil }
         let allowed: Set<String> = ["approval_pending", "device_offline", "invitation_expired", "invitation_consumed", "request_expired", "request_consumed", "credential_invalid", "access_revoked", "device_revoked", "pairing_revoked", "account_pending", "account_disabled", "account_rejected", "device_limit", "account_mismatch", "device_owned", "rate_limited", "maintenance", "identity_mismatch", "invalid_response", "submission_uncertain", "connection_incomplete", "network_timeout", "network_unavailable", "dns_failed", "tls_failed", "network_failed", "cancelled", "connection_failed", "invalid_qr", "update_required", "camera_unavailable", "camera_interrupted", "camera_configuration_failed", "camera_focus_failed", "camera_torch_failed", "camera_permission_denied", "request_failed"]
-        return allowed.contains(value) || ["invalid_server_url", "invalid_input", "encoding_failed", "disconnected", "no_pending_approval", "rpc_error"].contains(value) ? value : "request_failed"
+        let accessCodes: Set<String> = ["invalid_invitation", "phone_account_conflict", "invalid_device_proof", "device_not_found", "credential_revoked", "request_replayed", "body_too_large", "invalid_json", "invalid_request", "not_found", "setup_incomplete"]
+        return allowed.contains(value) || accessCodes.contains(value) || ["invalid_server_url", "invalid_input", "encoding_failed", "disconnected", "no_pending_approval", "rpc_error"].contains(value) ? value : "request_failed"
     }
 
     private func trim() {
