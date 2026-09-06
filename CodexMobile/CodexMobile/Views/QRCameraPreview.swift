@@ -211,6 +211,14 @@ nonisolated private final class QRCameraEngine: NSObject, AVCaptureMetadataOutpu
             device.unlockForConfiguration()
         }
         if session.isRunning { session.stopRunning() }
+        session.beginConfiguration()
+        for output in session.outputs {
+            (output as? AVCaptureMetadataOutput)?.setMetadataObjectsDelegate(nil, queue: nil)
+            session.removeOutput(output)
+        }
+        for input in session.inputs { session.removeInput(input) }
+        session.commitConfiguration()
+        device = nil
         state.running = false
         publish()
         onSnapshot = nil; onError = nil; onScan = nil

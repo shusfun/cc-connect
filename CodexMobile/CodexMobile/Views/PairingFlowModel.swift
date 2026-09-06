@@ -12,6 +12,7 @@ final class PairingFlowModel {
     private(set) var generation = UUID()
     let diagnostics = PairingDiagnostics()
     @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private var connectionTask: Task<Void, Never>?
     @ObservationIgnored private var context: PairingRequestContext?
     @ObservationIgnored private let loader: PreviewLoader
 
@@ -65,8 +66,10 @@ final class PairingFlowModel {
         guard phase == .ready, let verified, let context else { return }
         phase = .connecting
         let epoch = generation
+        let previousConnection = connectionTask
         task = Task { [weak self] in
             do {
+                await previousConnection?.value
                 try context.checkCancellation()
                 try await connect(verified, context)
                 try context.checkCancellation()
@@ -79,6 +82,7 @@ final class PairingFlowModel {
                 self.fail(error)
             }
         }
+        connectionTask = task
     }
 
     func stop() {

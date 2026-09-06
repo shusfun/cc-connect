@@ -168,6 +168,29 @@ final class PairingFlowTests: XCTestCase {
         XCTAssertTrue(model.submitted)
     }
 
+    func testRescanVerifiesImmediatelyButWaitsForOldConnectionCleanup() async throws {
+        var oldConnection: CheckedContinuation<Void, Never>?
+        var submissions = 0
+        let model = PairingFlowModel { scanned, _ in self.payload(scanned) }
+        model.recognize(code())
+        try await waitUntil { model.phase == .ready }
+        model.confirm { _, _ in
+            submissions += 1
+            await withCheckedContinuation { oldConnection = $0 }
+        }
+        try await waitUntil { oldConnection != nil }
+        model.rescan()
+        model.recognize(code(9))
+        try await waitUntil { model.phase == .ready }
+        model.confirm { _, _ in submissions += 1 }
+        await Task.yield()
+        XCTAssertEqual(submissions, 1)
+        oldConnection?.resume()
+        try await waitUntil { model.phase == .completed }
+        XCTAssertEqual(submissions, 2)
+        XCTAssertEqual(model.verified?.macIdentityPublicKey, code(9).publicKey)
+    }
+
     func testPreviewUsesExistingOperationHeaderAndRejectsIdentityMismatch() async throws {
         let trace = PairingDiagnostics()
         trace.identified(relay: code().relay)
@@ -203,6 +226,27 @@ final class PairingFlowTests: XCTestCase {
         XCTAssertTrue(context.submitted)
     }
 
+    func testServiceFailuresPreserveStatusCodeAndDiagnosticReference() async throws {
+        for (status, code) in [(410, "invitation_expired"), (404, "device_offline"), (403, "credential_invalid"), (503, "maintenance"), (429, "rate_limited")] {
+            let trace = PairingDiagnostics()
+            trace.transition(.verification)
+            let reference = UUID()
+            let context = PairingRequestContext(trace, transport: { request in
+                let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["x-remodex-request-id": reference.uuidString])!
+                return (try JSONSerialization.data(withJSONObject: ["code": code, "detail": "SENSITIVE_SERVER_BODY"]), response)
+            })
+            do { _ = try await RelayDeviceAccess.preview(self.code(), context: context); XCTFail("服务端拒绝不能通过验证") }
+            catch let error as RelayAccessFailure {
+                XCTAssertEqual(error.status, status)
+                XCTAssertEqual(error.code, code)
+                XCTAssertEqual(error.requestID, reference)
+            }
+            XCTAssertEqual(trace.events.last?.status, status)
+            XCTAssertEqual(trace.events.last?.code, code)
+            XCTAssertFalse(trace.exportJSON().contains("SENSITIVE_SERVER_BODY"))
+        }
+    }
+
     func testDiagnosticExportIsBoundedAndRedacted() throws {
         let trace = PairingDiagnostics()
         let sentinel = "SENSITIVE_TOKEN_COOKIE_INVITATION_PRIVATE_KEY"
@@ -211,6 +255,9 @@ final class PairingFlowTests: XCTestCase {
             trace.recordHTTP(route: .preview, duration: 15, status: 500, code: sentinel, requestId: UUID(), networkError: nil)
         }
         XCTAssertLessThanOrEqual(trace.events.count, 200)
+        XCTAssertLessThanOrEqual(trace.exportedByteCount, 65_536)
+        trace.transition(.connection)
+        trace.finish("failed", code: "submission_uncertain")
         XCTAssertLessThanOrEqual(trace.exportedByteCount, 65_536)
         let report = trace.exportJSON()
         XCTAssertFalse(report.contains(sentinel))
@@ -245,5 +292,16 @@ final class PairingFlowTests: XCTestCase {
         context.response(route: .preview, started: .now, response: nil, code: nil, error: URLError(.timedOut))
         XCTAssertEqual(trace.events.count, count)
         XCTAssertThrowsError(try context.checkCancellation())
+    }
+
+    func testStoppingClosesPendingDiagnosticSpans() {
+        let trace = PairingDiagnostics()
+        trace.transition(.verification)
+        trace.beginHTTP(route: .preview)
+        trace.cancelOutstanding()
+        XCTAssertFalse(trace.events.contains { $0.outcome == "in_progress" })
+        XCTAssertEqual(trace.events.last?.outcome, "cancelled")
+        XCTAssertNil(trace.events.last?.status)
+        XCTAssertNil(trace.events.last?.requestId)
     }
 }

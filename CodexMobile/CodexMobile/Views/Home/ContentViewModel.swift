@@ -71,13 +71,16 @@ final class ContentViewModel {
     // Connects to the relay WebSocket using a scanned QR code payload.
     func connectToRelay(pairingPayload: CodexPairingQRPayload, codex: CodexService, context: PairingRequestContext? = nil) async throws {
         await stopAutoReconnectForManualScan(codex: codex)
+        try context?.checkCancellation()
         // Avoid logging live pairing metadata; the relay URL path includes a bearer-like session id.
         do {
             codex.lastErrorMessage = L10n.string("请在电脑上核对设备身份并确认手机配对")
             let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState, context: context)
+            try context?.checkCancellation()
             codex.phoneIdentityState = CodexPhoneIdentityState(phoneDeviceId: access.phoneId, phoneIdentityPrivateKey: codex.phoneIdentityState.phoneIdentityPrivateKey, phoneIdentityPublicKey: codex.phoneIdentityState.phoneIdentityPublicKey)
             SecureStore.writeCodable(codex.phoneIdentityState, for: CodexSecureKeys.phoneIdentityState)
             let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay, context: context)
+            try context?.checkCancellation()
             guard session.macIdentityPublicKey == pairingPayload.macIdentityPublicKey else { throw CodexServiceError.invalidResponse(L10n.string("设备身份不匹配，已阻止连接")) }
             var resolvedPayload = pairingPayload; resolvedPayload.sessionId = session.sessionId
             codex.rememberRelayPairing(resolvedPayload)
@@ -412,6 +415,8 @@ extension ContentViewModel {
 
             do {
                 try await connect(codex: codex, serverURL: serverURL)
+                try context?.checkCancellation()
+                try Task.checkCancellation()
                 codex.connectionRecoveryState = .idle
                 codex.lastErrorMessage = nil
                 codex.shouldAutoReconnectOnForeground = false
@@ -419,9 +424,10 @@ extension ContentViewModel {
                 macSwitchNotice = nil
                 return
             } catch {
-                if isCancellationLikeError(error) {
+                if Task.isCancelled || isCancellationLikeError(error) {
                     codex.connectionRecoveryState = .idle
-                    throw error
+                    if context != nil { await codex.disconnect(preserveReconnectIntent: false) }
+                    throw CancellationError()
                 }
 
                 lastError = error
@@ -926,10 +932,13 @@ extension ContentViewModel {
         prepareMacSwitchState(for: pairingPayload.macDeviceId, codex: codex, loadCachedMessages: false)
 
         do {
+            try context?.checkCancellation()
             let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState, context: context)
+            try context?.checkCancellation()
             codex.phoneIdentityState = CodexPhoneIdentityState(phoneDeviceId: access.phoneId, phoneIdentityPrivateKey: codex.phoneIdentityState.phoneIdentityPrivateKey, phoneIdentityPublicKey: codex.phoneIdentityState.phoneIdentityPublicKey)
             SecureStore.writeCodable(codex.phoneIdentityState, for: CodexSecureKeys.phoneIdentityState)
             let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay, context: context)
+            try context?.checkCancellation()
             guard session.macIdentityPublicKey == pairingPayload.macIdentityPublicKey else { throw CodexServiceError.invalidResponse(L10n.string("设备身份不匹配")) }
             var resolvedPayload = pairingPayload; resolvedPayload.sessionId = session.sessionId
             codex.rememberRelayPairing(resolvedPayload)
@@ -939,8 +948,8 @@ extension ContentViewModel {
             try await connectWithAutoRecovery(
                 codex: codex,
                 performAutoRetry: true,
-                context: context,
                 continueWhile: { !self.isCancellingMacSwitch },
+                context: context,
                 serverURLProvider: { fullURL }
             )
             endMacSwitchContext(codex: codex, persistThreadSnapshot: true)

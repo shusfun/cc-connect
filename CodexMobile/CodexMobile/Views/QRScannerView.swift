@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 import CryptoKit
 
-struct QRScannerView: View {
+@MainActor struct QRScannerView: View {
     @Environment(\.locale) private var _localizationLocale
     @Environment(\.scenePhase) private var scenePhase
 
@@ -25,6 +25,7 @@ struct QRScannerView: View {
     @State private var invalidCodeResetTask: Task<Void, Never>?
 
     @State private var scannerError: String?
+    @State private var cameraErrorCode: String?
     @State private var bridgeUpdatePrompt: CodexBridgeUpdatePrompt?
     @State private var didCopyBridgeUpdateCommand = false
     @State private var hasCameraPermission = false
@@ -35,7 +36,7 @@ struct QRScannerView: View {
         initialHasCameraPermission: Bool = false,
         initialIsCheckingPermission: Bool = true,
         initialCode: String? = nil,
-        flow: PairingFlowModel = PairingFlowModel(),
+        flow: PairingFlowModel? = nil,
         onBack: (() -> Void)? = nil,
         onFinish: @escaping () -> Void = {},
         onStop: @escaping () -> Void = {},
@@ -43,7 +44,7 @@ struct QRScannerView: View {
     ) {
         self.onBack = onBack
         self.onScan = onScan
-        self.flow = flow
+        self.flow = flow ?? PairingFlowModel()
         self.onFinish = onFinish
         self.onStop = onStop
         self.initialCode = initialCode
@@ -74,6 +75,7 @@ struct QRScannerView: View {
                 QRCameraPreview(torch: torch, onError: { code in
                     guard generation == cameraGeneration else { return }
                     scannerError = L10n.string("相机暂不可用，请查看诊断或重试相机。")
+                    cameraErrorCode = code
                     flow.diagnostics.cameraFailure(code: code)
                 }, onRecovery: {
                     guard generation == cameraGeneration, cameraRecoveryCount < 1, !flow.showsDetails, scenePhase == .active else { return }
@@ -85,6 +87,10 @@ struct QRScannerView: View {
                     var snapshot = snapshot
                     snapshot.recoveryCount = cameraRecoveryCount
                     flow.cameraUpdate(snapshot)
+                    if snapshot.running, ["camera_interrupted", "camera_unavailable", "camera_configuration_failed"].contains(cameraErrorCode ?? "") {
+                        scannerError = nil
+                        cameraErrorCode = nil
+                    }
                 }) { code, resetScanLock in
                     handleScanResult(code, resetScanLock: resetScanLock)
                 }
@@ -132,6 +138,7 @@ struct QRScannerView: View {
             if let scannerError, !flow.showsDetails {
                 VStack { Text(scannerError); Button("重试") {
                     self.scannerError = nil
+                    cameraErrorCode = nil
                     cameraGeneration = UUID()
                     cameraRecoveryCount = 0
                     flow.diagnostics.transition(.camera)
@@ -324,10 +331,12 @@ struct QRScannerView: View {
             guard flow.phase == .scanning else { return }
             invalidCodeResetTask?.cancel()
             scannerError = nil
+            cameraErrorCode = nil
             HapticFeedback.shared.triggerImpactFeedback(style: .light)
             flow.recognize(code)
         case .scanError(let message):
             scannerError = message
+            cameraErrorCode = nil
             flow.diagnostics.transition(.validation)
             flow.diagnostics.finish("failed", code: "invalid_qr")
             invalidCodeResetTask?.cancel()

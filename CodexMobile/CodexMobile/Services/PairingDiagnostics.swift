@@ -135,6 +135,7 @@ final class PairingDiagnostics {
             events[index].code = Self.safeCode(code)
         }
         activeEventId = nil
+        trim()
     }
 
     func cancelOutstanding() {
