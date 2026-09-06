@@ -18,6 +18,7 @@ final class DeviceAccessService: ObservableObject {
     private var activationOperation: UUID?
     private var identityEpoch = UUID()
     private var refreshing = false
+    private var refreshError: String?
     private let service = "cn.syggu.remodex.device-access"
 
     private init() {
@@ -79,7 +80,7 @@ final class DeviceAccessService: ObservableObject {
             if code != "approval_pending" && code != "rate_limited" {
                 BridgeControlService.shared.record("access_request_failed", operation: operation, stage: "http", code: code, requestID: requestID, httpStatus: http?.statusCode, durationMs: Int(Date().timeIntervalSince(started) * 1000))
             }
-            let messages = ["request_expired": "激活申请已过期，请重新发起", "request_consumed": "凭据已兑换，若本机未保存成功，请重新发起激活", "device_limit_reached": "设备数量已达上限，请联系管理员", "account_not_enabled": "账号尚未启用，请等待审核", "device_owned_by_other_account": "设备属于其他账号，请先由原账号释放"]
+            let messages = ["maintenance": "服务正在维护，请稍后重试", "request_expired": "激活申请已过期，请重新发起", "request_consumed": "凭据已兑换，若本机未保存成功，请重新发起激活", "device_limit_reached": "设备数量已达上限，请联系管理员", "account_not_enabled": "账号尚未启用，请等待审核", "device_owned_by_other_account": "设备属于其他账号，请先由原账号释放"]
             throw NSError(domain: "RemodexAccess", code: http?.statusCode ?? 0, userInfo: [NSLocalizedDescriptionKey: (messages[code] ?? "操作未完成：\(code)") + (requestID.map { "（诊断编号：\($0.uuidString)）" } ?? ""), "accessCode": code, "retryAfter": Double(http?.value(forHTTPHeaderField: "retry-after") ?? "") ?? 3])
         }
         if let operation { BridgeControlService.shared.record("access_request_completed", operation: operation, stage: "http", requestID: requestID, httpStatus: http?.statusCode, durationMs: Int(Date().timeIntervalSince(started) * 1000)) }
@@ -164,12 +165,21 @@ final class DeviceAccessService: ObservableObject {
         do {
             guard let result = try await request("/v1/access/device") as? [String: Any], let device = result["device"] as? [String: Any] else { throw failure("设备状态响应无效") }
             guard identityEpoch == epoch, isActivated else { return }
-            var credential = stored["credential"] as? [String: Any] ?? [:]; credential["device"] = device; stored["credential"] = credential
-            remark = device["remark"] as? String ?? ""; try persist()
+            var credential = stored["credential"] as? [String: Any] ?? [:]
+            let previousDevice = credential["device"] as? [String: Any] ?? [:]
+            if !NSDictionary(dictionary: previousDevice).isEqual(to: device) {
+                let previous = stored
+                credential["device"] = device
+                stored["credential"] = credential
+                do { try persist() } catch { stored = previous; throw error }
+            }
+            remark = device["remark"] as? String ?? ""
             let phones = try await request("/v1/access/pairing/pending") as? [[String: Any]] ?? []
             guard identityEpoch == epoch, isActivated else { return }
             pendingPhones = phones.compactMap { row in guard let id = row["id"] as? String, let key = row["public_key"] as? String else { return nil }; return ["id": id, "key": key] }
-        } catch { if identityEpoch == epoch { errorMessage = error.localizedDescription } }
+            if errorMessage == refreshError { errorMessage = "" }
+            refreshError = nil
+        } catch { if identityEpoch == epoch { refreshError = error.localizedDescription; errorMessage = error.localizedDescription } }
     }
     func approvePhone(id: String, replace: Bool) async {
         do {

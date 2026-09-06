@@ -6,6 +6,15 @@
 // Depends on: ../src/bridge, ../src/daemon-state, ../src/secure-device-state, ../src/session-state
 
 const command = process.argv[2] || 'run';
+if (command === 'control' && process.platform !== 'win32') {
+  const workerCommand = process.argv[3];
+  if (!['resume', 'reset-pairing'].includes(workerCommand)) {
+    console.error('[remodex] control_command_invalid');
+    process.exit(2);
+  }
+  require('../src/app-supervisor').supervise(__filename, { workerCommand });
+  return;
+}
 if (command === 'run' && process.platform !== 'win32') {
   require('../src/app-supervisor').supervise(__filename);
   return;
@@ -26,6 +35,7 @@ const {
 const { resetBridgeTrustState } = require("../src/secure-device-state");
 const { openLastActiveThread } = require("../src/session-state");
 const { DeviceAccess } = require('../src/device-access');
+const { recoverStartup, startupFailure } = require('../src/startup-recovery');
 
 if (command === "reset-pairing") {
   resetBridgeTrustState();
@@ -55,9 +65,11 @@ clearPairingSession();
 clearBridgeStatus();
 
 let exiting = false;
+const startupAbort = new AbortController();
 function stopWithParent() {
   if (exiting) return;
   exiting = true;
+  startupAbort.abort();
   process.kill(process.pid, "SIGTERM");
 }
 
@@ -89,13 +101,23 @@ process.stdin.on('data', async chunk => {
   if (!bootstrap.includes('\n')) return;
   started = true;
   clearTimeout(bootstrapTimeout);
+  let startupStatus = { connectionStatus: 'connecting', state: 'starting', lastError: '' };
+  const publishStartup = () => writeBridgeStatus({ ...startupStatus, ownerGeneration: process.env.REMODEX_OWNER_GENERATION });
+  publishStartup();
+  const startupHeartbeat = setInterval(publishStartup, 5000);
   try {
     const deviceAccess = new DeviceAccess(JSON.parse(bootstrap.slice(0, bootstrap.indexOf('\n'))));
     bootstrap = '';
-    const current = await deviceAccess.request('/v1/access/device');
-    deviceAccess.credential.device = current.device;
-    deviceAccess.trustedPhone = current.trustedPhone;
-    const pairingInvitation = await deviceAccess.request('/v1/access/pairing/invite');
+    const pairingInvitation = await recoverStartup(async () => {
+      const current = await deviceAccess.request('/v1/access/device', {}, { signal: startupAbort.signal });
+      deviceAccess.credential.device = current.device;
+      deviceAccess.trustedPhone = current.trustedPhone;
+      return deviceAccess.request('/v1/access/pairing/invite', {}, { signal: startupAbort.signal });
+    }, { signal: startupAbort.signal, onRetry: failure => {
+      startupStatus = { connectionStatus: 'connecting', state: 'recovering', lastError: failure.code, retryAfterMs: failure.retryAfterMs };
+      publishStartup();
+    } });
+    clearInterval(startupHeartbeat);
     startBridge({
       config, deviceAccess, pairingInvitation, printPairingQr: false,
       onControlReady(refresh) { refreshInvitation = refresh; },
@@ -103,7 +125,11 @@ process.stdin.on('data', async chunk => {
       onBridgeStatus(status) { writeBridgeStatus({ ...(readBridgeStatus() || {}), ...status, ownerGeneration: process.env.REMODEX_OWNER_GENERATION }); },
     });
   } catch (error) {
-    console.error(`[remodex] ${error.code || 'activation_failed'}`);
-    process.exit(1);
+    clearInterval(startupHeartbeat);
+    if (startupAbort.signal.aborted) return;
+    const failure = startupFailure(error);
+    startupStatus = { connectionStatus: 'error', state: 'blocked', lastError: failure.terminal ? failure.code : 'activation_failed' };
+    publishStartup();
+    console.error(`[remodex] ${startupStatus.lastError}`);
   }
 });

@@ -30,7 +30,12 @@ final class BridgeControlService {
     static let shared = BridgeControlService()
 
     private let fileManager = FileManager.default
-    private let decoder = JSONDecoder()
+    private var snapshotRead: Task<BridgeDiskState, Never>?
+    private var snapshotReadID: UUID?
+    private let logQueue = DispatchQueue(label: "remodex.app.diagnostics", qos: .utility)
+    private let logBudget = TransportBudget(bytes: 64, count: 64)
+    private var diagnosticSequence: UInt64 = 0
+    private var runtimeVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
     private var bridgeProcess: Process?
     private var parentPipe: Pipe?
     private var stdoutHandle: FileHandle?
@@ -39,6 +44,18 @@ final class BridgeControlService {
     private(set) var lastExitCode: Int32?
     private(set) var logFailure = false
     private var recentDiagnostics: [String] = []
+    private let operations = BridgeOperationQueue()
+    private var intent = UUID()
+    private(set) var wantsRunning = false
+    private var desiredRelay: String?
+    private var recovery = BridgeRecoveryPolicy()
+    private var recoveryTask: Task<Void, Never>?
+    private var heartbeatStamp: String?
+    private var heartbeatObservedAt = ProcessInfo.processInfo.systemUptime
+    private var staleChecks = 0
+    private var wakeGraceUntil: TimeInterval = 0
+    private(set) var recoveryPhase = ""
+    private let terminalErrors: Set<String> = ["activation_required", "activation_failed", "credential_invalid", "credential_revoked", "device_revoked", "access_revoked", "pairing_revoked", "invalid_device_proof", "update_required", "platform_not_supported", "invalid_relay_path", "relay_response_invalid", "connection_replaced"]
 
     private init() { record("app_opened") }
 
@@ -48,51 +65,81 @@ final class BridgeControlService {
         let summary = [safe(event), stage.map(safe), code.map(safe), operation.map { "operation=\($0.uuidString)" }, requestID.map { "request=\($0.uuidString)" }, httpStatus.map { "http=\($0)" }].compactMap { $0 }.joined(separator: " ")
         recentDiagnostics.append(summary)
         recentDiagnostics = Array(recentDiagnostics.suffix(20))
-        do {
-            try fileManager.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
-            let url = logsDirectory.appendingPathComponent("app.jsonl")
-            if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 2_000_000 {
-                let previous = logsDirectory.appendingPathComponent("app.previous.jsonl")
-                if fileManager.fileExists(atPath: previous.path) { try fileManager.removeItem(at: previous) }
-                try fileManager.moveItem(at: url, to: previous)
+        diagnosticSequence &+= 1
+        let sequence = diagnosticSequence
+        guard logBudget.acquire(1) else { logFailure = true; return }
+        let directory = logsDirectory
+        var row: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "event": safe(event), "generation": generation.uuidString,
+                                  "version": runtimeVersion, "source": Bundle.main.object(forInfoDictionaryKey: "RemodexSourceSHA") as? String ?? "unknown"]
+        if let operation { row["operation"] = operation.uuidString }
+        if let exit { row["exit"] = exit }
+        if let stage { row["stage"] = safe(stage) }
+        if let code { row["code"] = safe(code) }
+        if let requestID { row["requestID"] = requestID.uuidString }
+        if let httpStatus { row["httpStatus"] = httpStatus }
+        if let durationMs { row["durationMs"] = durationMs }
+        let entry = row
+        logQueue.async { [weak self, logBudget] in
+            defer { logBudget.release(1) }
+            let fileManager = FileManager.default
+            let failed: Bool
+            do {
+                try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+                let url = directory.appendingPathComponent("app.jsonl")
+                if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 2_000_000 {
+                    let previous = directory.appendingPathComponent("app.previous.jsonl")
+                    if fileManager.fileExists(atPath: previous.path) { try fileManager.removeItem(at: previous) }
+                    try fileManager.moveItem(at: url, to: previous)
+                }
+                if !fileManager.fileExists(atPath: url.path) { fileManager.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) }
+                var data = try JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]); data.append(10)
+                let handle = try FileHandle(forWritingTo: url); defer { try? handle.close() }
+                try handle.seekToEnd(); try handle.write(contentsOf: data)
+                failed = false
+            } catch { failed = true }
+            Task { @MainActor [weak self] in
+                guard let self, self.diagnosticSequence == sequence else { return }
+                self.logFailure = failed
             }
-            if !fileManager.fileExists(atPath: url.path) { fileManager.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) }
-            var row: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "event": safe(event), "generation": generation.uuidString,
-                                      "version": bundledVersion, "source": Bundle.main.object(forInfoDictionaryKey: "RemodexSourceSHA") as? String ?? "unknown"]
-            if let operation { row["operation"] = operation.uuidString }
-            if let exit { row["exit"] = exit }
-            if let stage { row["stage"] = safe(stage) }
-            if let code { row["code"] = safe(code) }
-            if let requestID { row["requestID"] = requestID.uuidString }
-            if let httpStatus { row["httpStatus"] = httpStatus }
-            if let durationMs { row["durationMs"] = durationMs }
-            var data = try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]); data.append(10)
-            let handle = try FileHandle(forWritingTo: url); defer { try? handle.close() }
-            try handle.seekToEnd(); try handle.write(contentsOf: data)
-            logFailure = false
-        } catch { logFailure = true }
+        }
     }
 
     var isRunning: Bool {
         bridgeProcess?.isRunning == true
     }
 
-    func detectRuntimeAvailability() -> Result<String, Error> {
-        do {
-            try validateBundledRuntime()
-            return .success(bundledVersion)
-        } catch {
-            return .failure(error)
+    func startBridge(relayOverride: String?) async throws {
+        intent = UUID()
+        let requested = intent
+        wantsRunning = true
+        desiredRelay = relayOverride
+        recoveryTask?.cancel(); recoveryTask = nil
+        recovery.reset()
+        operations.cancel()
+        try await operations.perform {
+            guard self.intent == requested, self.wantsRunning else { throw CancellationError() }
+            try await self.launchBridge(relayOverride: relayOverride)
         }
     }
 
-    func startBridge(relayOverride: String?) async throws {
+    private func launchBridge(relayOverride: String?) async throws {
         guard !isRunning else { return }
         generation = UUID(); lastExitCode = nil
+        heartbeatStamp = nil
+        heartbeatObservedAt = ProcessInfo.processInfo.systemUptime
+        staleChecks = 0
         record("preflight")
-        try validateBundledRuntime()
-        let activationBootstrap = try DeviceAccessService.shared.bootstrap(relay: relayOverride ?? "")
+        let activationBootstrap: Data
+        do {
+            try validateBundledRuntime()
+            activationBootstrap = try DeviceAccessService.shared.bootstrap(relay: relayOverride ?? "")
+        } catch {
+            wantsRunning = false
+            recoveryPhase = "启动条件不满足，需要处理"
+            throw error
+        }
         guard let relay = relayOverride?.trimmingCharacters(in: .whitespacesAndNewlines), !relay.isEmpty else {
+            wantsRunning = false
             throw BridgeRuntimeError.relayMissing
         }
 
@@ -154,99 +201,217 @@ final class BridgeControlService {
     }
 
     func stopBridge() async {
+        intent = UUID()
+        let requested = intent
+        wantsRunning = false
+        recoveryPhase = ""
+        recoveryTask?.cancel(); recoveryTask = nil
+        operations.cancel()
+        try? await operations.perform {
+            guard self.intent == requested else { return }
+            await self.terminateBridge()
+        }
+    }
+
+    private func terminateBridge() async {
         guard let process = bridgeProcess else { return }
         let stoppingGeneration = generation
         try? parentPipe?.fileHandleForWriting.close()
         for _ in 0..<20 where process.isRunning {
-            try? await Task.sleep(for: .milliseconds(100))
+            await Self.stopPause()
         }
         if process.isRunning {
             process.terminate()
         }
         for _ in 0..<10 where process.isRunning {
-            try? await Task.sleep(for: .milliseconds(100))
+            await Self.stopPause()
         }
         if process.isRunning {
             Darwin.kill(process.processIdentifier, SIGKILL)
         }
+        for _ in 0..<20 where process.isRunning { await Self.stopPause() }
+        guard !process.isRunning else {
+            recoveryPhase = "停止未完成，进程仍存在"
+            record("process_stop_failed")
+            return
+        }
         if generation == stoppingGeneration { finishTerminatedProcess() }
     }
 
+    private static func stopPause() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { continuation.resume() }
+        }
+    }
+
     func restartBridge(relayOverride: String?) async throws {
-        await stopBridge()
-        try await startBridge(relayOverride: relayOverride)
+        intent = UUID()
+        let requested = intent
+        wantsRunning = true
+        desiredRelay = relayOverride
+        recoveryTask?.cancel(); recoveryTask = nil
+        operations.cancel()
+        try await operations.perform {
+            guard self.intent == requested else { throw CancellationError() }
+            await self.terminateBridge()
+            guard !self.isRunning else { throw BridgeRuntimeError.commandFailed("旧 Bridge 尚未退出，不会启动重复进程。") }
+            guard self.intent == requested, self.wantsRunning else { throw CancellationError() }
+            try await self.launchBridge(relayOverride: relayOverride)
+        }
     }
 
     func refreshPairing(relayOverride: String?) async throws {
+        let requested = intent
+        try await operations.perform {
+            guard self.intent == requested else { throw CancellationError() }
+            try await self.refreshCurrentPairing(relayOverride: relayOverride)
+        }
+    }
+
+    private func refreshCurrentPairing(relayOverride: String?) async throws {
         guard isRunning, let parentPipe else { throw BridgeRuntimeError.commandFailed("请先启动 Bridge。") }
-        let old = loadSnapshot(relayOverride: relayOverride).pairingSession?.qrText
+        let old = await loadSnapshot(relayOverride: relayOverride).pairingSession?.qrText
+        try Task.checkCancellation()
         let currentGeneration = generation
         try parentPipe.fileHandleForWriting.write(contentsOf: Data("{\"command\":\"refresh-pairing\"}\n".utf8))
         for _ in 0..<100 {
             try await Task.sleep(for: .milliseconds(200))
             guard generation == currentGeneration, isRunning else { throw BridgeRuntimeError.commandFailed("Bridge 已停止，未刷新配对码。") }
-            if let next = loadSnapshot(relayOverride: relayOverride).pairingSession?.qrText, next != old { return }
+            if let next = await loadSnapshot(relayOverride: relayOverride).pairingSession?.qrText, next != old { return }
         }
         throw BridgeRuntimeError.commandFailed("刷新配对邀请失败，请检查 Relay 连接后重试。旧邀请不会被延长。")
     }
 
     func resetPairing(relayOverride: String?) async throws {
-        await stopBridge()
-        try await runControlCommand("reset-pairing")
-        try await startBridge(relayOverride: relayOverride)
+        intent = UUID()
+        let requested = intent
+        recoveryTask?.cancel(); recoveryTask = nil
+        operations.cancel()
+        try await operations.perform {
+            guard self.intent == requested else { throw CancellationError() }
+            await self.terminateBridge()
+            guard !self.isRunning else { throw BridgeRuntimeError.commandFailed("旧 Bridge 尚未退出，不能重置配对。") }
+            do { try await self.runControlCommand("reset-pairing") }
+            catch { if self.intent == requested { self.wantsRunning = false }; throw error }
+            guard self.intent == requested else { throw CancellationError() }
+            self.wantsRunning = true
+            self.desiredRelay = relayOverride
+            try await self.launchBridge(relayOverride: relayOverride)
+        }
     }
 
     func resumeLastThread() async throws {
-        try await runControlCommand("resume")
+        try await operations.perform { try await self.runControlCommand("resume") }
+    }
+
+    func didWake() {
+        wakeGraceUntil = ProcessInfo.processInfo.systemUptime + 30
+        heartbeatObservedAt = ProcessInfo.processInfo.systemUptime
+        staleChecks = 0
+    }
+
+    func recoverIfNeeded(snapshot: BridgeSnapshot?) {
+        guard wantsRunning, !operations.isBusy, recoveryTask == nil else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let code = snapshot?.bridgeStatus?.lastError, terminalErrors.contains(code) || snapshot?.bridgeStatus?.state == "blocked" {
+            wantsRunning = false
+            recoveryPhase = "需要处理：\(code)"
+            record("recovery_blocked", code: code)
+            return
+        }
+        if isRunning {
+            let stamp = snapshot?.bridgeStatus?.updatedAt
+            if let stamp, stamp != heartbeatStamp {
+                heartbeatStamp = stamp
+                heartbeatObservedAt = now
+                staleChecks = 0
+                recovery.observeHealthy(at: now)
+                recoveryPhase = ""
+                return
+            }
+            guard now >= wakeGraceUntil, now - heartbeatObservedAt > 60 else { return }
+            staleChecks += 1
+            guard staleChecks >= 2 else { return }
+        }
+        let requested = intent
+        let delay = recovery.delay(now: now, jitter: Double.random(in: 0...1))
+        recoveryPhase = delay >= 300 ? "恢复冷却中" : "正在恢复"
+        recoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { if self.intent == requested { self.recoveryTask = nil } }
+            do {
+                try await Task.sleep(for: .seconds(delay))
+                guard self.intent == requested, self.wantsRunning else { return }
+                try await self.operations.perform {
+                    guard self.intent == requested, self.wantsRunning else { throw CancellationError() }
+                    self.recovery.recordAttempt(at: ProcessInfo.processInfo.systemUptime)
+                    await self.terminateBridge()
+                    guard !self.isRunning else { throw BridgeRuntimeError.commandFailed("旧 Bridge 尚未退出，恢复已延后。") }
+                    guard self.intent == requested, self.wantsRunning else { throw CancellationError() }
+                    try await self.launchBridge(relayOverride: self.desiredRelay)
+                    self.record("recovery_started")
+                }
+            } catch is CancellationError { }
+            catch {
+                self.record("recovery_failed")
+                if case BridgeRuntimeError.runtimeMissing = error {
+                    self.wantsRunning = false
+                    self.recoveryPhase = "运行时缺失，需要更新应用"
+                }
+            }
+        }
     }
 
     func stopSynchronously() {
+        wantsRunning = false
+        intent = UUID()
+        recoveryTask?.cancel()
+        operations.cancel()
         guard let process = bridgeProcess else { return }
         try? parentPipe?.fileHandleForWriting.close()
         if process.isRunning {
             process.terminate()
         }
-        finishTerminatedProcess()
+        if !process.isRunning { finishTerminatedProcess() }
     }
 
-    func loadSnapshot(relayOverride: String?) -> BridgeSnapshot {
-        let runtime = detectRuntimeAvailability()
-        let runtimeError: String?
-        let version: String
-        switch runtime {
-        case .success(let value):
-            version = value
-            runtimeError = nil
-        case .failure(let error):
-            version = "—"
-            runtimeError = error.localizedDescription
+    func loadSnapshot(relayOverride: String?) async -> BridgeSnapshot {
+        let observedGeneration = generation
+        let task: Task<BridgeDiskState, Never>
+        if let snapshotRead { task = snapshotRead }
+        else {
+            let state = stateDirectory, node = nodeURL, helper = helperURL, root = bridgeRootURL
+            task = Task.detached(priority: .utility) { BridgeDiskState.read(state: state, node: node, helper: helper, root: root) }
+            snapshotRead = task
+            snapshotReadID = UUID()
         }
-
-        let persistedConfig: BridgeDaemonConfig? = readStateFile(named: "daemon-config.json")
-        let effectiveConfig = persistedConfig ?? BridgeDaemonConfig(
+        let readID = snapshotReadID
+        let disk = await task.value
+        if snapshotReadID == readID { snapshotRead = nil; snapshotReadID = nil }
+        if disk.version != "—" { runtimeVersion = disk.version }
+        let effectiveConfig = disk.config ?? BridgeDaemonConfig(
             relayUrl: relayOverride,
             codexEndpoint: nil,
             refreshEnabled: nil
         )
-        let status: BridgeRuntimeStatus? = readStateFile(named: "bridge-status.json")
-        let currentStatus = isRunning && status?.belongsTo(generation) == true ? status : nil
+        let currentStatus = observedGeneration == generation && isRunning && disk.status?.belongsTo(generation) == true ? disk.status : nil
         return BridgeSnapshot(
-            currentVersion: version,
+            currentVersion: disk.version,
             isRunning: isRunning,
             processID: bridgeProcess?.isRunning == true ? Int(bridgeProcess!.processIdentifier) : nil,
-            runtimeAvailable: runtimeError == nil,
-            runtimeError: runtimeError,
+            runtimeAvailable: disk.runtimeError == nil,
+            runtimeError: disk.runtimeError,
             daemonConfig: effectiveConfig,
             bridgeStatus: currentStatus,
-            pairingSession: currentStatus == nil ? nil : readStateFile(named: "pairing-session.json"),
-            trustedDevice: readTrustedDeviceSummary(),
+            pairingSession: currentStatus == nil ? nil : disk.pairing,
+            trustedDevice: disk.trusted,
             stdoutLogPath: stdoutLogURL.path,
             stderrLogPath: stderrLogURL.path
         )
     }
 
-    func redactedDiagnostics(relayOverride: String?) -> String {
-        let snapshot = loadSnapshot(relayOverride: relayOverride)
+    func redactedDiagnostics(relayOverride: String?) async -> String {
+        let snapshot = await loadSnapshot(relayOverride: relayOverride)
         return [
             "Remodex \(snapshot.currentVersion)",
             "Bridge: \(snapshot.isRunning ? "running" : "stopped")",
@@ -266,22 +431,11 @@ final class BridgeControlService {
 
     private func runControlCommand(_ command: String) async throws {
         try validateBundledRuntime()
-        let process = Process()
-        let errorPipe = Pipe()
-        process.executableURL = nodeURL
-        process.arguments = [helperURL.path, command]
-        process.currentDirectoryURL = bridgeRootURL
-        process.environment = ProcessInfo.processInfo.environment.merging([
+        let environment = ProcessInfo.processInfo.environment.merging([
             "REMODEX_DEVICE_STATE_DIR": stateDirectory.path,
         ]) { _, appValue in appValue }
-        process.standardError = errorPipe
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let data = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw BridgeRuntimeError.commandFailed(message?.isEmpty == false ? message! : "Bridge helper 执行失败。")
-        }
+        let runner = AsyncProcessRunner(executable: nodeURL, arguments: [helperURL.path, "control", command], directory: bridgeRootURL, environment: environment)
+        try await runner.run(initialInput: Data("{}\n".utf8))
     }
 
     private func validateBundledRuntime() throws {
@@ -304,40 +458,6 @@ final class BridgeControlService {
         stderrHandle = nil
         parentPipe = nil
         bridgeProcess = nil
-    }
-
-    private func readStateFile<Value: Decodable>(named filename: String) -> Value? {
-        let url = stateDirectory.appendingPathComponent(filename)
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? decoder.decode(Value.self, from: data)
-    }
-
-    private func readTrustedDeviceSummary() -> BridgeTrustedDeviceSummary? {
-        guard let state: BridgeDeviceStateFile = readStateFile(named: "device-state.json") else {
-            return nil
-        }
-        let trustedPhones = state.trustedPhones ?? [:]
-        return BridgeTrustedDeviceSummary(
-            macDeviceFingerprint: shortFingerprint(state.macDeviceId),
-            trustedPhoneCount: trustedPhones.count,
-            trustedPhoneFingerprint: shortFingerprint(trustedPhones.keys.sorted().first),
-            lastSeenDeviceKind: state.lastSeenDeviceKind,
-            lastSeenPhoneAppVersion: state.lastSeenPhoneAppVersion
-        )
-    }
-
-    private func shortFingerprint(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return SHA256.hash(data: Data(value.utf8)).prefix(6).map { String(format: "%02x", $0) }.joined()
-    }
-
-    private var bundledVersion: String {
-        guard let data = try? Data(contentsOf: bridgeRootURL.appendingPathComponent("package.json")),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let version = object["version"] as? String else {
-            return Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
-        }
-        return version
     }
 
     private var runtimeRootURL: URL {
@@ -370,5 +490,42 @@ final class BridgeControlService {
 
     private var stderrLogURL: URL {
         logsDirectory.appendingPathComponent("bridge.stderr.log")
+    }
+}
+
+private struct BridgeDiskState {
+    let version: String
+    let runtimeError: String?
+    let config: BridgeDaemonConfig?
+    let status: BridgeRuntimeStatus?
+    let pairing: BridgePairingSession?
+    let trusted: BridgeTrustedDeviceSummary?
+
+    static func read(state: URL, node: URL, helper: URL, root: URL) -> BridgeDiskState {
+        func read<Value: Decodable>(_ filename: String) -> Value? {
+            guard let handle = try? FileHandle(forReadingFrom: state.appendingPathComponent(filename)) else { return nil }
+            defer { try? handle.close() }
+            guard let data = try? handle.read(upToCount: 1_048_577), data.count <= 1_048_576 else { return nil }
+            return try? JSONDecoder().decode(Value.self, from: data)
+        }
+        func fingerprint(_ value: String?) -> String? {
+            guard let value, !value.isEmpty else { return nil }
+            return SHA256.hash(data: Data(value.utf8)).prefix(6).map { String(format: "%02x", $0) }.joined()
+        }
+        let manager = FileManager.default
+        var missing: String?
+        if !manager.isExecutableFile(atPath: node.path) { missing = node.path }
+        else if !manager.fileExists(atPath: helper.path) { missing = helper.path }
+        else if !manager.fileExists(atPath: root.appendingPathComponent("node_modules/ws/index.js").path)
+            && !manager.fileExists(atPath: root.appendingPathComponent("node_modules/ws/package.json").path) { missing = "node_modules/ws" }
+        let package = (try? Data(contentsOf: root.appendingPathComponent("package.json"))).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        let device: BridgeDeviceStateFile? = read("device-state.json")
+        let trusted = device.map { value in
+            BridgeTrustedDeviceSummary(macDeviceFingerprint: fingerprint(value.macDeviceId), trustedPhoneCount: value.trustedPhones?.count ?? 0,
+                                       trustedPhoneFingerprint: fingerprint(value.trustedPhones?.keys.sorted().first), lastSeenDeviceKind: value.lastSeenDeviceKind,
+                                       lastSeenPhoneAppVersion: value.lastSeenPhoneAppVersion)
+        }
+        return BridgeDiskState(version: package?["version"] as? String ?? "—", runtimeError: missing.map { "App 内置 Bridge runtime 不完整：\($0)" },
+                               config: read("daemon-config.json"), status: read("bridge-status.json"), pairing: read("pairing-session.json"), trusted: trusted)
     }
 }

@@ -1,7 +1,7 @@
 const { spawn } = require('node:child_process');
 
 // 必须在任何大型模块导入前安装父管道监听；此模块只依赖 Node 内建能力。
-function supervise(script) {
+function supervise(script, { workerCommand = 'worker' } = {}) {
   let child, stopping = false, bootstrap = '';
   const killGroup = signal => {
     if (!child?.pid) return;
@@ -28,7 +28,7 @@ function supervise(script) {
     try { JSON.parse(bootstrap.slice(0, bootstrap.indexOf('\n'))); }
     catch { console.error('[remodex] activation_failed'); process.exit(1); }
     clearTimeout(deadline);
-    child = spawn(process.execPath, [script, 'worker'], { detached: true, stdio: ['pipe', 'inherit', 'inherit'], env: process.env });
+    child = spawn(process.execPath, [script, workerCommand], { detached: true, stdio: ['pipe', 'inherit', 'inherit'], env: process.env });
     child.on('error', () => { console.error('[remodex] worker_spawn_failed'); process.exit(1); });
     child.on('exit', code => { killGroup('SIGKILL'); process.exit(code ?? 1); });
     child.stdin.on('error', stop);

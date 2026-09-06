@@ -21,6 +21,8 @@
 		4CCE0926DAD312571934343A /* TurnTimelineReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EEB36EBEA2A475AC9B30B1F /* TurnTimelineReducerTests.swift */; };
 		516497899B5C9A82CD10D93F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A37794F4B32C1952A3770E0 /* Foundation.framework */; };
 		536FE94CCA889CE20A57EC42 /* BridgeControlService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357D589B8C179934A884F8CC /* BridgeControlService.swift */; };
+		A3030A100000000000000001 /* AsyncProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3030A100000000000000002 /* AsyncProcessRunner.swift */; };
+		A3030A100000000000000003 /* TransportPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3030A100000000000000004 /* TransportPolicy.swift */; };
 		5B10CDE1A2B3C4D5E6F70001 /* StreamingMarkdownBlockSplitterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B10CDE1A2B3C4D5E6F70002 /* StreamingMarkdownBlockSplitterTests.swift */; };
 		5B10CDE1A2B3C4D5E6F70003 /* StreamingInlineMarkupAutoCloserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B10CDE1A2B3C4D5E6F70004 /* StreamingInlineMarkupAutoCloserTests.swift */; };
 		5D0DB447AAE8F5B60D164223 /* BridgeMenuBarViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C1E3E027CF4B98453962A0 /* BridgeMenuBarViews.swift */; };
@@ -153,6 +155,8 @@
 		22B3C4D5E6F708192A3B4C5E /* CodexFuzzyFileSearchDecodeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexFuzzyFileSearchDecodeTests.swift; sourceTree = "<group>"; };
 		2A6D4B8C1E3F507192A4B6C9 /* CodexStatusTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexStatusTests.swift; sourceTree = "<group>"; };
 		357D589B8C179934A884F8CC /* BridgeControlService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BridgeControlService.swift; sourceTree = "<group>"; };
+		A3030A100000000000000002 /* AsyncProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncProcessRunner.swift; sourceTree = "<group>"; };
+		A3030A100000000000000004 /* TransportPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../SharedTransport/TransportPolicy.swift; sourceTree = "<group>"; };
 		3A1FC345ADD350213550F36C /* BridgeMenuBarStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BridgeMenuBarStore.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5D /* DeviceAccessService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeviceAccessService.swift; sourceTree = "<group>"; };
 		3B1A9C7D5E4F60718293A4B5 /* BuildSupport/Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildSupport/Base.xcconfig; sourceTree = SOURCE_ROOT; };
@@ -494,6 +498,8 @@
 				C0B9CCCCC45E47616AB452FA /* RemodexMenuBarApp.swift */,
 				C9CD1EA13B728103A5654EEA /* BridgeControlModels.swift */,
 				357D589B8C179934A884F8CC /* BridgeControlService.swift */,
+				A3030A100000000000000002 /* AsyncProcessRunner.swift */,
+				A3030A100000000000000004 /* TransportPolicy.swift */,
 				3A1FC345ADD350213550F36C /* BridgeMenuBarStore.swift */,
 				53C1E3E027CF4B98453962A0 /* BridgeMenuBarViews.swift */,
 				A1B2C3D4E5F60718293A4B5D /* DeviceAccessService.swift */,
@@ -723,6 +729,8 @@
 				DAAD0C0C717F9415C3E9D21A /* RemodexMenuBarApp.swift in Sources */,
 				653D2279D3E2FEE59237D854 /* BridgeControlModels.swift in Sources */,
 				536FE94CCA889CE20A57EC42 /* BridgeControlService.swift in Sources */,
+				A3030A100000000000000001 /* AsyncProcessRunner.swift in Sources */,
+				A3030A100000000000000003 /* TransportPolicy.swift in Sources */,
 				1BF7B512D49503A3C3290F00 /* BridgeMenuBarStore.swift in Sources */,
 				5D0DB447AAE8F5B60D164223 /* BridgeMenuBarViews.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5C /* DeviceAccessService.swift in Sources */,

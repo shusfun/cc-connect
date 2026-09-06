@@ -17,7 +17,7 @@ pnpm --filter remodex deploy --legacy --prod "$output_root/bridge-bundle"
 node CodexMobile/scripts/validate-bridge-bundle.cjs "$output_root/bridge-bundle"
 swiftc -swift-version 5 -D DEBUG -Onone -g -parse-as-library \
   -target "$(uname -m)-apple-macosx14.0" \
-  CodexMobile/RemodexMenuBar/*.swift -o "$app/Contents/MacOS/Remodex"
+  CodexMobile/RemodexMenuBar/*.swift CodexMobile/SharedTransport/TransportPolicy.swift -o "$app/Contents/MacOS/Remodex"
 cp CodexMobile/BuildSupport/RemodexMenuBar-Info.plist "$app/Contents/Info.plist"
 plist="$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDevelopmentRegion zh_CN' "$plist"

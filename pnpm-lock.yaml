@@ -163,6 +163,9 @@ importers:
       '@remodex/protocol':
         specifier: workspace:*
         version: link:../packages/protocol
+      better-sse:
+        specifier: 0.16.1
+        version: 0.16.1
       ws:
         specifier: 8.21.0
         version: 8.21.0
@@ -1107,6 +1110,10 @@ packages:
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
+
+  better-sse@0.16.1:
+    resolution: {integrity: sha512-1gc5LUmdMX49Whq/XWOfNKBmMpZCaFLWk0Pt4A5p41T/6/sK1cV7Px/3ep84gwZs6Vz6V/tgozz6EscTT0lLoA==}
+    engines: {node: '>=20', pnpm: '>=10'}
 
   bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}
@@ -2663,6 +2670,8 @@ snapshots:
   assertion-error@2.0.1: {}
 
   balanced-match@4.0.4: {}
+
+  better-sse@0.16.1: {}
 
   bidi-js@1.0.3:
     dependencies:
