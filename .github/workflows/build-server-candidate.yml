@@ -1,0 +1,67 @@
+name: Build Remodex server candidate
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: remodex-server-candidate-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm --filter @remodex/control run build
+      - run: pnpm -r test
+      - name: Resolve candidate identity
+        id: identity
+        run: |
+          echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: relay
+        with:
+          context: .
+          file: relay/Dockerfile
+          target: relay
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/shusfun/cc-connect-relay:candidate-${{ github.sha }}
+          build-args: |
+            RELEASE_VERSION=${{ steps.identity.outputs.version }}
+            SOURCE_SHA=${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        id: updater
+        with:
+          context: .
+          file: relay/Dockerfile
+          target: updater
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/shusfun/cc-connect-updater:candidate-${{ github.sha }}
+          build-args: |
+            RELEASE_VERSION=${{ steps.identity.outputs.version }}
+            SOURCE_SHA=${{ github.sha }}
+      - name: Record candidate digests without publishing a Release
+        env:
+          RELAY_DIGEST: ${{ steps.relay.outputs.digest }}
+          UPDATER_DIGEST: ${{ steps.updater.outputs.digest }}
+        run: node packages/updater/build-candidate-manifest.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remodex-server-candidate
+          path: build/server-candidate/
+          if-no-files-found: error

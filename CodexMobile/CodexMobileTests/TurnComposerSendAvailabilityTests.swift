@@ -292,6 +292,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-live",
             viewModel: viewModel,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             codex: service,
             threadID: "thread-live-attachment"
         )
@@ -318,6 +319,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-preserve",
             viewModel: nil,
             expectedDraftMergeRevision: preservingRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             codex: service,
             threadID: "thread-preserve-attachment"
         )
@@ -339,6 +341,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-stale",
             viewModel: nil,
             expectedDraftMergeRevision: staleRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             codex: service,
             threadID: "thread-stale-attachment"
         )
@@ -405,6 +408,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-navigation",
             viewModel: nil,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             codex: service,
             threadID: "thread-navigation-attachment"
         )
@@ -436,6 +440,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-detached",
             viewModel: viewModel,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             codex: service,
             threadID: "thread-detached-attachment"
         )
@@ -480,6 +485,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-reappeared",
             viewModel: viewModel,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: ["attachment-reappeared"],
             codex: service,
             threadID: "thread-reappeared-attachment"
@@ -512,6 +518,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-failed",
             viewModel: viewModel,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: ["attachment-failed"],
             codex: service,
             threadID: "thread-failed-attachment"
@@ -549,6 +556,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-second",
             viewModel: nil,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: attachmentOrder,
             codex: service,
             threadID: "thread-ordered-attachments"
@@ -558,6 +566,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-first",
             viewModel: nil,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: attachmentOrder,
             codex: service,
             threadID: "thread-ordered-attachments"
@@ -597,6 +606,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-first",
             viewModel: nil,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: attachmentOrder,
             codex: service,
             threadID: "thread-partial-restore"
@@ -614,6 +624,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-second",
             viewModel: viewModel,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: attachmentOrder,
             codex: service,
             threadID: "thread-partial-restore"
@@ -648,6 +659,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-edited",
             viewModel: nil,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: ["attachment-edited"],
             codex: service,
             threadID: "thread-edited-attachment"
@@ -681,6 +693,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-removed",
             viewModel: nil,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: ["attachment-removed"],
             codex: service,
             threadID: "thread-removed-attachment"
@@ -717,6 +730,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-removed",
             viewModel: nil,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: attachmentOrder,
             codex: service,
             threadID: "thread-remove-one-attachment"
@@ -726,6 +740,7 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             id: "attachment-kept",
             viewModel: nil,
             expectedDraftMergeRevision: expectedRevision,
+            expectedDraftMergeEpoch: service.composerDraftMergeEpoch,
             attachmentOrder: attachmentOrder,
             codex: service,
             threadID: "thread-remove-one-attachment"

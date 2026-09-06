@@ -1650,7 +1650,16 @@ extension CodexService {
             )
         }
 
-        guard let messageIndex = findLatestPlanMessageIndex(
+        // 新创建的进度行尚未写入 presentation，不能用目标 presentation
+        // 反查自身；优先使用刚刚 upsert 的精确身份及其规范化别名。
+        let upsertedItemID = normalizedStreamingItemID(itemId)
+            ?? normalizedStreamingItemID(turnId).map { syntheticStreamingItemId(turnId: $0, kind: .plan) }
+        let upsertedIndex = upsertedItemID.flatMap { itemID in
+            streamingSystemMessageByItemID[streamingItemMessageKey(threadId: threadId, itemId: itemID)]
+        }.flatMap { messageID in
+            findMessageIndex(threadId: threadId, messageId: messageID)
+        }
+        guard let messageIndex = upsertedIndex ?? findLatestPlanMessageIndex(
             threadId: threadId,
             turnId: turnId,
             itemId: itemId,
@@ -2607,9 +2616,7 @@ extension CodexService {
         guard text.utf8.count <= MessageTextProcessingPolicy.largeTextByteLimit else {
             return []
         }
-        let inlineTotalsRegex = try? NSRegularExpression(
-            pattern: #"\s*[+\u{FF0B}]\s*\d+\s*[-\u{2212}\u{2013}\u{2014}\u{FE63}\u{FF0D}]\s*\d+\s*$"#
-        )
+        let inlineTotalsRegex = TurnMessageRegexCache.trailingInlineTotals
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var keys: Set<String> = []
 

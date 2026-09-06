@@ -45,6 +45,7 @@ jobs:
           node -e 'const fs=require("fs"),list=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/remodex-simulators.json"));const device=Object.entries(list.devices).filter(([runtime])=>runtime.includes("iOS-26")).flatMap(([,devices])=>devices).find(d=>d.name.startsWith("iPhone"));if(!device)throw Error("iOS 26 iPhone simulator required");fs.appendFileSync(process.env.GITHUB_OUTPUT,"id="+device.udid+"\n")'
 
       - name: Run iOS unit and real-page localization UI tests
+        id: ios-tests
         run: |
           set -euo pipefail
           xcodebuild -project CodexMobile/CodexMobile.xcodeproj -scheme CodexMobile -configuration Debug \
@@ -74,6 +75,11 @@ jobs:
           if-no-files-found: warn
 
       - name: Build unsigned IPA
+        id: ipa-build
+        # 测试失败保留 job failure，仍生成可诊断候选包；Release 的 needs 门禁不变。
+        if: ${{ !cancelled() && (steps.ios-tests.outcome == 'success' || steps.ios-tests.outcome == 'failure') }}
+        env:
+          IOS_TEST_OUTCOME: ${{ steps.ios-tests.outcome }}
         run: |
           set -euo pipefail
 
@@ -116,6 +122,7 @@ jobs:
           ditto "$app_path" "$payload_root/Payload/$(basename "$app_path")"
           /usr/libexec/PlistBuddy -c "Add :RemodexSourceSHA string $GITHUB_SHA" "$payload_root/Payload/$(basename "$app_path")/Info.plist"
           /usr/libexec/PlistBuddy -c "Add :RemodexReleaseVersion string $release_version" "$payload_root/Payload/$(basename "$app_path")/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :RemodexIOSTestOutcome string $IOS_TEST_OUTCOME" "$payload_root/Payload/$(basename "$app_path")/Info.plist"
           node CodexMobile/scripts/verify-ios-localization.cjs "$payload_root/Payload/$(basename "$app_path")"
           ditto -c -k --sequesterRsrc --keepParent "$payload_root/Payload" "$ipa_path"
 
@@ -131,6 +138,7 @@ jobs:
           retention-days: 7
 
       - name: Upload unsigned IPA artifact
+        if: ${{ !cancelled() && steps.ipa-build.outcome == 'success' }}
         uses: actions/upload-artifact@v7
         with:
           name: remodex-unsigned-ipa
