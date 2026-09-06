@@ -25,12 +25,12 @@ enum RelayDeviceAccess {
         url.scheme = "wss"; url.path = "/relay/\(sessionId)"
         return url.url!.absoluteString
     }
-    static func preview(_ code: CompactPairingCode) async throws -> CodexPairingQRPayload {
+    static func preview(_ code: CompactPairingCode, context: PairingRequestContext? = nil) async throws -> CodexPairingQRPayload {
         let url = try origin(code.relay).appendingPathComponent("v1/access/pairing/preview")
         var request = URLRequest(url: url); request.httpMethod = "POST"; request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["invitation": code.invitation])
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await perform(request, route: .preview, context: context)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw accessFailure(data: data, response: response)
         }
@@ -38,7 +38,7 @@ enum RelayDeviceAccess {
               let device = value["device"] as? [String: Any], device["public_key"] as? String == code.publicKey,
               let id = device["id"] as? String, let account = value["accountId"] as? String, let instance = value["instanceId"] as? String,
               let expires = value["expiresAt"] as? Int64, let serverTime = value["serverTime"] as? Int64, expires > serverTime
-        else { throw CodexServiceError.invalidResponse(L10n.string("设备身份不匹配，已阻止配对。请重新核对电脑二维码。")) }
+        else { throw PairingFlowFailure.identityMismatch }
         // 预览尚无会话权限；sessionId 只在授权完成后从 session 接口取得。
         return CodexPairingQRPayload(v: codexPairingQRVersion, relay: code.relay, sessionId: "", macDeviceId: id, macIdentityPublicKey: code.publicKey, expiresAt: expires, displayName: device["remark"] as? String, invitation: code.invitation, accountId: account, instanceId: instance, platform: device["platform"] as? String)
     }
@@ -62,17 +62,38 @@ enum RelayDeviceAccess {
         let transcript = ["remodex-access-v1", method, url.path, sha(data), timestamp, nonce, sha(Data(token.utf8))].joined(separator: "\n")
         return [L10n.string("Authorization"): "Bearer \(token)", "x-remodex-key": identity.phoneIdentityPublicKey, "x-remodex-time": timestamp, "x-remodex-nonce": nonce, "x-remodex-signature": try privateKey.signature(for: Data(transcript.utf8)).base64EncodedString()]
     }
-    static func request(relay: String, path: String, body: [String: Any] = [:], token: String, identity: CodexPhoneIdentityState) async throws -> Data {
+    static func request(relay: String, path: String, body: [String: Any] = [:], token: String, identity: CodexPhoneIdentityState, context: PairingRequestContext? = nil) async throws -> Data {
         let url = try origin(relay).appendingPathComponent(String(path.dropFirst()))
         let data = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes])
         var request = URLRequest(url: url); request.httpMethod = "POST"; request.httpBody = data; request.timeoutInterval = 15
         for (key, value) in try headers(url: url, method: "POST", data: data, token: token, identity: identity) { request.setValue(value, forHTTPHeaderField: key) }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (responseData, response) = try await session.data(for: request)
+        let (responseData, response) = try await perform(request, route: PairingRoute(rawValue: path), context: context)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw accessFailure(data: responseData, response: response)
         }
         return responseData
+    }
+    private static func perform(_ input: URLRequest, route: PairingRoute?, context: PairingRequestContext?) async throws -> (Data, URLResponse) {
+        try Task.checkCancellation()
+        try context?.checkCancellation()
+        var request = input
+        if let context { request.setValue(context.operationId.uuidString, forHTTPHeaderField: "x-remodex-operation-id") }
+        let started = ContinuousClock.now
+        if let route { context?.requestStarted(route: route) }
+        do {
+            let result: (Data, URLResponse)
+            if let transport = context?.transport { result = try await transport(request) }
+            else { result = try await session.data(for: request) }
+            let object = try? JSONSerialization.jsonObject(with: result.0) as? [String: Any]
+            if let route { context?.response(route: route, started: started, response: result.1, code: object?["code"] as? String) }
+            try Task.checkCancellation()
+            try context?.checkCancellation()
+            return result
+        } catch {
+            if let route { context?.response(route: route, started: started, response: nil, code: nil, error: error) }
+            throw error
+        }
     }
     private static func accessFailure(data: Data, response: URLResponse) -> RelayAccessFailure {
         let http = response as? HTTPURLResponse
@@ -81,21 +102,36 @@ enum RelayDeviceAccess {
         let code = rawCode.range(of: "^[a-z_]{1,64}$", options: .regularExpression) == nil ? "request_failed" : rawCode
         return RelayAccessFailure(code: code, status: http?.statusCode ?? 0, requestID: http?.value(forHTTPHeaderField: "x-remodex-request-id").flatMap(UUID.init(uuidString:)))
     }
-    static func pair(_ payload: CodexPairingQRPayload, identity: CodexPhoneIdentityState) async throws -> Credential {
+    static func pair(_ payload: CodexPairingQRPayload, identity: CodexPhoneIdentityState, context: PairingRequestContext? = nil) async throws -> Credential {
+        try Task.checkCancellation()
+        try context?.checkCancellation()
         guard let invitation = payload.invitation, let account = payload.accountId, let instance = payload.instanceId else { throw CodexServiceError.invalidInput(L10n.string("二维码版本不兼容，请更新桌面应用并重新生成")) }
         let accountKey = "remodex.phone.account." + sha(Data(instance.utf8))
         if let existing = SecureStore.readString(for: accountKey), existing != account { throw CodexServiceError.invalidInput(L10n.string("手机已绑定其他账号，请先解除全部配对")) }
-        let data = try await request(relay: payload.relay, path: "/v1/access/pairing/claim", body: ["invitation": invitation, "publicKey": identity.phoneIdentityPublicKey], token: "", identity: identity)
+        context?.transition(.submission)
+        let data: Data
+        do {
+            data = try await request(relay: payload.relay, path: "/v1/access/pairing/claim", body: ["invitation": invitation, "publicKey": identity.phoneIdentityPublicKey], token: "", identity: identity, context: context)
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            if let failure = error as? RelayAccessFailure, (400..<500).contains(failure.status), failure.status != 408 { throw failure }
+            throw PairingFlowFailure.submissionUncertain
+        }
         guard let claim = try JSONSerialization.jsonObject(with: data) as? [String: Any], let id = claim["id"] as? String, let token = claim["token"] as? String,
               claim["accountId"] as? String == account, claim["instanceId"] as? String == instance,
               let device = claim["device"] as? [String: Any], device["public_key"] as? String == payload.macIdentityPublicKey,
-              device["id"] as? String == payload.macDeviceId else { throw CodexServiceError.invalidResponse(L10n.string("设备身份不匹配")) }
+              device["id"] as? String == payload.macDeviceId else { throw PairingFlowFailure.identityMismatch }
+        context?.transition(.approval)
         for _ in 0..<100 {
             try Task.checkCancellation()
+            try context?.checkCancellation()
             do {
-                let response = try await request(relay: payload.relay, path: "/v1/access/pairing/redeem", body: ["id": id, "token": token, "publicKey": identity.phoneIdentityPublicKey], token: token, identity: identity)
+                let response = try await request(relay: payload.relay, path: "/v1/access/pairing/redeem", body: ["id": id, "token": token, "publicKey": identity.phoneIdentityPublicKey], token: token, identity: identity, context: context)
                 let credential = try JSONDecoder().decode(Credential.self, from: response)
-                guard credential.accountId == account, credential.instanceId == instance, credential.deviceId == payload.macDeviceId else { throw CodexServiceError.invalidResponse(L10n.string("设备授权范围不匹配")) }
+                guard credential.accountId == account, credential.instanceId == instance, credential.deviceId == payload.macDeviceId else { throw PairingFlowFailure.identityMismatch }
+                try Task.checkCancellation()
+                try context?.checkCancellation()
+                context?.transition(.authorization)
                 try save(credential, relay: payload.relay)
                 SecureStore.writeString(account, for: accountKey)
                 return credential
@@ -116,9 +152,9 @@ extension CodexService {
         let access = try RelayDeviceAccess.credential(relay: url.absoluteString, deviceId: id)
         return try RelayDeviceAccess.headers(url: url, method: "GET", token: access.token, identity: phoneIdentityState)
     }
-    func resolveAuthorizedSession(deviceId: String, relay: String) async throws -> CodexTrustedSessionResolveResponse {
+    func resolveAuthorizedSession(deviceId: String, relay: String, context: PairingRequestContext? = nil) async throws -> CodexTrustedSessionResolveResponse {
         let access = try RelayDeviceAccess.credential(relay: relay, deviceId: deviceId)
-        let data = try await RelayDeviceAccess.request(relay: relay, path: "/v1/access/session", token: access.token, identity: phoneIdentityState)
+        let data = try await RelayDeviceAccess.request(relay: relay, path: "/v1/access/session", token: access.token, identity: phoneIdentityState, context: context)
         guard let result = try JSONSerialization.jsonObject(with: data) as? [String: Any], let session = result["sessionId"] as? String, let device = result["device"] as? [String: Any], let publicKey = device["public_key"] as? String,
               device["id"] as? String == deviceId, result["accountId"] as? String == access.accountId, result["instanceId"] as? String == access.instanceId else { throw CodexServiceError.invalidResponse(L10n.string("设备会话响应无效")) }
         return CodexTrustedSessionResolveResponse(ok: true, macDeviceId: deviceId, macIdentityPublicKey: publicKey, displayName: device["remark"] as? String, sessionId: session)

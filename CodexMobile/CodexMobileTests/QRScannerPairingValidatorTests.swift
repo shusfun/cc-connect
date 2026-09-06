@@ -1,4 +1,6 @@
 import XCTest
+import AVFoundation
+import CryptoKit
 @testable import CodexMobile
 
 final class QRScannerPairingValidatorTests: XCTestCase {
@@ -27,5 +29,221 @@ final class QRScannerPairingValidatorTests: XCTestCase {
     }
     func testUnrelatedQRCodeIsNotAPairing() {
         guard case .scanError = validatePairingQRCode("https://example.test") else { return XCTFail("必须拒绝无关二维码") }
+    }
+
+    func testCameraDetectionCoversTheEntireImage() {
+        XCTAssertEqual(QRScannerCapturePolicy.detectionRegion, CGRect(x: 0, y: 0, width: 1, height: 1))
+    }
+
+    func testCameraSelectionPrefersSystemLensSwitching() {
+        XCTAssertEqual(QRScannerCapturePolicy.cameraTypes, [
+            .builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera
+        ])
+    }
+
+    func testPairingCodeIsNotHiddenByAnotherVisibleQRCode() {
+        let pairing = code()
+        XCTAssertEqual(QRScannerCapturePolicy.preferredCode(in: ["https://example.test", pairing]), pairing)
+        XCTAssertEqual(QRScannerCapturePolicy.preferredCode(in: ["", " \n", pairing]), pairing)
+    }
+
+    func testUnrelatedCodeStillProducesValidationFeedback() {
+        XCTAssertEqual(QRScannerCapturePolicy.preferredCode(in: ["https://example.test"]), "https://example.test")
+        XCTAssertNil(QRScannerCapturePolicy.preferredCode(in: ["", " \n"]))
+    }
+}
+
+@MainActor
+final class PairingFlowTests: XCTestCase {
+    private func code(_ seed: UInt8 = 7) -> CompactPairingCode {
+        CompactPairingCode(relay: "wss://fixture.invalid", invitation: String(repeating: "A", count: 43), publicKey: Data(repeating: seed, count: 32).base64EncodedString())
+    }
+
+    private func payload(_ code: CompactPairingCode) -> CodexPairingQRPayload {
+        CodexPairingQRPayload(v: 2, relay: code.relay, sessionId: "", macDeviceId: "fixture-device", macIdentityPublicKey: code.publicKey, expiresAt: Int64(Date().addingTimeInterval(300).timeIntervalSince1970 * 1000), invitation: code.invitation, accountId: "fixture-account", instanceId: UUID().uuidString, platform: "macos")
+    }
+
+    private func waitUntil(_ predicate: () -> Bool) async throws {
+        for _ in 0..<200 {
+            if predicate() { return }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTFail("状态未在测试期限内出现")
+    }
+
+    func testLocalPageAppearsBeforePreviewRequestCompletes() async throws {
+        var continuation: CheckedContinuation<CodexPairingQRPayload, Error>?
+        let model = PairingFlowModel { _, _ in
+            try await withCheckedThrowingContinuation { continuation = $0 }
+        }
+        let scanned = code()
+        model.recognize(scanned)
+        XCTAssertTrue(model.showsDetails)
+        XCTAssertEqual(model.phase, .verifying)
+        XCTAssertEqual(model.draft, scanned)
+        XCTAssertNil(model.verified)
+        try await waitUntil { continuation != nil }
+        continuation?.resume(returning: payload(scanned))
+        try await waitUntil { model.phase == .ready }
+        XCTAssertEqual(model.diagnostics.stage, .confirmation)
+        model.stop()
+    }
+
+    func testTimeoutKeepsDraftAndAllowsVerificationRetry() async throws {
+        let scanned = code()
+        let valid = payload(scanned)
+        var attempts = 0
+        let model = PairingFlowModel { _, _ in
+            attempts += 1
+            if attempts == 1 { throw URLError(.timedOut) }
+            return valid
+        }
+        model.recognize(scanned)
+        try await waitUntil { model.phase == .failed }
+        XCTAssertTrue(model.showsDetails)
+        XCTAssertEqual(model.failureCode, "network_timeout")
+        XCTAssertTrue(model.mayRetryVerification)
+        XCTAssertEqual(model.draft, scanned)
+        model.verify()
+        try await waitUntil { model.phase == .ready }
+        XCTAssertEqual(attempts, 2)
+        model.stop()
+    }
+
+    func testCancelledOldResponseCannotReplaceNewQRCode() async throws {
+        var pending: [CheckedContinuation<CodexPairingQRPayload, Error>] = []
+        let model = PairingFlowModel { _, _ in try await withCheckedThrowingContinuation { pending.append($0) } }
+        let oldCode = code(), newCode = code(9)
+        model.recognize(oldCode)
+        try await waitUntil { pending.count == 1 }
+        let oldOperation = model.diagnostics.operationId
+        model.rescan()
+        model.recognize(newCode)
+        try await waitUntil { pending.count == 2 }
+        pending[1].resume(returning: payload(newCode))
+        try await waitUntil { model.phase == .ready }
+        pending[0].resume(returning: payload(oldCode))
+        await Task.yield()
+        XCTAssertEqual(model.verified?.macIdentityPublicKey, newCode.publicKey)
+        XCTAssertNotEqual(model.diagnostics.operationId, oldOperation)
+        model.stop()
+    }
+
+    func testIdentityMismatchNeverEnablesConfirmation() async throws {
+        let wrong = payload(code(9))
+        let model = PairingFlowModel { _, _ in wrong }
+        model.recognize(code())
+        try await waitUntil { model.phase == .failed }
+        XCTAssertEqual(model.failureCode, "identity_mismatch")
+        XCTAssertNil(model.verified)
+        XCTAssertFalse(model.mayRetryVerification)
+        var submissions = 0
+        model.confirm { _, _ in submissions += 1 }
+        XCTAssertEqual(submissions, 0)
+    }
+
+    func testDuplicateRecognitionAndConfirmDoNotSubmitTwice() async throws {
+        let scanned = code(), valid = payload(code())
+        var previews = 0, submissions = 0
+        var continuation: CheckedContinuation<Void, Error>?
+        let model = PairingFlowModel { _, _ in previews += 1; return valid }
+        model.recognize(scanned)
+        model.recognize(scanned)
+        try await waitUntil { model.phase == .ready }
+        let connect: @MainActor (CodexPairingQRPayload, PairingRequestContext) async throws -> Void = { _, context in
+            context.transition(.submission)
+            submissions += 1
+            try await withCheckedThrowingContinuation { continuation = $0 }
+        }
+        model.confirm(connect: connect)
+        model.confirm(connect: connect)
+        try await waitUntil { continuation != nil }
+        XCTAssertEqual(previews, 1)
+        XCTAssertEqual(submissions, 1)
+        XCTAssertTrue(model.showsDetails)
+        model.stop()
+        continuation?.resume()
+        await Task.yield()
+        XCTAssertEqual(model.phase, .stopped)
+        XCTAssertTrue(model.submitted)
+    }
+
+    func testPreviewUsesExistingOperationHeaderAndRejectsIdentityMismatch() async throws {
+        let trace = PairingDiagnostics()
+        trace.identified(relay: code().relay)
+        trace.transition(.verification)
+        let reference = UUID()
+        let context = PairingRequestContext(trace, transport: { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "x-remodex-operation-id"), trace.operationId.uuidString)
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.timeoutInterval, 15)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["x-remodex-request-id": reference.uuidString])!
+            let body: [String: Any] = ["device": ["id": "fixture", "public_key": Data(repeating: 9, count: 32).base64EncodedString()], "accountId": "fixture", "instanceId": "fixture", "expiresAt": 2, "serverTime": 1]
+            return (try JSONSerialization.data(withJSONObject: body), response)
+        })
+        do { _ = try await RelayDeviceAccess.preview(code(), context: context); XCTFail("必须拒绝身份变化") }
+        catch { XCTAssertEqual(error as? PairingFlowFailure, .identityMismatch) }
+        XCTAssertEqual(trace.events.last?.requestId, reference)
+        XCTAssertEqual(trace.events.last?.status, 200)
+    }
+
+    func testClaimTimeoutIsUncertainAndNotAutomaticallyReplayed() async throws {
+        let trace = PairingDiagnostics()
+        var requests = 0
+        let context = PairingRequestContext(trace, transport: { request in
+            XCTAssertEqual(request.url?.path, PairingRoute.claim.rawValue)
+            requests += 1
+            throw URLError(.timedOut)
+        })
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let identity = CodexPhoneIdentityState(phoneDeviceId: UUID().uuidString, phoneIdentityPrivateKey: privateKey.rawRepresentation.base64EncodedString(), phoneIdentityPublicKey: privateKey.publicKey.rawRepresentation.base64EncodedString())
+        do { _ = try await RelayDeviceAccess.pair(payload(code()), identity: identity, context: context); XCTFail("超时不能冒充成功") }
+        catch { XCTAssertEqual(error as? PairingFlowFailure, .submissionUncertain) }
+        XCTAssertEqual(requests, 1)
+        XCTAssertTrue(context.submitted)
+    }
+
+    func testDiagnosticExportIsBoundedAndRedacted() throws {
+        let trace = PairingDiagnostics()
+        let sentinel = "SENSITIVE_TOKEN_COOKIE_INVITATION_PRIVATE_KEY"
+        trace.identified(relay: "wss://user:pass@fixture.invalid/relay/session?token=\(sentinel)")
+        for _ in 0..<500 {
+            trace.recordHTTP(route: .preview, duration: 15, status: 500, code: sentinel, requestId: UUID(), networkError: nil)
+        }
+        XCTAssertLessThanOrEqual(trace.events.count, 200)
+        XCTAssertLessThanOrEqual(trace.exportedByteCount, 65_536)
+        let report = trace.exportJSON()
+        XCTAssertFalse(report.contains(sentinel))
+        XCTAssertFalse(report.contains("user:pass"))
+        XCTAssertFalse(report.contains("/relay/session"))
+        XCTAssertFalse(report.contains("token="))
+        XCTAssertEqual(trace.origin, "https://fixture.invalid")
+        XCTAssertNotNil(try JSONSerialization.jsonObject(with: Data(report.utf8)) as? [String: Any])
+    }
+
+    func testApprovalPollingCoalescesAndPreservesLatestRequestID() {
+        let trace = PairingDiagnostics()
+        let reference = UUID()
+        for _ in 0..<100 {
+            trace.beginHTTP(route: .redeem)
+            trace.recordHTTP(route: .redeem, duration: 5, status: 409, code: "approval_pending", requestId: reference, networkError: nil)
+        }
+        let requests = trace.events.filter { $0.route == .redeem }
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests.first?.count, 100)
+        XCTAssertEqual(requests.first?.requestId, reference)
+        XCTAssertEqual(requests.first?.outcome, "waiting")
+    }
+
+    func testCancelledContextCannotAddLateDiagnostics() throws {
+        let trace = PairingDiagnostics()
+        let context = PairingRequestContext(trace)
+        context.requestStarted(route: .preview)
+        context.cancel()
+        let count = trace.events.count
+        context.transition(.authorization)
+        context.response(route: .preview, started: .now, response: nil, code: nil, error: URLError(.timedOut))
+        XCTAssertEqual(trace.events.count, count)
+        XCTAssertThrowsError(try context.checkCancellation())
     }
 }

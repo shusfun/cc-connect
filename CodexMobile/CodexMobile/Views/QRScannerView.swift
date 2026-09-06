@@ -11,15 +11,18 @@ import CryptoKit
 
 struct QRScannerView: View {
     @Environment(\.locale) private var _localizationLocale
+    @Environment(\.scenePhase) private var scenePhase
 
     let onBack: (() -> Void)?
-    let onScan: (CodexPairingQRPayload) -> Void
+    let flow: PairingFlowModel
+    let onScan: (CodexPairingQRPayload, PairingRequestContext) async throws -> Void
+    let onFinish: () -> Void
+    let onStop: () -> Void
     let initialCode: String?
-    @State private var preview: CodexPairingQRPayload?
-    @State private var previewTask: Task<Void, Never>?
-    @State private var previewEpoch = UUID()
-    @State private var isFetchingPreview = false
     @State private var torch = false
+    @State private var cameraGeneration = UUID()
+    @State private var cameraRecoveryCount = 0
+    @State private var invalidCodeResetTask: Task<Void, Never>?
 
     @State private var scannerError: String?
     @State private var bridgeUpdatePrompt: CodexBridgeUpdatePrompt?
@@ -32,11 +35,17 @@ struct QRScannerView: View {
         initialHasCameraPermission: Bool = false,
         initialIsCheckingPermission: Bool = true,
         initialCode: String? = nil,
+        flow: PairingFlowModel = PairingFlowModel(),
         onBack: (() -> Void)? = nil,
-        onScan: @escaping (CodexPairingQRPayload) -> Void
+        onFinish: @escaping () -> Void = {},
+        onStop: @escaping () -> Void = {},
+        onScan: @escaping (CodexPairingQRPayload, PairingRequestContext) async throws -> Void
     ) {
         self.onBack = onBack
         self.onScan = onScan
+        self.flow = flow
+        self.onFinish = onFinish
+        self.onStop = onStop
         self.initialCode = initialCode
         _bridgeUpdatePrompt = State(initialValue: initialBridgeUpdatePrompt)
         _hasCameraPermission = State(initialValue: initialHasCameraPermission)
@@ -45,26 +54,41 @@ struct QRScannerView: View {
 
     var body: some View {
         let _ = _localizationLocale
+        let generation = cameraGeneration
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if isFetchingPreview {
-                ProgressView("已识别，正在获取设备详情…").tint(.white).foregroundStyle(.white)
-            } else if let preview {
-                PairingConfirmationView(device: preview, onConfirm: {
-                    self.preview = nil; onScan(preview)
+            if flow.showsDetails {
+                PairingConfirmationView(flow: flow, onConfirm: {
+                    flow.confirm(connect: onScan)
                 }, onCancel: {
-                    self.preview = nil; Task { await checkCameraPermission() }
-                })
+                    flow.rescan(); scannerError = nil; cameraGeneration = UUID()
+                    Task { await checkCameraPermission() }
+                }, onFinish: onFinish, onStop: onStop)
             } else if isCheckingPermission {
                 ProgressView()
                     .tint(.white)
             } else if let bridgeUpdatePrompt {
                 bridgeUpdateView(prompt: bridgeUpdatePrompt)
-            } else if hasCameraPermission {
-                QRCameraPreview(torch: torch, onError: { scannerError = $0 }) { code, resetScanLock in
+            } else if hasCameraPermission && scenePhase == .active {
+                QRCameraPreview(torch: torch, onError: { code in
+                    guard generation == cameraGeneration else { return }
+                    scannerError = L10n.string("相机暂不可用，请查看诊断或重试相机。")
+                    flow.diagnostics.cameraFailure(code: code)
+                }, onRecovery: {
+                    guard generation == cameraGeneration, cameraRecoveryCount < 1, !flow.showsDetails, scenePhase == .active else { return }
+                    cameraRecoveryCount += 1
+                    cameraGeneration = UUID()
+                    flow.diagnostics.transition(.camera)
+                }, onSnapshot: { snapshot in
+                    guard generation == cameraGeneration else { return }
+                    var snapshot = snapshot
+                    snapshot.recoveryCount = cameraRecoveryCount
+                    flow.cameraUpdate(snapshot)
+                }) { code, resetScanLock in
                     handleScanResult(code, resetScanLock: resetScanLock)
                 }
+                .id(cameraGeneration)
                 .ignoresSafeArea()
 
                 scannerOverlay
@@ -74,9 +98,9 @@ struct QRScannerView: View {
 
         }
         .safeAreaInset(edge: .top) {
-            if let onBack {
+            if let onBack, flow.phase != .connecting {
                 HStack {
-                    backButton(action: onBack)
+                    backButton(action: { flow.rescan(); onBack() })
                     Spacer()
                 }
                 .padding(.horizontal, 20)
@@ -84,13 +108,35 @@ struct QRScannerView: View {
             }
         }
         .task {
+            var machine = utsname()
+            uname(&machine)
+            let model = withUnsafePointer(to: &machine.machine) { pointer in
+                pointer.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) }
+            }
+            flow.diagnostics.setEnvironment(model: model, system: UIDevice.current.systemVersion)
             if let initialCode { handleScanResult(initialCode, resetScanLock: {}); isCheckingPermission = false }
             else { await checkCameraPermission() }
         }
-        .onDisappear { previewEpoch = UUID(); previewTask?.cancel(); torch = false }
+        .onDisappear { torch = false; invalidCodeResetTask?.cancel() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active && !flow.showsDetails {
+                cameraRecoveryCount = 0; cameraGeneration = UUID()
+                flow.diagnostics.transition(.camera)
+            }
+        }
         .safeAreaInset(edge: .bottom) {
-            if let scannerError {
-                VStack { Text(scannerError); Button("重试") { self.scannerError = nil; Task { await checkCameraPermission() } } }
+            if !flow.showsDetails {
+                ScrollView { PairingDiagnosticsView(diagnostics: flow.diagnostics) }
+                    .frame(maxHeight: 210).foregroundStyle(.white).background(.black.opacity(0.9))
+            }
+            if let scannerError, !flow.showsDetails {
+                VStack { Text(scannerError); Button("重试") {
+                    self.scannerError = nil
+                    cameraGeneration = UUID()
+                    cameraRecoveryCount = 0
+                    flow.diagnostics.transition(.camera)
+                    Task { await checkCameraPermission() }
+                } }
                     .padding().foregroundStyle(.white).background(.black.opacity(0.85))
             }
         }
@@ -268,33 +314,35 @@ struct QRScannerView: View {
         }
 
         hasCameraPermission = hasPermission
+        if !hasPermission { flow.diagnostics.cameraFailure(code: "camera_permission_denied") }
         isCheckingPermission = false
     }
 
     private func handleScanResult(_ code: String, resetScanLock: @escaping () -> Void) {
         switch validatePairingQRCode(code) {
         case .compact(let code):
-            guard !isFetchingPreview else { return }
-            scannerError = nil; isFetchingPreview = true
-            let epoch = UUID(); previewEpoch = epoch
-            previewTask?.cancel()
-            previewTask = Task { @MainActor in
-                do {
-                    let result = try await RelayDeviceAccess.preview(code)
-                    guard !Task.isCancelled, previewEpoch == epoch else { return }
-                    preview = result; isFetchingPreview = false
-                    HapticFeedback.shared.triggerImpactFeedback(style: .light)
-                } catch {
-                    guard !Task.isCancelled, previewEpoch == epoch else { return }
-                    scannerError = error.localizedDescription; isFetchingPreview = false; resetScanLock()
-                }
-            }
+            guard flow.phase == .scanning else { return }
+            invalidCodeResetTask?.cancel()
+            scannerError = nil
+            HapticFeedback.shared.triggerImpactFeedback(style: .light)
+            flow.recognize(code)
         case .scanError(let message):
             scannerError = message
-            Task { @MainActor in try? await Task.sleep(for: .seconds(2)); resetScanLock() }
+            flow.diagnostics.transition(.validation)
+            flow.diagnostics.finish("failed", code: "invalid_qr")
+            invalidCodeResetTask?.cancel()
+            let epoch = flow.generation
+            invalidCodeResetTask = Task { @MainActor in
+                do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                guard flow.phase == .scanning, flow.generation == epoch else { return }
+                resetScanLock()
+                flow.diagnostics.transition(.scanning)
+            }
         case .bridgeUpdateRequired(let prompt):
             didCopyBridgeUpdateCommand = false
             bridgeUpdatePrompt = prompt
+            flow.diagnostics.transition(.validation)
+            flow.diagnostics.finish("failed", code: "update_required")
             resetScanLock()
         }
     }
@@ -315,255 +363,20 @@ private extension CodexBridgeUpdatePrompt {
         initialBridgeUpdatePrompt: .previewScannerMismatch,
         initialIsCheckingPermission: false,
         onBack: {}
-    ) { _ in }
+    ) { _, _ in }
 }
 
 // MARK: - Camera Preview UIViewRepresentable
 
-private struct QRCameraPreview: UIViewRepresentable {
-    let torch: Bool
-    let onError: (String) -> Void
-    let onScan: (String, _ resetScanLock: @escaping () -> Void) -> Void
+nonisolated enum QRScannerCapturePolicy {
+    static let cameraTypes: [AVCaptureDevice.DeviceType] = [
+        .builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera
+    ]
+    static let detectionRegion = CGRect(x: 0, y: 0, width: 1, height: 1)
 
-    func makeUIView(context: Context) -> QRCameraUIView {
-        let view = QRCameraUIView()
-        view.onError = onError
-        view.onScan = { [weak view] code in
-            onScan(code) {
-                view?.resetScanLock()
-            }
-        }
-        return view
-    }
-
-    func updateUIView(_ uiView: QRCameraUIView, context: Context) { uiView.setTorch(torch) }
-
-    // Tears down the camera before UIKit deallocates the preview layer.
-    static func dismantleUIView(_ uiView: QRCameraUIView, coordinator: ()) {
-        uiView.stopCamera()
-    }
-}
-
-// Serializes camera session handoff so a fast reopen cannot start before the previous stop completes.
-private final class QRCameraLifecycleCoordinator {
-    static let shared = QRCameraLifecycleCoordinator()
-    private typealias DeferredStart = () -> Void
-
-    private let queue = DispatchQueue(label: "com.phodex.qr-camera.lifecycle")
-    private let lock = NSLock()
-    private var isStopInFlight = false
-    private var deferredStarts: [DeferredStart] = []
-
-    // Starts immediately unless a previous stop still owns the camera handoff.
-    func start(session: AVCaptureSession, canStart: @escaping () -> Bool) {
-        let startWork: DeferredStart = { [queue] in
-            queue.async {
-                guard canStart(), !session.isRunning else {
-                    return
-                }
-                session.startRunning()
-            }
-        }
-
-        guard !deferStartIfNeeded(startWork) else {
-            return
-        }
-
-        startWork()
-    }
-
-    // Holds new starts until stopRunning completes, then replays any deferred opens.
-    func stop(session: AVCaptureSession) {
-        lock.lock()
-        isStopInFlight = true
-        lock.unlock()
-
-        queue.async { [weak self] in
-            guard session.isRunning else {
-                self?.finishStopAndReplayDeferredStarts()
-                return
-            }
-
-            session.stopRunning()
-            self?.finishStopAndReplayDeferredStarts()
-        }
-    }
-
-    // Reopens queued scanners only after the previous session fully releases the camera.
-    private func finishStopAndReplayDeferredStarts() {
-        lock.lock()
-        let startsToReplay = deferredStarts
-        deferredStarts.removeAll()
-        isStopInFlight = false
-        lock.unlock()
-
-        startsToReplay.forEach { start in
-            start()
-        }
-    }
-
-    // Converts overlapping reopen attempts into deferred starts while teardown is active.
-    private func deferStartIfNeeded(_ startWork: @escaping DeferredStart) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-
-        guard isStopInFlight else {
-            return false
-        }
-
-        deferredStarts.append(startWork)
-        return true
-    }
-}
-
-// Owns the AVFoundation session lifecycle for the SwiftUI scanner host view.
-private class QRCameraUIView: UIView, AVCaptureMetadataOutputObjectsDelegate {
-    var onScan: ((String) -> Void)?
-    var onError: ((String) -> Void)?
-    private let configurationQueue = DispatchQueue(label: "cn.syggu.remodex.camera.configuration")
-    private var captureDevice: AVCaptureDevice?
-    private var metadata: AVCaptureMetadataOutput?
-    private var observers: [NSObjectProtocol] = []
-
-    private let captureSession = AVCaptureSession()
-    private var previewLayer: AVCaptureVideoPreviewLayer?
-    private var hasScanned = false
-    private let stateLock = NSLock()
-    private var stoppingCamera = false
-    private var isStoppingCamera: Bool {
-        get { stateLock.lock(); defer { stateLock.unlock() }; return stoppingCamera }
-        set { stateLock.lock(); stoppingCamera = newValue; stateLock.unlock() }
-    }
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        setupCamera()
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setupCamera()
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        previewLayer?.frame = bounds
-        if let orientation = window?.windowScene?.interfaceOrientation, let connection = previewLayer?.connection {
-            let angle: CGFloat = orientation == .landscapeRight ? 0 : orientation == .landscapeLeft ? 180 : orientation == .portraitUpsideDown ? 270 : 90
-            if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
-        }
-        if let layer = previewLayer, let metadata, bounds.width > 0 {
-            let side: CGFloat = 250
-            let scan = CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side)
-            let region = layer.metadataOutputRectConverted(fromLayerRect: scan)
-            configurationQueue.async { metadata.rectOfInterest = region }
-        }
-    }
-
-    // Configures the metadata session once and starts it off the main thread.
-    private func setupCamera() {
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(focus(_:))))
-        for name in [AVCaptureSession.runtimeErrorNotification, AVCaptureSession.wasInterruptedNotification] {
-            observers.append(NotificationCenter.default.addObserver(forName: name, object: captureSession, queue: .main) { [weak self] _ in
-                self?.onError?("相机被中断或不可用，请返回后重新打开扫码。")
-            })
-        }
-        configurationQueue.async { [weak self] in
-            guard let self else { return }
-            do {
-                guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else { throw CameraError.unavailable }
-                let input = try AVCaptureDeviceInput(device: device)
-                self.captureSession.beginConfiguration()
-                defer { self.captureSession.commitConfiguration() }
-                if self.captureSession.canSetSessionPreset(.hd1920x1080) { self.captureSession.sessionPreset = .hd1920x1080 }
-                let output = AVCaptureMetadataOutput()
-                guard self.captureSession.canAddInput(input) else { throw CameraError.unavailable }
-                self.captureSession.addInput(input)
-                guard self.captureSession.canAddOutput(output) else { throw CameraError.unavailable }
-                self.captureSession.addOutput(output)
-                guard output.availableMetadataObjectTypes.contains(.qr) else { throw CameraError.unavailable }
-                output.setMetadataObjectsDelegate(self, queue: .main); output.metadataObjectTypes = [.qr]
-                try device.lockForConfiguration()
-                if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
-                if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
-                device.isSubjectAreaChangeMonitoringEnabled = true
-                device.unlockForConfiguration()
-                self.captureDevice = device
-                // 下一项才发布预览，确保 commitConfiguration 已结束。
-                self.configurationQueue.async { DispatchQueue.main.async { [weak self] in
-                    guard let self, !self.isStoppingCamera else { return }
-                    let layer = AVCaptureVideoPreviewLayer(session: self.captureSession)
-                    layer.videoGravity = .resizeAspectFill; self.layer.addSublayer(layer)
-                    self.previewLayer = layer; self.metadata = output; self.setNeedsLayout()
-                    QRCameraLifecycleCoordinator.shared.start(session: self.captureSession) { [weak self] in self?.isStoppingCamera == false }
-                } }
-            } catch {
-                DispatchQueue.main.async { [weak self] in self?.onError?("无法启动相机，请检查权限或关闭正在使用相机的应用。") }
-            }
-        }
-    }
-    private enum CameraError: Error { case unavailable }
-    @objc private func focus(_ gesture: UITapGestureRecognizer) {
-        guard let layer = previewLayer else { return }
-        let point = layer.captureDevicePointConverted(fromLayerPoint: gesture.location(in: self))
-        configurationQueue.async { [weak self] in
-            guard let device = self?.captureDevice else { return }
-            do { try device.lockForConfiguration(); defer { device.unlockForConfiguration() }
-                if device.isFocusPointOfInterestSupported { device.focusPointOfInterest = point }
-                if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
-                if device.isExposurePointOfInterestSupported { device.exposurePointOfInterest = point }
-            } catch { DispatchQueue.main.async { [weak self] in self?.onError?("暂时无法调整对焦，请稍后重试。") } }
-        }
-    }
-    func setTorch(_ enabled: Bool) {
-        configurationQueue.async { [weak self] in
-            guard let device = self?.captureDevice, device.hasTorch, device.isTorchAvailable else { return }
-            do { try device.lockForConfiguration(); defer { device.unlockForConfiguration() }; device.torchMode = enabled ? .on : .off }
-            catch { DispatchQueue.main.async { [weak self] in self?.onError?("手电筒暂时不可用。") } }
-        }
-    }
-
-    func metadataOutput(
-        _ output: AVCaptureMetadataOutput,
-        didOutput metadataObjects: [AVMetadataObject],
-        from connection: AVCaptureConnection
-    ) {
-        guard !hasScanned,
-              let object = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
-              object.type == .qr,
-              let code = object.stringValue else {
-            return
-        }
-
-        hasScanned = true
-        onScan?(code)
-    }
-
-    func resetScanLock() {
-        hasScanned = false
-    }
-
-    // Detaches the preview layer first so AVFoundation teardown stays serialized.
-    func stopCamera() {
-        guard !isStoppingCamera else {
-            return
-        }
-
-        isStoppingCamera = true
-        onScan = nil
-        onError = nil
-        observers.forEach(NotificationCenter.default.removeObserver); observers.removeAll()
-        setTorch(false)
-
-        let layerToRemove = previewLayer
-        previewLayer = nil
-        layerToRemove?.session = nil
-        layerToRemove?.removeFromSuperlayer()
-
-        QRCameraLifecycleCoordinator.shared.stop(session: captureSession)
-    }
-
-    deinit {
-        stopCamera()
+    static func preferredCode(in codes: [String]) -> String? {
+        let candidates = codes.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return candidates.first { $0.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("RDX2:") }
+            ?? candidates.first
     }
 }

@@ -16,7 +16,7 @@ struct LocalizationFixtureView: View {
                 case "onboarding": OnboardingView(onScanQRCode: {}, onPairWithCode: {})
                 case "about": AboutRemodexView()
                 case "terminal": TerminalConnectionHelpSheet()
-                case "pairing": PairingConfirmationView(device: device, onConfirm: {}, onCancel: {})
+                case "pairing", "pairing-delayed", "pairing-timeout": PairingFixtureView(mode: route)
                 case "voice": VoiceModelSetupSheet()
                 case "devices": MyDevicesSettingsSheet(isSwitchingMac: false, switchingDeviceId: nil, switchNotice: nil, onSelectDevice: { _ in }, onForgetDevice: { _ in }, onAddConnection: {}, onPairWithCode: {}, onCancelSwitch: {})
                 case "chat": TurnTimelineRunningEmptyState()
@@ -46,6 +46,36 @@ struct LocalizationFixtureView: View {
         }
         // 正式引导流程固定深色；测试不对它强行施加正式入口没有的浅色环境。
         .preferredColorScheme(route == "onboarding" || UserDefaults.standard.string(forKey: "FixtureTheme") == "dark" ? .dark : .light)
+    }
+}
+
+private struct PairingFixtureView: View {
+    let mode: String
+    @State private var flow: PairingFlowModel
+
+    init(mode: String) {
+        self.mode = mode
+        _flow = State(initialValue: PairingFlowModel(loader: { code, context in
+            context.requestStarted(route: .preview)
+            let started = ContinuousClock.now
+            if mode != "pairing" { try await Task.sleep(for: .seconds(mode == "pairing-timeout" ? 1 : 60)) }
+            if mode == "pairing-timeout" {
+                context.response(route: .preview, started: started, response: nil, code: nil, error: URLError(.timedOut))
+                throw URLError(.timedOut)
+            }
+            let response = HTTPURLResponse(url: URL(string: "https://fixture.invalid/v1/access/pairing/preview")!, statusCode: 200, httpVersion: nil, headerFields: [:])!
+            context.response(route: .preview, started: started, response: response, code: nil)
+            return CodexPairingQRPayload(v: 2, relay: code.relay, sessionId: "", macDeviceId: "fixture-device", macIdentityPublicKey: code.publicKey, expiresAt: Int64(Date().addingTimeInterval(300).timeIntervalSince1970 * 1000), displayName: "Fixture Device / 测试设备", invitation: code.invitation, accountId: "fixture-account", instanceId: "fixture-instance", platform: "macos")
+        }))
+    }
+
+    var body: some View {
+        PairingConfirmationView(flow: flow, onConfirm: {}, onCancel: { flow.rescan() }, onFinish: {}, onStop: {})
+            .task {
+                guard flow.phase == .scanning else { return }
+                flow.recognize(CompactPairingCode(relay: "wss://fixture.invalid", invitation: String(repeating: "A", count: 43), publicKey: Data(repeating: 7, count: 32).base64EncodedString()))
+            }
+            .onDisappear { flow.stop() }
     }
 }
 

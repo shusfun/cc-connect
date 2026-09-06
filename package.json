@@ -2,7 +2,7 @@
   "name": "remodex-workspace",
   "private": true,
   "version": "0.5.0-alpha.2",
-  "iosBuildNumber": 131,
+  "iosBuildNumber": 132,
   "description": "Private Remodex mobile development terminal",
   "packageManager": "pnpm@11.18.0",
   "engines": {

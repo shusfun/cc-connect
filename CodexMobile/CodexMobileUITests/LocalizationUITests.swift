@@ -49,6 +49,25 @@ final class LocalizationUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["fixture.service"].label, identity)
     }
+
+    func testLocalPairingPageDoesNotWaitForServer() {
+        let app = launch("pairing-delayed", language: "zh-Hans", theme: "dark")
+        XCTAssertTrue(app.staticTexts["pairing.locally-recognized"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["pairing.confirm"].isEnabled)
+        XCTAssertTrue(app.staticTexts["pairing.status"].label.contains("15"))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "pairing-local-before-server"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testTimeoutStaysOnPairingPageWithDiagnostics() {
+        let app = launch("pairing-timeout", language: "zh-Hans", theme: "dark")
+        XCTAssertTrue(app.staticTexts["pairing.locally-recognized"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["重试验证"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["network_timeout"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["pairing.confirm"].exists)
+    }
     func testPairingAtAccessibilityTextSize() {
         let app = launch("pairing", language: "zh-Hans", theme: "dark", large: true)
         XCTAssertTrue(app.staticTexts["确认配对设备"].waitForExistence(timeout: 15))

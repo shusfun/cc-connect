@@ -44,8 +44,23 @@ jobs:
           xcrun simctl list devices available --json > "$RUNNER_TEMP/remodex-simulators.json"
           node -e 'const fs=require("fs"),list=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/remodex-simulators.json"));const device=Object.entries(list.devices).filter(([runtime])=>runtime.includes("iOS-26")).flatMap(([,devices])=>devices).find(d=>d.name.startsWith("iPhone"));if(!device)throw Error("iOS 26 iPhone simulator required");fs.appendFileSync(process.env.GITHUB_OUTPUT,"id="+device.udid+"\n")'
 
+      - name: Run focused pairing and local-first UI tests
+        id: pairing-tests
+        run: |
+          set -euo pipefail
+          xcodebuild -project CodexMobile/CodexMobile.xcodeproj -scheme CodexMobile -configuration Debug \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/remodex-pairing-tests.xcresult" \
+            -only-testing:CodexMobileTests/QRScannerPairingValidatorTests \
+            -only-testing:CodexMobileTests/PairingFlowTests \
+            -only-testing:CodexMobileUITests/LocalizationUITests/testLocalPairingPageDoesNotWaitForServer \
+            -only-testing:CodexMobileUITests/LocalizationUITests/testTimeoutStaysOnPairingPageWithDiagnostics \
+            test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM="" \
+            2>&1 | tee "$RUNNER_TEMP/remodex-pairing-tests.log"
+
       - name: Run iOS unit and real-page localization UI tests
         id: ios-tests
+        if: ${{ !cancelled() && (steps.pairing-tests.outcome == 'success' || steps.pairing-tests.outcome == 'failure') }}
         run: |
           set -euo pipefail
           xcodebuild -project CodexMobile/CodexMobile.xcodeproj -scheme CodexMobile -configuration Debug \
@@ -61,6 +76,10 @@ jobs:
             xcrun xcresulttool export attachments --path "$RUNNER_TEMP/remodex-ios-tests.xcresult" --output-path "$RUNNER_TEMP/remodex-ios-screenshots"
             xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/remodex-ios-tests.xcresult" > "$RUNNER_TEMP/remodex-ios-summary.json"
           fi
+          if [[ -d "$RUNNER_TEMP/remodex-pairing-tests.xcresult" ]]; then
+            xcrun xcresulttool export attachments --path "$RUNNER_TEMP/remodex-pairing-tests.xcresult" --output-path "$RUNNER_TEMP/remodex-pairing-screenshots"
+            xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/remodex-pairing-tests.xcresult" > "$RUNNER_TEMP/remodex-pairing-summary.json"
+          fi
 
       - name: Upload simulator evidence
         if: always()
@@ -72,12 +91,16 @@ jobs:
             ${{ runner.temp }}/remodex-ios-tests.log
             ${{ runner.temp }}/remodex-ios-screenshots
             ${{ runner.temp }}/remodex-ios-summary.json
+            ${{ runner.temp }}/remodex-pairing-tests.xcresult
+            ${{ runner.temp }}/remodex-pairing-tests.log
+            ${{ runner.temp }}/remodex-pairing-screenshots
+            ${{ runner.temp }}/remodex-pairing-summary.json
           if-no-files-found: warn
 
       - name: Build unsigned IPA
         id: ipa-build
         # 测试失败保留 job failure，仍生成可诊断候选包；Release 的 needs 门禁不变。
-        if: ${{ !cancelled() && (steps.ios-tests.outcome == 'success' || steps.ios-tests.outcome == 'failure') }}
+        if: ${{ !cancelled() && steps.pairing-tests.outcome == 'success' && (steps.ios-tests.outcome == 'success' || steps.ios-tests.outcome == 'failure') }}
         env:
           IOS_TEST_OUTCOME: ${{ steps.ios-tests.outcome }}
         run: |

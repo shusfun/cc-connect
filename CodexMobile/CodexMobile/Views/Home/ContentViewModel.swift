@@ -69,28 +69,32 @@ final class ContentViewModel {
     }
 
     // Connects to the relay WebSocket using a scanned QR code payload.
-    func connectToRelay(pairingPayload: CodexPairingQRPayload, codex: CodexService) async {
+    func connectToRelay(pairingPayload: CodexPairingQRPayload, codex: CodexService, context: PairingRequestContext? = nil) async throws {
         await stopAutoReconnectForManualScan(codex: codex)
         // Avoid logging live pairing metadata; the relay URL path includes a bearer-like session id.
         do {
             codex.lastErrorMessage = L10n.string("请在电脑上核对设备身份并确认手机配对")
-            let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState)
+            let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState, context: context)
             codex.phoneIdentityState = CodexPhoneIdentityState(phoneDeviceId: access.phoneId, phoneIdentityPrivateKey: codex.phoneIdentityState.phoneIdentityPrivateKey, phoneIdentityPublicKey: codex.phoneIdentityState.phoneIdentityPublicKey)
             SecureStore.writeCodable(codex.phoneIdentityState, for: CodexSecureKeys.phoneIdentityState)
-            let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay)
+            let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay, context: context)
             guard session.macIdentityPublicKey == pairingPayload.macIdentityPublicKey else { throw CodexServiceError.invalidResponse(L10n.string("设备身份不匹配，已阻止连接")) }
             var resolvedPayload = pairingPayload; resolvedPayload.sessionId = session.sessionId
             codex.rememberRelayPairing(resolvedPayload)
             let fullURL = try RelayDeviceAccess.sessionURL(relay: pairingPayload.relay, sessionId: session.sessionId)
             codex.relaySessionId = session.sessionId
             codex.lastErrorMessage = nil
+            try context?.checkCancellation()
+            context?.transition(.connection)
             try await connectWithAutoRecovery(
                 codex: codex,
                 performAutoRetry: true,
+                context: context,
                 serverURLProvider: { fullURL }
             )
         } catch {
             codex.lastErrorMessage = codex.userFacingConnectFailureMessage(error)
+            throw error
         }
     }
 
@@ -363,6 +367,7 @@ extension ContentViewModel {
         codex: CodexService,
         performAutoRetry: Bool,
         continueWhile shouldContinue: (() -> Bool)? = nil,
+        context: PairingRequestContext? = nil,
         serverURLProvider: () async -> String?
     ) async throws {
         guard !isRunningAutoReconnect else {
@@ -376,6 +381,8 @@ extension ContentViewModel {
         var lastError: Error?
 
         for attemptIndex in 0...maxAttemptIndex {
+            try context?.checkCancellation()
+            context?.connectionAttempt(attemptIndex + 1)
             if Task.isCancelled {
                 codex.connectionRecoveryState = .idle
                 throw CancellationError()
@@ -893,7 +900,7 @@ extension ContentViewModel {
         }
     }
 
-    func switchToScannedMac(pairingPayload: CodexPairingQRPayload, codex: CodexService) async throws {
+    func switchToScannedMac(pairingPayload: CodexPairingQRPayload, codex: CodexService, context: PairingRequestContext? = nil) async throws {
         guard !isSwitchingMac else {
             return
         }
@@ -919,17 +926,20 @@ extension ContentViewModel {
         prepareMacSwitchState(for: pairingPayload.macDeviceId, codex: codex, loadCachedMessages: false)
 
         do {
-            let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState)
+            let access = try await RelayDeviceAccess.pair(pairingPayload, identity: codex.phoneIdentityState, context: context)
             codex.phoneIdentityState = CodexPhoneIdentityState(phoneDeviceId: access.phoneId, phoneIdentityPrivateKey: codex.phoneIdentityState.phoneIdentityPrivateKey, phoneIdentityPublicKey: codex.phoneIdentityState.phoneIdentityPublicKey)
             SecureStore.writeCodable(codex.phoneIdentityState, for: CodexSecureKeys.phoneIdentityState)
-            let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay)
+            let session = try await codex.resolveAuthorizedSession(deviceId: access.deviceId, relay: pairingPayload.relay, context: context)
             guard session.macIdentityPublicKey == pairingPayload.macIdentityPublicKey else { throw CodexServiceError.invalidResponse(L10n.string("设备身份不匹配")) }
             var resolvedPayload = pairingPayload; resolvedPayload.sessionId = session.sessionId
             codex.rememberRelayPairing(resolvedPayload)
             let fullURL = try RelayDeviceAccess.sessionURL(relay: pairingPayload.relay, sessionId: session.sessionId)
+            try context?.checkCancellation()
+            context?.transition(.connection)
             try await connectWithAutoRecovery(
                 codex: codex,
                 performAutoRetry: true,
+                context: context,
                 continueWhile: { !self.isCancellingMacSwitch },
                 serverURLProvider: { fullURL }
             )

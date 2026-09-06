@@ -51,6 +51,7 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var viewModel = ContentViewModel()
+    @State private var pairingFlow = PairingFlowModel()
     @State private var isSidebarOpen = false
     @State private var sidebarDragOffset: CGFloat = 0
     @State private var isSidebarPrewarmed = false
@@ -217,6 +218,9 @@ struct ContentView: View {
                     resetSavedMacWakeRecoveryState()
                     scheduleSidebarPrewarmIfNeeded()
                 }
+            }
+            .onChange(of: pairingFlow.showsDetails) { _, visible in
+                if visible { isShowingManualScanner = true }
             }
             .onChange(of: codex.normalizedRelaySessionId) { _, _ in
                 resetSavedMacWakeRecoveryState()
@@ -430,26 +434,36 @@ struct ContentView: View {
     private var qrScannerBody: some View {
         QRScannerView(
             initialCode: compactCodeToPreview,
+            flow: pairingFlow,
             onBack: scannerBackAction,
-            onScan: { pairingPayload in
-                compactCodeToPreview = nil
+            onFinish: {
+                pairingFlow.rescan()
+                isShowingManualScanner = false
+                isShowingMyMacsScanner = false
+                hasDismissedAutomaticScanner = true
+                scannerCanReturnToOnboarding = false
+            },
+            onStop: {
+                let generation = pairingFlow.generation
                 Task {
-                    isShowingManualScanner = false
-                    hasDismissedAutomaticScanner = false
-                    scannerCanReturnToOnboarding = false
-                    if isShowingMyMacsScanner {
-                        isShowingMyMacsScanner = false
-                        prepareForMacContextTransition()
-                        startScannedMacSwitch(pairingPayload)
-                    } else {
-                        await viewModel.connectToRelay(
-                            pairingPayload: pairingPayload,
-                            codex: codex
-                        )
-                    }
+                    guard pairingFlow.generation == generation, pairingFlow.phase == .stopped else { return }
+                    if viewModel.isSwitchingMac { await viewModel.requestMacSwitchCancellation(codex: codex) }
+                    else if codex.isConnecting { await codex.disconnect(preserveReconnectIntent: false) }
                 }
+            },
+            onScan: { pairingPayload, context in
+                compactCodeToPreview = nil
+                if isShowingMyMacsScanner {
+                    prepareForMacContextTransition()
+                    try await viewModel.switchToScannedMac(pairingPayload: pairingPayload, codex: codex, context: context)
+                    navigationPath.removeAll()
+                } else {
+                    try await viewModel.connectToRelay(pairingPayload: pairingPayload, codex: codex, context: context)
+                }
+                try context.checkCancellation()
+                guard codex.isConnected && codex.isInitialized else { throw PairingFlowFailure.connectionIncomplete }
             }
-        ).onDisappear { compactCodeToPreview = nil }
+        ).onDisappear { compactCodeToPreview = nil; pairingFlow.rescan() }
     }
 
     // Lets the drawer expand when search needs room; compact devices normally
@@ -1340,6 +1354,8 @@ struct ContentView: View {
 
     // Keeps first-run installs in the scanner by default, while still letting users back out later.
     private var shouldShowQRScanner: Bool {
+        if pairingFlow.showsDetails { return true }
+        if isShowingManualScanner { return true }
         guard !codex.isConnected else {
             return false
         }
