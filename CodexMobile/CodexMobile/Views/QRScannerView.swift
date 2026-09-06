@@ -15,7 +15,7 @@ import CryptoKit
 
     let onBack: (() -> Void)?
     let flow: PairingFlowModel
-    let onScan: (CodexPairingQRPayload, PairingRequestContext) async throws -> Void
+    let onScan: @MainActor @Sendable (CodexPairingQRPayload, PairingRequestContext) async throws -> Void
     let onFinish: () -> Void
     let onStop: () -> Void
     let initialCode: String?
@@ -40,7 +40,7 @@ import CryptoKit
         onBack: (() -> Void)? = nil,
         onFinish: @escaping () -> Void = {},
         onStop: @escaping () -> Void = {},
-        onScan: @escaping (CodexPairingQRPayload, PairingRequestContext) async throws -> Void
+        onScan: @escaping @MainActor @Sendable (CodexPairingQRPayload, PairingRequestContext) async throws -> Void
     ) {
         self.onBack = onBack
         self.onScan = onScan

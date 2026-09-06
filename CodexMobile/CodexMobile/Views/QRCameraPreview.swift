@@ -58,7 +58,7 @@ final class QRCameraUIView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         preview?.frame = bounds
-        if let orientation = window?.windowScene?.interfaceOrientation, let connection = preview?.connection {
+        if let orientation = window?.windowScene?.effectiveGeometry.interfaceOrientation, let connection = preview?.connection {
             let angle: CGFloat = orientation == .landscapeRight ? 0 : orientation == .landscapeLeft ? 180 : orientation == .portraitUpsideDown ? 270 : 90
             if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
         }
