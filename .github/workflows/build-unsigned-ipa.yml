@@ -63,9 +63,6 @@ jobs:
         if: ${{ !cancelled() && (steps.pairing-tests.outcome == 'success' || steps.pairing-tests.outcome == 'failure') }}
         run: |
           set -euo pipefail
-          if [[ '${{ steps.pairing-tests.outcome }}' == 'success' ]]; then
-            xcrun simctl uninstall '${{ steps.simulator.outputs.id }}' cn.syggu.remodex
-          fi
           xcodebuild -project CodexMobile/CodexMobile.xcodeproj -scheme CodexMobile -configuration Debug \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/remodex-ios-tests.xcresult" \

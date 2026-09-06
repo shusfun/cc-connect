@@ -2,6 +2,11 @@ import XCTest
 
 final class LocalizationUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
+    override func tearDownWithError() throws {
+        let app = launch("settings", language: "en")
+        app.terminate()
+        try super.tearDownWithError()
+    }
     private func launch(_ route: String, language: String, theme: String = "light", large: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-RemodexLocalizationFixture", "-FixtureRoute", route, "-FixtureTheme", theme, "-FixtureLanguage", language, "-AppleLanguages", language == "zh-Hans" ? "(zh-Hans)" : "(en)"]

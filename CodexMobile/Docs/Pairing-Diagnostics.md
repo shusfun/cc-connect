@@ -25,6 +25,6 @@ build 132 将本地二维码识别与 VPS 验证分开。本地 RDX2 格式校�
 - `bash CodexMobile/scripts/test-pairing-qr.sh`：使用当前 Mac 生成器和 Vision 解码，覆盖两种配对内容、300／600 像素渲染；不使用真实邀请。
 - XCTest：`QRScannerPairingValidatorTests`、`PairingFlowTests`；UI：`LocalizationUITests/testLocalPairingPageDoesNotWaitForServer` 和 `testTimeoutStaysOnPairingPageWithDiagnostics`。UI 夹具使用真实生产页面与注入的延迟／失败请求，不触及生产 VPS。
 - iOS Actions 先运行上述专项，再执行既有完整测试。专项失败不导出 IPA；完整测试失败仍保留诊断候选包与 failure 结论，正式发布门禁不放宽。
-- 专项通过后，仅卸载该 runner 模拟器里的 Remodex 测试 App，再由完整测试重新安装，隔离中文 UI 夹具写入的语言偏好；不删除测试或改写英文断言，不影响真实设备数据。
+- 每个本地化 UI 测试在 teardown 中通过同一夹具恢复英文测试基线，清理自己写入的中文语言偏好；不依赖 Xcode 测试克隆与目标模拟器相同，不删除测试或改写英文断言，不影响真实设备数据。
 
 必须另行完成用户 Pro／Pro Max 真机 30 次扫码和至少 20 次前后台／重开验收。生成图、模拟器和手动输入不替代真机性能证据。这轮不修改 VPS、不改变 RDX2、不接入 SSE／WebRTC，不能据此宣称上述迁移或真机扫码已经验收。
